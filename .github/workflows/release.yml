@@ -133,13 +133,18 @@ jobs:
             # на собранный коммит. Из предварительного релиз становится обычным.
             NOTES="Автосборка из ${GITHUB_REF_NAME}: версия $VERSION, коммит $SHA."
             if gh release view latest >/dev/null 2>&1; then
-              gh release edit latest --prerelease=false \
+              gh release edit latest \
                 --title "PhoneXR main — последняя сборка" --notes "$NOTES"
               gh release upload latest dist/latest/* --clobber
             else
               gh release create latest --target "$GITHUB_SHA" \
                 --title "PhoneXR main — последняя сборка" --notes "$NOTES" dist/latest/*
             fi
+            # Ровно то, что просили: релиз обычный, а не предварительный. Если он уже
+            # существовал предрелизом (или флаг где-то потерялся) — снимаем его здесь.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+              -F prerelease=false >/dev/null
+            # И тег latest — на собранный коммит, чтобы страница релиза показывала этот код.
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
               -f sha="$GITHUB_SHA" -F force=true >/dev/null 2>&1 || true
             {
