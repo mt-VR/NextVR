@@ -1,11 +1,12 @@
 # Тесты, сборка и релиз PhoneXR.
 #
-# * push в main — юнит-тесты, сборка APK (full, lite, BE) и SDK, а затем предрелиз
-#   «latest»: его файлы всегда самые свежие, ссылки на них не меняются.
-# * push тега v* — тот же прогон, но обычный релиз версии: PhoneXR-<версия>.apk и т. д.
-# * pull request в main — те же тесты и сборка, но без публики: видно до слияния.
+# * push в main — юнит-тесты, сборка APK (full, lite, BE) и SDK, а затем релиз
+#   «latest»: файлы в нём перезаписываются, значит ссылки на них не меняются,
+#   а сам релиз всегда свежий (обычный, не предварительный).
+# * push тега v* — тот же прогон, но релиз версии: PhoneXR-<версия>.apk и т. д.
+# * pull request в main — те же тесты и сборка, но без публикации: видно до слияния.
 # * Ручной запуск (Actions → Run workflow) — как релиз версии, если указать тег,
-#   иначе просто свежая сборка в предрелиз latest.
+#   иначе просто свежая сборка в релиз latest.
 name: Тесты, сборка и релиз
 
 on:
@@ -123,21 +124,27 @@ jobs:
           if [ -n "$TAG" ]; then
             # Версия: тег v* или ручной запуск с тегом.
             gh release view "$TAG" >/dev/null 2>&1 \
-              || gh release create "$TAG" --title "PhoneXR ${TAG#v}" --generate-notes
+              || gh release create "$TAG" --target "$GITHUB_SHA" --title "PhoneXR ${TAG#v}" --generate-notes
             gh release upload "$TAG" dist/versioned/* --clobber
             echo "Релиз $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
           else
-            # Push в main: один предрелиз latest, файлы в нём перезаписываются.
+            # Push в main: один обычный релиз latest. Файлы в нём перезаписываются, поэтому
+            # релиз всегда свежий, а ссылки на него постоянные; тег latest переставляется
+            # на собранный коммит. Из предварительного релиз становится обычным.
             NOTES="Автосборка из ${GITHUB_REF_NAME}: версия $VERSION, коммит $SHA."
             if gh release view latest >/dev/null 2>&1; then
-              gh release edit latest --title "PhoneXR main — последняя сборка" --notes "$NOTES"
+              gh release edit latest --prerelease=false \
+                --title "PhoneXR main — последняя сборка" --notes "$NOTES"
               gh release upload latest dist/latest/* --clobber
             else
-              gh release create latest --prerelease \
+              gh release create latest --target "$GITHUB_SHA" \
                 --title "PhoneXR main — последняя сборка" --notes "$NOTES" dist/latest/*
             fi
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
+              -f sha="$GITHUB_SHA" -F force=true >/dev/null 2>&1 || true
             {
-              echo "Свежая сборка PhoneXR (версия $VERSION, коммит $SHA):"
+              echo "Опубликован релиз latest (версия $VERSION, коммит $SHA):"
+              echo "- https://github.com/$GITHUB_REPOSITORY/releases/tag/latest"
               echo "- Full: https://github.com/$GITHUB_REPOSITORY/releases/download/latest/PhoneXR-full.apk"
               echo "- Lite: https://github.com/$GITHUB_REPOSITORY/releases/download/latest/PhoneXR-lite.apk"
               echo "- BE: https://github.com/$GITHUB_REPOSITORY/releases/download/latest/PhoneXR-BE.apk"
