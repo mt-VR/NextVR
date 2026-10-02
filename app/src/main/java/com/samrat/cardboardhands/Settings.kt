@@ -268,8 +268,8 @@ object Settings {
     private const val KEY_USER_NAME = "user_name"
     private const val KEY_SETUP_DONE = "setup_done"
     private const val KEY_SETUP_VERSION = "setup_version"
-    /** 2: the Horizon look, with "Привет" in the world's languages. */
-    private const val SETUP_VERSION = 2
+    /** 2: the Horizon look, with "Привет" in the world's languages. 3: the language of the setup. */
+    private const val SETUP_VERSION = 3
     private const val KEY_UI_STYLE = "ui_style"
     private const val KEY_SCREEN_SHAPE = "screen_shape"
     private const val KEY_CURVED = "curved_screen"
