@@ -60,7 +60,7 @@ class HandTrackingService : LifecycleService() {
         val notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentTitle("PhoneXR Hand Tracking")
-            .setContentText("Жесты рук передаются в OpenXR")
+            .setContentText("Hand gestures are sent to OpenXR")
             .setOngoing(true)
             .build()
         ServiceCompat.startForeground(

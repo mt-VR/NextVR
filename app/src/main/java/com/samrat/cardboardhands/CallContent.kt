@@ -44,7 +44,7 @@ import zone.ien.hig.theme.CupertinoTheme
 import kotlin.concurrent.thread
 
 /**
- * The "Звонки" app in compose-hig: who is online, calling, and the call itself — the other
+ * The "Calls" app in compose-hig: who is online, calling, and the call itself — the other
  * person's voice, a circle that breathes while they talk, and their hands in front of them.
  */
 class CallContent(private val context: Context, private val onWatchTogether: (() -> Unit)? = null) : ComposeContent(pixelWidth = 1400, pixelHeight = 1000) {
@@ -93,12 +93,12 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
             when (Calls.state) {
                 Calls.State.OFFLINE -> Offline()
                 Calls.State.IDLE -> Contacts()
-                Calls.State.CALLING -> Centered("Звоним ${Calls.peer?.name ?: ""}…", null) {
-                    Pill(tr("Отменить"), RED) { Calls.hangUp() }
+                Calls.State.CALLING -> Centered("Calling ${Calls.peer?.name ?: ""}…", null) {
+                    Pill(tr("Cancel"), RED) { Calls.hangUp() }
                 }
-                Calls.State.RINGING -> Centered("${Calls.peer?.name ?: "Кто-то"} звонит", if (BuildConfig.LITE) null else "Звонок с персоной") {
-                    Pill(tr("Отклонить"), RED) { Calls.decline() }
-                    Pill(tr("Принять"), GREEN) { Calls.accept() }
+                Calls.State.RINGING -> Centered("${Calls.peer?.name ?: "Someone"} is calling", if (BuildConfig.LITE) null else "A call with a Persona") {
+                    Pill(tr("Decline"), RED) { Calls.decline() }
+                    Pill(tr("Accept"), GREEN) { Calls.accept() }
                 }
                 Calls.State.IN_CALL -> InCall()
             }
@@ -108,15 +108,15 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
     @Composable
     private fun Offline() {
         val signedIn = Account.current(context) != null
-        Centered(if (signedIn) "Подключение…" else "Войдите в аккаунт PhoneXR", if (signedIn) null else "На телефоне: PhoneXR → Настройки → Аккаунт") {
-            if (signedIn) Pill("Повторить", CupertinoTheme.colorScheme.accent) { thread { Calls.stop(); Calls.start(context) } }
+        Centered(if (signedIn) "Connecting…" else "Sign in to your PhoneXR account", if (signedIn) null else "On the phone: PhoneXR → Settings → Account") {
+            if (signedIn) Pill("Try again", CupertinoTheme.colorScheme.accent) { thread { Calls.stop(); Calls.start(context) } }
         }
     }
 
     @Composable
     private fun Contacts() {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            VrTitle(tr("Звонки"), "Вы: ${Account.current(context)?.name ?: ""}")
+            VrTitle(tr("Calls"), "You: ${Account.current(context)?.name ?: ""}")
             Calls.message?.let { CupertinoText(it, color = Color(0xFFFFB45A), modifier = Modifier.padding(horizontal = 24.dp)) }
             // Friends first (online ones can be called), then anyone else who is online.
             val online = Calls.online
@@ -125,20 +125,20 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
                 Triple(Calls.Contact(friend.id, friend.name.ifBlank { friend.username }), online.any { it.id == friend.id }, "@${friend.username}")
             }.sortedByDescending { it.second } + online.filter { it.id !in friendIds }.map { Triple(it, true, null) }
             if (rows.isEmpty()) {
-                HigSection(footer = "Добавьте друзей во вкладке «Друзья» на телефоне") { HigRow(tr("Сейчас никого нет в сети")) }
+                HigSection(footer = "Add friends on the Friends tab on the phone") { HigRow(tr("Nobody is online")) }
                 return
             }
-            HigSection(title = "Друзья и в сети") {
+            HigSection(title = "Friends and online") {
                 rows.forEach { (contact, isOnline, username) ->
                     HigRow(
                         contact.name,
-                        listOfNotNull(username, if (isOnline) online.firstOrNull { it.id == contact.id }?.status?.ifBlank { null } ?: "в сети"
-                            else tr("Не в сети")).joinToString(" · "),
+                        listOfNotNull(username, if (isOnline) online.firstOrNull { it.id == contact.id }?.status?.ifBlank { null } ?: "online"
+                            else tr("Offline")).joinToString(" · "),
                         detailColor = if (isOnline) GREEN else Color.Unspecified,
                     ) {
                         // Watching something together: joining is calling in, the page opens by itself.
-                        val watching = online.firstOrNull { it.id == contact.id }?.status == tr("Смотрит вместе")
-                        if (isOnline) Pill(if (watching) tr("Присоединиться") else tr("Позвонить"), GREEN, small = true) { thread { Calls.call(contact) } }
+                        val watching = online.firstOrNull { it.id == contact.id }?.status == tr("Watching together")
+                        if (isOnline) Pill(if (watching) tr("Join") else tr("Call"), GREEN, small = true) { thread { Calls.call(contact) } }
                     }
                 }
             }
@@ -150,8 +150,8 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
         Column(Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    CupertinoText(Calls.peer?.name ?: tr("Звонок"), fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                    if (Calls.remoteTalking) CupertinoText("говорит", color = GREEN)
+                    CupertinoText(Calls.peer?.name ?: tr("Call"), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    if (Calls.remoteTalking) CupertinoText("speaking", color = GREEN)
                 }
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -165,11 +165,11 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
                 Image(synchronized(stage) { stage.asImageBitmap() }, null, modifier = Modifier.size(460.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Pill(if (Calls.muted) "Микрофон выкл." else tr("Микрофон"), if (Calls.muted) RED else Color(0x55FFFFFF)) {
+                Pill(if (Calls.muted) "Mic off" else tr("Mute"), if (Calls.muted) RED else Color(0x55FFFFFF)) {
                     Calls.muted = !Calls.muted; frame++
                 }
-                onWatchTogether?.let { Pill(tr("Смотреть вместе"), Color(0xFF0A84FF)) { it() } }
-                Pill(tr("Завершить"), RED) { Calls.hangUp() }
+                onWatchTogether?.let { Pill(tr("Watch together"), Color(0xFF0A84FF)) { it() } }
+                Pill(tr("End"), RED) { Calls.hangUp() }
             }
         }
     }

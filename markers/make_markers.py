@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Метки для отслеживания Joy-Con камерой (ArUco DICT_4X4_50). Печатать в масштабе 100%.
+Markers for tracking a Joy-Con with the camera (ArUco DICT_4X4_50). Print at 100% scale.
 
-ID 0-3 — левый Joy-Con, ID 4-7 — правый. Порядок: слева, середина, справа, сверху.
-Размер стороны чёрного квадрата — MARKER_MM, его же знает PhoneXR (JoyConMarkers.MARKER_SIZE_M).
+IDs 0-3 are the left Joy-Con, IDs 4-7 the right one. Order: left, middle, right, top.
+The side of the black square is MARKER_MM, the same value PhoneXR knows (JoyConMarkers.MARKER_SIZE_M).
 """
 import os
 import cv2
@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 MARKER_MM = 25
 DPI = 300
-PLACES = ["слева", "середина", "справа", "сверху"]
+PLACES = ["left", "middle", "right", "top"]
 OUT = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -31,8 +31,8 @@ def main():
         title = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", mm(5))
     except OSError:
         font = title = ImageFont.load_default()
-    draw.text((mm(15), mm(12)), f"PhoneXR: метки Joy-Con (печать 100%, квадрат {MARKER_MM} мм)", fill="black", font=title)
-    for hand, name, y0 in ((0, "Левый Joy-Con", 30), (1, "Правый Joy-Con", 110)):
+    draw.text((mm(15), mm(12)), f"PhoneXR: Joy-Con markers (print at 100%, square {MARKER_MM} mm)", fill="black", font=title)
+    for hand, name, y0 in ((0, "Left Joy-Con", 30), (1, "Right Joy-Con", 110)):
         draw.text((mm(15), mm(y0)), name, fill="black", font=title)
         for index, place in enumerate(PLACES):
             marker_id = hand * 4 + index
@@ -47,7 +47,7 @@ def main():
             Image.fromarray(np.array(image)).save(os.path.join(OUT, f"marker_{marker_id}.png"))
     page.save(os.path.join(OUT, "joycon_markers_A4.png"), dpi=(DPI, DPI))
     page.save(os.path.join(OUT, "joycon_markers_A4.pdf"), resolution=DPI)
-    print("Готово:", os.path.join(OUT, "joycon_markers_A4.pdf"))
+    print("Done:", os.path.join(OUT, "joycon_markers_A4.pdf"))
 
 
 if __name__ == "__main__":

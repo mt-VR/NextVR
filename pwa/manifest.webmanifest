@@ -1,7 +1,7 @@
 {
   "name": "PhoneXR",
   "short_name": "PhoneXR",
-  "description": "VR на iPhone: Cardboard, камера вокруг, руки и WebXR‑игры",
+  "description": "VR on an iPhone: Cardboard, the camera around you, hands and WebXR games",
   "lang": "ru",
   "start_url": "./",
   "scope": "./",

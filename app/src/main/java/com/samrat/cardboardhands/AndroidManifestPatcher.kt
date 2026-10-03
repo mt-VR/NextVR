@@ -153,7 +153,7 @@ object AndroidManifestPatcher {
                     attributeName == "isSplitRequired" && dataType == TYPE_INT_BOOLEAN -> {
                         if (buffer.getInt(data) != 0) {
                             buffer.putInt(data, 0)
-                            changes += "снят запрет на установку без дополнительных файлов"
+                            changes += "the ban on installing without extra files was lifted"
                         }
                     }
                     // Play-delivered APKs also name the splits they expect; an empty list installs alone.
@@ -163,19 +163,19 @@ object AndroidManifestPatcher {
                             val empty = stringIndex("")
                             buffer.putInt(data - 8, empty) // the raw value sits right before the typed one
                             buffer.putInt(data, empty)
-                            changes += "убран список дополнительных файлов ($attributeName)"
+                            changes += "the list of extra files was removed ($attributeName)"
                         }
                     }
                     attributeName == "extractNativeLibs" && element == "application" && dataType == TYPE_INT_BOOLEAN -> {
                         if (buffer.getInt(data) != 0) {
                             buffer.putInt(data, 0)
-                            changes += "оптимизация: библиотеки читаются прямо из APK, без распаковки"
+                            changes += "optimization: the libraries are read straight from the APK, without unpacking"
                         }
                     }
                     attributeName == "debuggable" && element == "application" && dataType == TYPE_INT_BOOLEAN -> {
                         if (buffer.getInt(data) != 0) {
                             buffer.putInt(data, 0)
-                            changes += "оптимизация: выключена отладочная сборка — игра идёт быстрее"
+                            changes += "optimization: the debug build was turned off — the game runs faster"
                         }
                     }
                 }
@@ -185,7 +185,7 @@ object AndroidManifestPatcher {
             if (element == "uses-feature" && required >= 0 && feature != null && isHeadsetFeature(feature)) {
                 if (buffer.getInt(required) != 0) {
                     buffer.putInt(required, 0)
-                    changes += "$feature больше не обязательна"
+                    changes += "$feature is no longer required"
                 }
             }
         }
@@ -211,20 +211,20 @@ object AndroidManifestPatcher {
                 missing.forEach { permission ->
                     insert(manifest + 1, element("uses-permission", Attribute(namespace, nameAttribute, stringIndex(permission))))
                 }
-                changes += "добавлены разрешения: " + missing.joinToString(", ") { it.substringAfterLast('.') }
+                changes += "permissions added: " + missing.joinToString(", ") { it.substringAfterLast('.') }
             }
 
             val queries = queriesAddition(namespace, nameAttribute)
             if (queries.isNotEmpty()) {
                 insert(queriesEnd() ?: (manifest + 1), queries)
-                changes += "добавлен доступ к OpenXR Runtime Broker — игра находит рантайм PhoneXR"
+                changes += "access to the OpenXR Runtime Broker was added — the game finds the PhoneXR runtime"
             }
 
             val filters = launcherFiltersWithoutVrCategory()
             if (filters.isNotEmpty()) {
                 val category = stringIndex(IMMERSIVE_HMD)
                 filters.forEach { at -> insert(at, element("category", Attribute(namespace, nameAttribute, category))) }
-                changes += "игра помечена как VR — PhoneXR запускает её сам"
+                changes += "the game is marked as VR — PhoneXR launches it itself"
             }
 
             if (inserts.isEmpty()) return

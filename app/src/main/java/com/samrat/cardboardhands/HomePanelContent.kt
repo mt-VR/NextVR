@@ -240,9 +240,9 @@ class HomePanelContent(private val panel: HomePanel) :
     @Composable
     private fun Library(state: HomePanel.Snapshot, look: Look) {
         val title = when (state.mode) {
-            HomePanel.Mode.STORE -> tr("Магазин")
-            HomePanel.Mode.MENU -> tr("Меню")
-            else -> tr("Библиотека")
+            HomePanel.Mode.STORE -> tr("Store")
+            HomePanel.Mode.MENU -> tr("Menu")
+            else -> tr("Library")
         }
         Label(title, HomePanel.WIDTH / 2f, HomePanel.TITLE_TOP, 62f, look.air, 900f, FontWeight.SemiBold, shadow = true)
         SearchField(state, look)
@@ -251,10 +251,10 @@ class HomePanelContent(private val panel: HomePanel) :
         else if (!state.searching) SortButton(state, look)
         if (state.entries.isEmpty() && !state.searching) {
             val empty = when {
-                state.mode == HomePanel.Mode.STORE -> tr("Магазин загружается…")
-                state.tab == HomePanel.Tab.PEOPLE -> tr("Здесь будут друзья — войдите в аккаунт в приложении PhoneXR")
-                state.tab == HomePanel.Tab.GAMES -> tr("Здесь будут VR‑игры, подготовленные в приложении PhoneXR")
-                state.tab == HomePanel.Tab.WEB -> tr("Добавьте веб‑приложения из магазина")
+                state.mode == HomePanel.Mode.STORE -> tr("Loading the store…")
+                state.tab == HomePanel.Tab.PEOPLE -> tr("Your friends will be here — sign in in the PhoneXR app")
+                state.tab == HomePanel.Tab.GAMES -> tr("VR games prepared in the PhoneXR app will be here")
+                state.tab == HomePanel.Tab.WEB -> tr("Add web apps from the store")
                 else -> ""
             }
             Label(empty, HomePanel.GRID_CENTER_X, 560f, 38f, look.airSoft, 900f, lines = 2, shadow = true)
@@ -294,7 +294,7 @@ class HomePanelContent(private val panel: HomePanel) :
                 androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     Glyph(Icons.Rounded.Search, look.soft, 40f)
                     Box(Modifier.width(px(14f)))
-                    val text = if (state.searching && state.query.isNotEmpty()) state.query + "▏" else tr("Поиск")
+                    val text = if (state.searching && state.query.isNotEmpty()) state.query + "▏" else tr("Search")
                     Text(text, if (state.query.isNotEmpty()) look.ink else look.soft, 34f, weight = FontWeight.Medium)
                 }
             }
@@ -345,7 +345,7 @@ class HomePanelContent(private val panel: HomePanel) :
         At((HomePanel.RAIL_LEFT + HomePanel.RAIL_RIGHT) / 2, y + 10f, HomePanel.RAIL_RIGHT - HomePanel.RAIL_LEFT - 40f, 2f) {
             Box(Modifier.fillMaxSize().background(look.faint))
         }
-        Row(HomePanel.railRow(HomePanel.Tab.entries.size, store = true), Icons.Rounded.ShoppingBag, tr("Магазин"),
+        Row(HomePanel.railRow(HomePanel.Tab.entries.size, store = true), Icons.Rounded.ShoppingBag, tr("Store"),
             state.mode == HomePanel.Mode.STORE, state.hovered == HomePanel.Target.Store)
     }
 
@@ -491,7 +491,7 @@ class HomePanelContent(private val panel: HomePanel) :
             androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                 Glyph(Icons.Rounded.Settings, look.ink, 38f)
                 Box(Modifier.width(px(12f)))
-                Text(tr("Настройки"), look.ink, 30f, weight = FontWeight.Medium)
+                Text(tr("Settings"), look.ink, 30f, weight = FontWeight.Medium)
             }
         }
         // Volume and brightness: white sliders with a round knob, as on Quest.
@@ -513,10 +513,10 @@ class HomePanelContent(private val panel: HomePanel) :
         }
         // Big tiles.
         val big = listOf(
-            Triple(HomePanel.Quick.WIFI, Icons.Rounded.Wifi, if (wifi) tr("Подключено") else tr("Не подключено")),
-            Triple(HomePanel.Quick.BLUETOOTH, Icons.Rounded.Bluetooth, if (bluetooth) tr("Включён") else tr("Выключен")),
-            Triple(HomePanel.Quick.CAR, Icons.Rounded.DirectionsCar, if (state.car) tr("Включён") else tr("Выключен")),
-            Triple(HomePanel.Quick.DESKTOP, Icons.Rounded.Computer, tr("Стрим с компьютера")),
+            Triple(HomePanel.Quick.WIFI, Icons.Rounded.Wifi, if (wifi) tr("Connected") else tr("Not connected")),
+            Triple(HomePanel.Quick.BLUETOOTH, Icons.Rounded.Bluetooth, if (bluetooth) tr("On") else tr("Off")),
+            Triple(HomePanel.Quick.CAR, Icons.Rounded.DirectionsCar, if (state.car) tr("On") else tr("Off")),
+            Triple(HomePanel.Quick.DESKTOP, Icons.Rounded.Computer, tr("Stream from the computer")),
         )
         for ((item, icon, detail) in big) {
             QuickTile(item, state, active = item == HomePanel.Quick.CAR && state.car) { _ ->

@@ -15,20 +15,20 @@ struct ContentView: View {
             List {
                 Section {
                     Button { importing = true } label: {
-                        Label("Импортировать .pxr, APK или ZIP", systemImage: "square.and.arrow.down")
+                        Label("Import a .pxr, an APK or a ZIP", systemImage: "square.and.arrow.down")
                     }
                     Button { showingHands = true } label: {
-                        Label("Проверить трекинг рук", systemImage: "hand.raised")
+                        Label("Check hand tracking", systemImage: "hand.raised")
                     }
                 } header: {
-                    Text("PhoneXR для iPhone")
+                    Text("PhoneXR for iPhone")
                 } footer: {
-                    Text("APK сохраняется на iPhone и анализируется. Android-код не запускается как iOS-код: для игры потребуется порт из исходников.")
+                    Text("The APK is stored on the iPhone and analyzed. Android code does not run as iOS code: a game needs a port from source.")
                 }
 
-                Section("Библиотека") {
+                Section("Library") {
                     if library.games.isEmpty {
-                        ContentUnavailableView("Игр пока нет", systemImage: "visionpro", description: Text("Импортируйте OpenXR или Quest APK"))
+                        ContentUnavailableView("No games yet", systemImage: "visionpro", description: Text("Import an OpenXR or Quest APK"))
                     }
                     ForEach(library.games) { game in
                         NavigationLink {
@@ -36,7 +36,7 @@ struct ContentView: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(game.report.title).font(.headline)
-                                Text(game.report.hasOpenXR ? "OpenXR / Quest" : "Архив")
+                                Text(game.report.hasOpenXR ? "OpenXR / Quest" : "Archive")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -63,16 +63,16 @@ private struct GameDetails: View {
 
     var body: some View {
         List {
-            Section("Проверка пакета") {
+            Section("Package check") {
                 ForEach(game.report.details, id: \.self) { detail in
-                    Label(detail, systemImage: detail.contains("не ") || detail.contains("нужен") ? "exclamationmark.triangle" : "checkmark.circle")
+                    Label(detail, systemImage: detail.contains("No ") || detail.contains("needs") ? "exclamationmark.triangle" : "checkmark.circle")
                 }
             }
             Section {
-                Button("Запустить") { }
+                Button("Launch") { }
                     .disabled(!game.report.canLaunchNatively)
             } footer: {
-                Text(game.report.canLaunchNatively ? "Нативный пакет PhoneXR готов." : "Этот APK содержит Android-бинарники. Нужна пересборка игры под iOS/Metal.")
+                Text(game.report.canLaunchNatively ? "The native PhoneXR package is ready." : "This APK holds Android binaries. The game has to be rebuilt for iOS/Metal.")
             }
         }
         .navigationTitle(game.report.title)

@@ -29,29 +29,29 @@ public:
         setWindowTitle(product); setWindowIcon(QIcon(":/PhoneXRShare.png")); resize(520, 300);
         auto *layout = new QVBoxLayout(this);
         auto *title = new QLabel(product); title->setStyleSheet("font-size:28px;font-weight:600");
-        status = new QLabel("Остановлено"); status->setWordWrap(true);
-        auto *stream = new QPushButton("Передавать экран"); stream->setCheckable(true);
-        auto *steam = new QPushButton("Открыть SteamVR");
-        layout->addWidget(title); layout->addWidget(new QLabel("Экран → пространственное окно PhoneXR"));
+        status = new QLabel("Stopped"); status->setWordWrap(true);
+        auto *stream = new QPushButton("Share the screen"); stream->setCheckable(true);
+        auto *steam = new QPushButton("Open SteamVR");
+        layout->addWidget(title); layout->addWidget(new QLabel("Screen → a spatial PhoneXR window"));
         layout->addSpacing(18); layout->addWidget(stream); layout->addWidget(steam); layout->addWidget(status); layout->addStretch();
-        connect(stream, &QPushButton::toggled, this, [=](bool on) { on ? start() : stop(); stream->setText(on ? "Остановить передачу" : "Передавать экран"); });
+        connect(stream, &QPushButton::toggled, this, [=](bool on) { on ? start() : stop(); stream->setText(on ? "Stop sharing" : "Share the screen"); });
         connect(steam, &QPushButton::clicked, this, [this] {
             const QString vrpathreg = QStandardPaths::findExecutable("vrpathreg");
             const QString beside = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../share/phonexr-share/steamvr/phonexr");
             const QString development = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("phonexr");
             const QString driver = QFileInfo::exists(beside + "/driver.vrdrivermanifest") ? beside : development;
-            if (vrpathreg.isEmpty()) { status->setText("Сначала установите SteamVR в Steam."); return; }
-            if (!QFileInfo::exists(driver + "/driver.vrdrivermanifest")) { status->setText("Драйвер PhoneXR не найден — переустановите PhoneXR Share."); return; }
+            if (vrpathreg.isEmpty()) { status->setText("Install SteamVR in Steam first."); return; }
+            if (!QFileInfo::exists(driver + "/driver.vrdrivermanifest")) { status->setText("The PhoneXR driver was not found — reinstall PhoneXR Share."); return; }
             QProcess registration; registration.start(vrpathreg, {"adddriver", driver}); registration.waitForFinished(5000);
             QProcess::startDetached("steam", {"steam://rungameid/250820"});
-            status->setText("Драйвер PhoneXR зарегистрирован · запускаю SteamVR…");
+            status->setText("The PhoneXR driver is registered · starting SteamVR…");
         });
         connect(&frames, &QTimer::timeout, this, [this] { sendFrame(); });
         connect(&announce, &QTimer::timeout, this, [this] {
             QByteArray message = "PHONEXR_DESKTOP_V1 24820 " + QHostInfo::localHostName().toUtf8();
             udp.writeDatagram(message, QHostAddress::Broadcast, 24819);
         });
-        connect(&server, &QTcpServer::newConnection, this, [this] { clients << server.nextPendingConnection(); status->setText("PhoneXR подключён · передача 30 FPS"); });
+        connect(&server, &QTcpServer::newConnection, this, [this] { clients << server.nextPendingConnection(); status->setText("PhoneXR connected · streaming at 30 FPS"); });
     }
 private:
     QLabel *status{}; QTcpServer server; QUdpSocket udp; QTimer frames, announce; QList<QTcpSocket*> clients;
@@ -62,9 +62,9 @@ private:
         #else
         frames.start(50);
         #endif
-        announce.start(1000); status->setText("Ожидание PhoneXR в локальной сети…");
+        announce.start(1000); status->setText("Waiting for PhoneXR on the local network…");
     }
-    void stop() { frames.stop(); announce.stop(); server.close(); qDeleteAll(clients); clients.clear(); status->setText("Остановлено"); }
+    void stop() { frames.stop(); announce.stop(); server.close(); qDeleteAll(clients); clients.clear(); status->setText("Stopped"); }
     void sendFrame() {
         auto *screen = QGuiApplication::primaryScreen(); if (!screen) return;
         QPixmap shot = screen->grabWindow(0);

@@ -2,7 +2,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
 }
 
-// Чистая JVM-библиотека: подходит и Android-игре, и настольному инструменту.
+// A pure JVM library: it suits both an Android game and a desktop tool.
 kotlin {
     jvmToolchain(17)
     sourceSets["main"].kotlin.srcDir("src/main/kotlin")

@@ -23,22 +23,22 @@ object MinecraftMods {
 
     /** Opens the mod with Minecraft, which shows "Import started…" and adds it to the game. */
     fun install(activity: Activity, file: File): String? {
-        if (runCatching { activity.packageManager.getApplicationInfo(MINECRAFT, 0) }.isFailure) return tr("Сначала установите Minecraft")
+        if (runCatching { activity.packageManager.getApplicationInfo(MINECRAFT, 0) }.isFailure) return tr("Install Minecraft first")
         val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.patched.apks", file)
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, "application/octet-stream")
             .setPackage(MINECRAFT)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        return runCatching { activity.startActivity(intent) }.exceptionOrNull()?.let { tr("Minecraft не открыл мод") }
+        return runCatching { activity.startActivity(intent) }.exceptionOrNull()?.let { tr("Minecraft didn't open the mod") }
     }
 
     /** A mod picked from the phone's files: copied to the shared cache with its own name, then installed. */
     fun installFromUri(activity: Activity, source: Uri): String? {
-        val name = displayName(activity, source) ?: return tr("Не удалось прочитать файл")
-        if (!isMod(name)) return tr("Это не мод Minecraft: нужен .mcaddon, .mcpack, .mcworld или .mctemplate")
+        val name = displayName(activity, source) ?: return tr("Couldn't read the file")
+        if (!isMod(name)) return tr("This is not a Minecraft mod: a .mcaddon, .mcpack, .mcworld or .mctemplate is needed")
         val file = File(folder(activity), name.replace(Regex("[^\\p{L}\\p{N}._ -]"), "_"))
         activity.contentResolver.openInputStream(source)?.use { input -> file.outputStream().use { input.copyTo(it) } }
-            ?: return tr("Не удалось прочитать файл")
+            ?: return tr("Couldn't read the file")
         return install(activity, file)
     }
 

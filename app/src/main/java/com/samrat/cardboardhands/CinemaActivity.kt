@@ -136,7 +136,7 @@ class CinemaActivity : Activity(), LifecycleOwner {
         stopService(Intent(this, HandTrackingService::class.java))
         connection = VirtualScreen.bind(this) { bound ->
             service = bound
-            if (bound == null) toast("Служба Shizuku отключилась") else startDisplay()
+            if (bound == null) toast("The Shizuku service disconnected") else startDisplay()
         }
         hands = CinemaHands(
             tracker,
@@ -291,7 +291,7 @@ class CinemaActivity : Activity(), LifecycleOwner {
             }
             provider.unbindAll()
             runCatching { provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, analysis) }
-                .onFailure { toast("Камера занята: руки в кинотеатре не работают") }
+                .onFailure { toast("The camera is busy: hands do not work in the cinema") }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -347,20 +347,20 @@ class CinemaActivity : Activity(), LifecycleOwner {
                 shell.createDisplay(target, renderer.screenW, renderer.screenH, if (renderer.fullscreen) 280 else 320)
             }.getOrDefault(-1)
             if (id < 0) {
-                toast("Не удалось создать экран кинотеатра")
+                toast("Couldn't create the cinema display")
                 return@thread
             }
             displayId = id
             val packageName = intent.getStringExtra(EXTRA_PACKAGE) ?: return@thread
             val component = VirtualScreen.launcherComponent(this, packageName)
             if (component == null) {
-                toast("У приложения нет экрана запуска")
+                toast("The app has no launch screen")
                 return@thread
             }
             val error = runCatching { shell.launch(component, id) }.getOrElse { it.message }
             if (error != null) {
                 Log.w(TAG, "Launch failed: $error (density ${metrics.densityDpi})")
-                toast("Игра не запустилась: $error")
+                toast("The game didn't start: $error")
             }
         }
     }
@@ -422,7 +422,7 @@ class CinemaActivity : Activity(), LifecycleOwner {
             }
             Thread.sleep(150)
             press(KeyEvent.KEYCODE_ENTER)
-            toast("Подключаю мод PhoneXR VR…")
+            toast("Connecting the PhoneXR VR mod…")
         }
     }
 

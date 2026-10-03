@@ -79,8 +79,8 @@ class SpatialTest {
         val height = 8
         val (pixels, depth) = scene(width, height)
         val (left, right) = SpatialPhoto.eyes(pixels, width, height, depth)
-        assertTrue("дырки в левом глазу", left.none { it == 0 })
-        assertTrue("дырки в правом глазу", right.none { it == 0 })
+        assertTrue("holes in the left eye", left.none { it == 0 })
+        assertTrue("holes in the right eye", right.none { it == 0 })
     }
 
     @Test

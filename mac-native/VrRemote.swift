@@ -29,7 +29,7 @@ final class VrRemote: ObservableObject {
     @Published var apps: [RemoteApp] = []
     @Published var selected: String?
     @Published var frame: NSImage?
-    @Published var status = "Подключите телефон по USB и откройте VR в PhoneXR."
+    @Published var status = "Connect the phone over USB and open VR in PhoneXR."
     @Published var connected = false
     private var polling: Task<Void, Never>?
     private let base = URL(string: "http://127.0.0.1:\(VrRemote.port)")!
@@ -43,8 +43,8 @@ final class VrRemote: ObservableObject {
     var current: RemoteWindow? { windows.first { $0.id == selected } }
 
     func connect(bridge: AndroidBridge, serial: String?) {
-        guard let serial else { status = "Телефон не выбран."; return }
-        status = "Подключение…"
+        guard let serial else { status = "No phone selected."; return }
+        status = "Connecting…"
         Task.detached {
             let result = Result { try bridge.forwardRemote(serial: serial, port: VrRemote.port) }
             await MainActor.run {
@@ -83,11 +83,11 @@ final class VrRemote: ObservableObject {
             windows = state.windows
             apps = state.apps
             connected = true
-            status = state.windows.isEmpty ? "VR открыт. Окон пока нет — откройте приложение ниже." : "Подключено к VR"
+            status = state.windows.isEmpty ? "VR is open. No windows yet — open an app below." : "Connected to VR"
             if selected == nil || !windows.contains(where: { $0.id == selected }) { selected = windows.first { !$0.minimized }?.id ?? windows.first?.id }
         } catch {
             connected = false
-            status = "Нет связи с VR. Откройте «Войти в VR» в PhoneXR на телефоне."
+            status = "No connection to VR. Open “Enter VR” in PhoneXR on the phone."
         }
     }
 
@@ -153,19 +153,19 @@ struct VrRemoteView: View {
                 Label(remote.status, systemImage: remote.connected ? "visionpro.fill" : "visionpro")
                     .foregroundStyle(remote.connected ? .primary : .secondary)
                 Spacer()
-                Button(remote.connected ? "Переподключить" : "Подключиться") { remote.connect(bridge: model.bridge, serial: model.selectedSerial) }
+                Button(remote.connected ? "Reconnect" : "Connect") { remote.connect(bridge: model.bridge, serial: model.selectedSerial) }
                     .buttonStyle(.borderedProminent)
             }
             HStack(spacing: 8) {
-                TextField("Адрес сайта или поиск — откроется в браузере VR", text: $address)
+                TextField("A site address or a search — it opens in the VR browser", text: $address)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { remote.openUrl(address) }
-                Button("Открыть") { remote.openUrl(address) }
+                Button("Open") { remote.openUrl(address) }
             }
             if !remote.windows.isEmpty {
-                Picker("Окно", selection: $remote.selected) {
+                Picker("Window", selection: $remote.selected) {
                     ForEach(remote.windows) { window in
-                        Text(window.title + (window.minimized ? " (свёрнуто)" : "")).tag(window.id as String?)
+                        Text(window.title + (window.minimized ? " (minimized)" : "")).tag(window.id as String?)
                     }
                 }.pickerStyle(.segmented)
                 HStack(spacing: 8) {
@@ -175,9 +175,9 @@ struct VrRemoteView: View {
                         Button { remote.bar("reload") } label: { Image(systemName: "arrow.clockwise") }
                     }
                     Spacer()
-                    Button("Показать в VR") { remote.window("focus") }
-                    Button("Свернуть") { remote.window("minimize") }
-                    Button("Закрыть", role: .destructive) { remote.window("close") }
+                    Button("Show in VR") { remote.window("focus") }
+                    Button("Minimize") { remote.window("minimize") }
+                    Button("Close", role: .destructive) { remote.window("close") }
                 }
             }
             ZStack {
@@ -188,14 +188,14 @@ struct VrRemoteView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .padding(8)
                 } else {
-                    Text(remote.connected ? "Выберите или откройте окно" : "Нет картинки").foregroundStyle(.secondary)
+                    Text(remote.connected ? "Choose or open a window" : "No image").foregroundStyle(.secondary)
                 }
             }
             .frame(minHeight: 360)
-            Text("Мышь работает как палец в VR: клик — нажатие, перетаскивание — прокрутка. Печатайте с клавиатуры Mac, когда картинка в фокусе.")
+            Text("The mouse works like a finger in VR: a click presses, dragging scrolls. Type on the Mac keyboard while the image is focused.")
                 .font(.callout).foregroundStyle(.secondary)
             if !remote.apps.isEmpty {
-                Text("Приложения VR").font(.headline)
+                Text("VR apps").font(.headline)
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
                         ForEach(remote.apps) { app in Button(app.label) { remote.open(app) } }

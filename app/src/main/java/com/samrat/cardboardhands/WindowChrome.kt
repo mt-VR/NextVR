@@ -199,7 +199,7 @@ object WindowChrome {
         text.textSize = 30f
         canvas.drawText("···", 60f, 44f, text)
         text.color = look.soft
-        canvas.drawText(tr("Браузер PhoneXR"), BAR_W / 2f, 44f, text)
+        canvas.drawText(tr("PhoneXR Browser"), BAR_W / 2f, 44f, text)
         paint.strokeCap = Paint.Cap.ROUND
         // Row 2: tabs.
         val width = tabWidth(tabs.size)

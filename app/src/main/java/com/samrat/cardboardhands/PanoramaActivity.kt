@@ -43,7 +43,7 @@ class PanoramaActivity : Activity() {
 
         val photo = if (isVideo) null else load(uri)
         if (!isVideo && photo == null) {
-            Toast.makeText(this, "Не удалось открыть фото", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Couldn't open the photo", Toast.LENGTH_LONG).show()
             finish()
             return
         }
@@ -60,7 +60,7 @@ class PanoramaActivity : Activity() {
                     }
                 }.onFailure {
                     Log.w(TAG, "Panorama video failed", it)
-                    Toast.makeText(this, "Видео не открылось", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "The video didn't open", Toast.LENGTH_LONG).show()
                 }
             }
         })

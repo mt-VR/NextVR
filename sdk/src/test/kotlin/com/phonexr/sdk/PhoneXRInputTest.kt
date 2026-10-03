@@ -9,7 +9,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 
 class PhoneXRInputTest {
-    // Пакет в том же виде, в каком его шлёт PhoneXR: левая рука с кулаком, правая с нажатым курком.
+    // A packet exactly as PhoneXR sends it: the left hand with a fist, the right one with the trigger pressed.
     private val packet = "PH4 1 1 0 0 0.3400 0.5000 0.2000 0.00000 0.00000 0.00000 1.00000 0 " +
         "1 0 0 0 0.6600 0.4500 0.7000 0.00000 0.70711 0.00000 0.70711 4 1"
 
@@ -35,7 +35,7 @@ class PhoneXRInputTest {
 
     @Test
     fun readsTheCurrentPh5Packet() {
-        // Левая рука щипает, правая: Joy-Con со стиком вперёд и ладонью к лицу.
+        // The left hand pinches, the right one: a Joy-Con with the stick forward and the palm to the face.
         val ph5 = "PH5 1 0 1 0 0.3000 0.4000 0.5000 0.00000 0.00000 0.00000 1.00000 0 0.000 0.000 " +
             "1 0 0 0 0.7000 0.4000 0.6000 0.00000 0.00000 0.00000 1.00000 4 0.000 1.000 1 " +
             "1 0 0 1"

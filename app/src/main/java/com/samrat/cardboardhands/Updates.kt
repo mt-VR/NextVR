@@ -90,8 +90,8 @@ object Updates {
         })
     }
 
-    fun formatSize(bytes: Long) = if (bytes >= 1L shl 30) "%.2f ГБ".format(bytes / (1L shl 30).toDouble())
-    else "%.0f МБ".format(bytes / (1L shl 20).toDouble())
+    fun formatSize(bytes: Long) = if (bytes >= 1L shl 30) "%.2f GB".format(bytes / (1L shl 30).toDouble())
+    else "%.0f MB".format(bytes / (1L shl 20).toDouble())
 
     /** 1.0.10 is newer than 1.0.9. */
     fun newer(candidate: String, current: String): Boolean {

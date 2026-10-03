@@ -1,10 +1,10 @@
 /*
  * PhoneXR input feed for native games (C/C++).
  *
- * Обычный ввод игра получает через OpenXR. Этот заголовок нужен для сырых данных PhoneXR:
- * положение ладоней в кадре, жесты и кнопки Joy-Con.
+ * A game gets ordinary input through OpenXR. This header is for the raw PhoneXR data:
+ * the position of the palms in the frame, the gestures and the Joy-Con buttons.
  *
- * Использование:
+ * Usage:
  *     #define PHONEXR_INPUT_IMPLEMENTATION
  *     #include "phonexr_input.h"
  *
@@ -14,7 +14,7 @@
  *     if (phonexr_input_poll(&in, &state)) { ... }
  *     phonexr_input_close(&in);
  *
- * Порт занимает один клиент: если данных нет, их уже читает другое приложение.
+ * One client holds the port: if there is no data, another app is already reading it.
  */
 #ifndef PHONEXR_INPUT_H
 #define PHONEXR_INPUT_H
@@ -24,7 +24,7 @@
 
 #define PHONEXR_INPUT_PORT 42425
 
-/* Биты phonexr_hand.buttons. */
+/* Bits of phonexr_hand.buttons. */
 #define PHONEXR_BUTTON_PRIMARY (1u << 0)     /* A / X */
 #define PHONEXR_BUTTON_SECONDARY (1u << 1)   /* B / Y */
 #define PHONEXR_BUTTON_TRIGGER (1u << 2)
@@ -33,20 +33,20 @@
 #define PHONEXR_BUTTON_STICK_CLICK (1u << 5)
 #define PHONEXR_BUTTON_SYSTEM (1u << 6)
 
-/* Биты phonexr_state.flags. */
-#define PHONEXR_FLAG_SIX_DOF (1u << 0)   /* положение берётся с камеры */
-#define PHONEXR_FLAG_HANDS_ONLY (1u << 1) /* жесты пальцев ничего не нажимают */
+/* Bits of phonexr_state.flags. */
+#define PHONEXR_FLAG_SIX_DOF (1u << 0)   /* the position comes from the camera */
+#define PHONEXR_FLAG_HANDS_ONLY (1u << 1) /* finger gestures press nothing */
 
 struct phonexr_hand
 {
-	bool present;              /* рука видна камере или подключён Joy-Con */
-	bool fist, index, thumb;   /* жесты; в режиме «только руки» всегда false */
-	float x, y, z;             /* ладонь в кадре: x, y в диапазоне 0..1, z — близость к камере */
-	float qx, qy, qz, qw;      /* поворот от Joy-Con, иначе единичный кватернион */
+	bool present;              /* the hand is visible to the camera or a Joy-Con is connected */
+	bool fist, index, thumb;   /* gestures; always false in "hands only" mode */
+	float x, y, z;             /* the palm in the frame: x, y in the 0..1 range, z is the closeness to the camera */
+	float qx, qy, qz, qw;      /* rotation from the Joy-Con, otherwise the identity quaternion */
 	uint32_t buttons;
-	float stick_x, stick_y;    /* стик Joy-Con, -1..1 (PH5; в PH4 — 0) */
-	bool pinch, palm_to_face;  /* щипок и ладонь к лицу (PH5; в PH4 — false) */
-	/* Непрерывный сгиб каждого пальца: 0 — прямой, 1 — полностью согнут (PH6). */
+	float stick_x, stick_y;    /* the Joy-Con stick, -1..1 (PH5; 0 in PH4) */
+	bool pinch, palm_to_face;  /* the pinch and the palm to the face (PH5; false in PH4) */
+	/* The continuous curl of each finger: 0 — straight, 1 — fully curled (PH6). */
 	float thumb_curl, index_curl, middle_curl, ring_curl, pinky_curl;
 };
 
@@ -62,10 +62,10 @@ struct phonexr_input
 	int socket_fd;
 };
 
-/* Возвращает true, если удалось занять порт. */
+/* Returns true if the port was taken successfully. */
 bool phonexr_input_open(struct phonexr_input *input, int port);
 
-/* Забирает самый свежий пакет. Возвращает false, если новых данных нет. Не блокирует. */
+/* Takes the freshest packet. Returns false when there is no new data. Does not block. */
 bool phonexr_input_poll(struct phonexr_input *input, struct phonexr_state *out_state);
 
 void phonexr_input_close(struct phonexr_input *input);
@@ -111,7 +111,7 @@ phonexr_input_poll(struct phonexr_input *input, struct phonexr_state *out_state)
 	char packet[512];
 	bool received = false;
 	ssize_t length;
-	/* Пакеты идут 60 раз в секунду: берём последний, накопившиеся пропускаем. */
+	/* Packets arrive 60 times per second: take the last one and skip the ones that piled up. */
 	while ((length = recv(input->socket_fd, packet, sizeof(packet) - 1, 0)) > 0) {
 		packet[length] = '\0';
 		struct phonexr_state parsed;

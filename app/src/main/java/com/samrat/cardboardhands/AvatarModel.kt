@@ -9,7 +9,7 @@ import java.io.InputStream
  * app's own files; PhoneXR's standard character until there is one.
  */
 object AvatarModel {
-    enum class Source(val title: String) { STANDARD("Стандартный"), AVATURN("Avaturn"), VROID("VRoid Hub"), FILE("Из файла") }
+    enum class Source(val title: String) { STANDARD("Standard"), AVATURN("Avaturn"), VROID("VRoid Hub"), FILE("From a file") }
 
     private const val PREFS = "avatar_model"
     private const val STANDARD = "avatar/avatar.glb"
@@ -30,13 +30,13 @@ object AvatarModel {
      * move. Returns an error text, or null when it is saved.
      */
     fun save(context: Context, bytes: ByteArray, source: Source): String? {
-        val model = runCatching { Gltf.load(bytes.inputStream()) }.getOrElse { return "Это не 3D‑модель .glb или .vrm" }
-        if (model.joints.isEmpty()) return "У модели нет скелета — её нельзя оживить"
+        val model = runCatching { Gltf.load(bytes.inputStream()) }.getOrElse { return "This is not a .glb or .vrm 3D model" }
+        if (model.joints.isEmpty()) return "The model has no skeleton — it cannot be brought to life"
         val target = file(context)
         target.parentFile?.mkdirs()
         val temporary = File(target.parentFile, "model.tmp")
         temporary.writeBytes(bytes)
-        if (!temporary.renameTo(target)) return "Не удалось сохранить аватар"
+        if (!temporary.renameTo(target)) return "Couldn't save the avatar"
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("source", source.name).apply()
         return null
     }

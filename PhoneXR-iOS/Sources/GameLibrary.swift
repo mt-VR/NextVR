@@ -11,7 +11,7 @@ struct ImportedGame: Codable, Identifiable {
 @MainActor
 final class GameLibrary: ObservableObject {
     @Published private(set) var games = [ImportedGame]()
-    @Published var message = "Готово"
+    @Published var message = "Done"
 
     private let fileManager = FileManager.default
     private var root: URL {
@@ -39,9 +39,9 @@ final class GameLibrary: ObservableObject {
                 report: report
             ), at: 0)
             try save()
-            message = report.hasOpenXR ? "OpenXR APK импортирован для переноса/порта" : "Файл импортирован"
+            message = report.hasOpenXR ? "The OpenXR APK was imported for transfer/porting" : "The file was imported"
         } catch {
-            message = "Ошибка импорта: \(error.localizedDescription)"
+            message = "Import error: \(error.localizedDescription)"
         }
     }
 

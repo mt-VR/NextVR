@@ -1,8 +1,8 @@
 {
   "format_version": 2,
   "header": {
-    "name": "PhoneXR VR (руки)",
-    "description": "Модель рук для мода PhoneXR VR.",
+    "name": "PhoneXR VR (hands)",
+    "description": "The hand model for the PhoneXR VR mod.",
     "uuid": "600a41fb-b71c-41d9-afe6-1dae7b39e208",
     "version": [1, 0, 0],
     "min_engine_version": [1, 21, 0]

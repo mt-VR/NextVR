@@ -56,7 +56,7 @@ private fun InstallerScreen() {
     var devices by remember { mutableStateOf<List<Device>>(emptyList()) }
     var selectedDevice by remember { mutableStateOf<Device?>(null) }
     var selectedApk by remember { mutableStateOf<File?>(null) }
-    var status by remember { mutableStateOf("Подключите Android-телефон по USB и включите USB-отладку.") }
+    var status by remember { mutableStateOf("Connect an Android phone over USB and turn on USB debugging.") }
     var busy by remember { mutableStateOf(false) }
 
     fun refresh() {
@@ -66,9 +66,9 @@ private fun InstallerScreen() {
             devices = found
             selectedDevice = found.firstOrNull()
             status = when {
-                found.isEmpty() -> "Телефон не найден. Проверьте кабель и разрешение USB-отладки."
-                controller.hasOpenXrRuntime(found.first().serial) -> "Устройство готово. OpenXR runtime найден."
-                else -> "Телефон подключён, но OpenXR runtime не найден. APK можно установить, но XR-игра может не запуститься."
+                found.isEmpty() -> "No phone found. Check the cable and the USB debugging prompt."
+                controller.hasOpenXrRuntime(found.first().serial) -> "The device is ready. An OpenXR runtime was found."
+                else -> "The phone is connected, but no OpenXR runtime was found. The APK can be installed, but the XR game may not start."
             }
             busy = false
         }
@@ -82,20 +82,20 @@ private fun InstallerScreen() {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
             GlassCard(Modifier.width(280.dp).fillMaxSize()) {
                 TextLabel("XR Bridge", 30, Color.White)
-                TextLabel("Установка Android XR игр", 14, Color(0xFFB8B8C8))
+                TextLabel("Installing Android XR games", 14, Color(0xFFB8B8C8))
                 Spacer(Modifier.height(26.dp))
-                TextLabel("УСТРОЙСТВО", 12, Color(0xFF9898A8))
+                TextLabel("DEVICE", 12, Color(0xFF9898A8))
                 Spacer(Modifier.height(8.dp))
-                TextLabel(selectedDevice?.model ?: "Не подключено", 20, Color.White)
+                TextLabel(selectedDevice?.model ?: "Not connected", 20, Color.White)
                 TextLabel(selectedDevice?.serial ?: "—", 12, Color(0xFFB8B8C8))
                 Spacer(Modifier.height(18.dp))
                 CupertinoButton(onClick = { refresh() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                    androidx.compose.material3.Text(if (busy) "Проверка…" else "Обновить устройства")
+                    androidx.compose.material3.Text(if (busy) "Checking…" else "Refresh devices")
                 }
                 Spacer(Modifier.height(20.dp))
-                TextLabel("Важно", 15, Color.White)
+                TextLabel("Important", 15, Color.White)
                 TextLabel(
-                    "Устанавливаются только Android APK. PCVR EXE и SteamVR-игры на телефоне не запускаются.",
+                    "Only Android APKs are installed. PCVR EXE and SteamVR games do not run on a phone.",
                     13,
                     Color(0xFFFFC66D)
                 )
@@ -106,18 +106,18 @@ private fun InstallerScreen() {
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 GlassCard(Modifier.fillMaxWidth()) {
-                    TextLabel("Установить OpenXR APK", 22, Color.White)
+                    TextLabel("Install an OpenXR APK", 22, Color.White)
                     Spacer(Modifier.height(8.dp))
                     TextLabel(
-                        selectedApk?.absolutePath ?: "Выберите APK игры, собранный для Android и архитектуры телефона.",
+                        selectedApk?.absolutePath ?: "Choose a game APK built for Android and for the phone's architecture.",
                         13,
                         Color(0xFFCACAD7)
                     )
                     Spacer(Modifier.height(16.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         CupertinoButton(onClick = {
-                            chooseApk()?.let { selectedApk = it; status = "Выбран ${it.name}" }
-                        }) { androidx.compose.material3.Text("Выбрать APK") }
+                            chooseApk()?.let { selectedApk = it; status = "Chosen ${it.name}" }
+                        }) { androidx.compose.material3.Text("Choose an APK") }
                         CupertinoButton(
                             onClick = {
                                 val device = selectedDevice ?: return@CupertinoButton
@@ -129,15 +129,15 @@ private fun InstallerScreen() {
                                 }
                             },
                             enabled = !busy && selectedDevice != null && selectedApk != null
-                        ) { androidx.compose.material3.Text("Установить по USB") }
+                        ) { androidx.compose.material3.Text("Install over USB") }
                     }
                 }
 
                 GlassCard(Modifier.fillMaxWidth()) {
-                    TextLabel("Трекинг рук для Cardboard", 22, Color.White)
+                    TextLabel("Hand tracking for Cardboard", 22, Color.White)
                     Spacer(Modifier.height(8.dp))
                     TextLabel(
-                        "Устанавливает приложение камеры и трекинга рук. Оно не может внедрить руки в чужую OpenXR-игру — игра должна поддерживать hand-tracking сама.",
+                        "Installs the camera and hand tracking app. It cannot inject hands into someone else's OpenXR game — the game has to support hand tracking itself.",
                         13,
                         Color(0xFFCACAD7)
                     )
@@ -152,22 +152,22 @@ private fun InstallerScreen() {
                             }
                         },
                         enabled = !busy && selectedDevice != null
-                    ) { androidx.compose.material3.Text("Установить Cardboard Hands") }
+                    ) { androidx.compose.material3.Text("Install Cardboard Hands") }
                 }
 
                 GlassCard(Modifier.fillMaxWidth()) {
-                    TextLabel("Состояние", 16, Color.White)
+                    TextLabel("State", 16, Color.White)
                     Spacer(Modifier.height(8.dp))
                     TextLabel(status, 14, Color(0xFFD5D5E0))
                 }
 
                 GlassCard(Modifier.fillMaxWidth()) {
-                    TextLabel("Инструкция", 18, Color.White)
+                    TextLabel("Instructions", 18, Color.White)
                     Spacer(Modifier.height(10.dp))
-                    TextLabel("1. На телефоне: Для разработчиков → Отладка по USB.", 13, Color(0xFFD5D5E0))
-                    TextLabel("2. Подключите кабель и подтвердите RSA-ключ.", 13, Color(0xFFD5D5E0))
-                    TextLabel("3. Выберите Android APK и нажмите «Установить по USB».", 13, Color(0xFFD5D5E0))
-                    TextLabel("4. Запускайте игру на телефоне без Mac, если на нём есть совместимый OpenXR runtime.", 13, Color(0xFFD5D5E0))
+                    TextLabel("1. On the phone: Developer options → USB debugging.", 13, Color(0xFFD5D5E0))
+                    TextLabel("2. Plug in the cable and confirm the RSA key.", 13, Color(0xFFD5D5E0))
+                    TextLabel("3. Choose an Android APK and tap “Install over USB”.", 13, Color(0xFFD5D5E0))
+                    TextLabel("4. Launch the game on the phone without the Mac if it has a compatible OpenXR runtime.", 13, Color(0xFFD5D5E0))
                 }
             }
         }
@@ -189,7 +189,7 @@ private fun TextLabel(text: String, size: Int, color: Color) {
 }
 
 private fun chooseApk(): File? {
-    val dialog = FileDialog(null as Frame?, "Выберите Android APK", FileDialog.LOAD).apply {
+    val dialog = FileDialog(null as Frame?, "Choose an Android APK", FileDialog.LOAD).apply {
         setFilenameFilter { _, name -> name.endsWith(".apk", ignoreCase = true) }
         isVisible = true
     }
@@ -219,15 +219,15 @@ private class AdbController {
     }
 
     fun install(serial: String, apk: File): String {
-        val path = adb ?: return "ADB не найден. Установите Android Platform Tools."
-        if (!apk.isFile || apk.extension.lowercase() != "apk") return "Выбран некорректный APK."
+        val path = adb ?: return "ADB not found. Install the Android Platform Tools."
+        if (!apk.isFile || apk.extension.lowercase() != "apk") return "The chosen APK is not valid."
         val output = run(listOf(path, "-s", serial, "install", "-r", apk.absolutePath))
-        return if (output.contains("Success")) "${apk.name} успешно установлен." else output.takeLast(900)
+        return if (output.contains("Success")) "${apk.name} installed successfully." else output.takeLast(900)
     }
 
     fun installCompanion(serial: String): String {
         val stream = javaClass.classLoader.getResourceAsStream("cardboard-hands.apk")
-            ?: return "В сборке нет Cardboard Hands APK. Пересоберите установщик."
+            ?: return "The build has no Cardboard Hands APK. Rebuild the installer."
         val temp = kotlin.io.path.createTempFile("cardboard-hands-", ".apk").toFile()
         return try {
             stream.use { input -> temp.outputStream().use(input::copyTo) }
@@ -254,6 +254,6 @@ private class AdbController {
         process.waitFor()
         output.trim()
     } catch (error: Exception) {
-        error.localizedMessage ?: "Ошибка запуска команды"
+        error.localizedMessage ?: "Failed to run the command"
     }
 }

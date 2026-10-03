@@ -29,7 +29,7 @@ import kotlin.concurrent.thread
  * name, a line of description and a pill button — VR modes, PhoneXR apps, games from the server,
  * Minecraft mods and web apps.
  */
-class StoreContent(private val context: Context, private val host: Host) : ComposeContent(barTitle = tr("Магазин")) {
+class StoreContent(private val context: Context, private val host: Host) : ComposeContent(barTitle = tr("Store")) {
     interface Host {
         fun openCinema(packageName: String, scene: String)
         fun openWebApp(app: WebApps.App)
@@ -94,7 +94,7 @@ class StoreContent(private val context: Context, private val host: Host) : Compo
             Modifier.fillMaxSize().background(CupertinoTheme.colorScheme.systemGroupedBackground)
                 .verticalScroll(rememberScrollState()).padding(bottom = 24.dp)
         ) {
-            VrTitle(tr("Магазин"), "Игры, режимы и приложения для PhoneXR")
+            VrTitle(tr("Store"), "Games, modes and apps for PhoneXR")
             for (section in sections) {
                 VrHeading(section.title)
                 section.cards.chunked(2).forEach { pair ->
@@ -112,28 +112,28 @@ class StoreContent(private val context: Context, private val host: Host) : Compo
 
     private fun build(games: List<GameStore.Item>, web: List<WebApps.App>) {
         val modes = listOf(
-            Triple("Minecraft VR", "com.mojang.minecraftpe", CinemaActivity.SCENE_ROOM) to "Bedrock на большом экране",
-            Triple("Roblox VR", "com.roblox.client", CinemaActivity.SCENE_ROBLOX) to "Roblox в доме из Brookhaven",
-            Triple("Brawl Stars VR", "com.supercell.brawlstars", CinemaActivity.SCENE_BRAWL) to "Посреди арены, 360°",
+            Triple("Minecraft VR", "com.mojang.minecraftpe", CinemaActivity.SCENE_ROOM) to "Bedrock on a big screen",
+            Triple("Roblox VR", "com.roblox.client", CinemaActivity.SCENE_ROBLOX) to "Roblox in a house from Brookhaven",
+            Triple("Brawl Stars VR", "com.supercell.brawlstars", CinemaActivity.SCENE_BRAWL) to "In the middle of the arena, 360°",
         ).map { (mode, subtitle) ->
             val (title, name, scene) = mode
-            Card(title, subtitle, { appIcon(name) }, { if (installed(name)) tr("Играть") else tr("Скачать") }) {
+            Card(title, subtitle, { appIcon(name) }, { if (installed(name)) tr("Play") else tr("Download") }) {
                 if (installed(name)) host.openCinema(name, scene)
                 else context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$name"))
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
         val apps = listOf(
-            Card(tr("Звонки"), "Общение персонами: голос, лицо и руки", { null }, { tr("Открыть") }) { host.openCalls() },
-            Card(tr("Android‑приложения"), "Любые приложения телефона окнами в VR", { null },
-                { if (AndroidAppsContent.enabled(context)) tr("Удалить") else tr("Получить") }) {
+            Card(tr("Calls"), "Talking as Personas: voice, face and hands", { null }, { tr("Open") }) { host.openCalls() },
+            Card(tr("Android apps"), "Any phone app as a window in VR", { null },
+                { if (AndroidAppsContent.enabled(context)) tr("Remove") else tr("Get") }) {
                 AndroidAppsContent.setEnabled(context, !AndroidAppsContent.enabled(context))
                 host.homeChanged()
             },
         )
         val gameCards = games.map { item ->
             Card(item.title, item.extension.uppercase() + if (item.size > 0) " · " + Updates.formatSize(item.size) else "",
-                { icons[item.path] }, { progress[item.path]?.let { "$it%" } ?: tr("Загрузить") }) {
+                { icons[item.path] }, { progress[item.path]?.let { "$it%" } ?: tr("Get") }) {
                 if (progress.containsKey(item.path)) return@Card
                 progress[item.path] = 0
                 val file = runCatching {
@@ -143,12 +143,12 @@ class StoreContent(private val context: Context, private val host: Host) : Compo
                     }
                 }.getOrNull()
                 progress.remove(item.path)
-                if (file != null) host.install(file) else host.message("«${item.title}» не скачалась")
+                if (file != null) host.install(file) else host.message("“${item.title}” didn't download")
             }
         }
         val modCards = mods.map { item ->
             Card(item.title, item.path.substringAfterLast('.').uppercase() + if (item.size > 0) " · " + Updates.formatSize(item.size) else "",
-                { appIcon(MinecraftMods.MINECRAFT) }, { progress[item.path]?.let { "$it%" } ?: tr("Установить") }) {
+                { appIcon(MinecraftMods.MINECRAFT) }, { progress[item.path]?.let { "$it%" } ?: tr("Install") }) {
                 if (progress.containsKey(item.path)) return@Card
                 progress[item.path] = 0
                 val activity = context as? android.app.Activity
@@ -159,29 +159,29 @@ class StoreContent(private val context: Context, private val host: Host) : Compo
                     }
                 }.getOrNull()
                 progress.remove(item.path)
-                val problem = if (file != null && activity != null) MinecraftMods.install(activity, file) else "«${item.title}» не скачался"
-                if (problem != null) host.message(problem) else host.message(tr("Мод открыт в Minecraft: подтвердите импорт"))
+                val problem = if (file != null && activity != null) MinecraftMods.install(activity, file) else "“${item.title}” didn't download"
+                if (problem != null) host.message(problem) else host.message(tr("The mod is open in Minecraft: confirm the import"))
             }
         }
         val webCards = web.map { app ->
             Card(app.name, app.url.removePrefix("https://").substringBefore('/'), { WebApps.icon(app) },
-                { if (WebApps.installed(context).any { it.url == app.url }) tr("Открыть") else tr("Добавить") }) {
+                { if (WebApps.installed(context).any { it.url == app.url }) tr("Open") else tr("Add") }) {
                 if (WebApps.installed(context).any { it.url == app.url }) host.openWebApp(app)
-                else { WebApps.add(context, app); host.homeChanged(); host.message("«${app.name}» на главном экране") }
+                else { WebApps.add(context, app); host.homeChanged(); host.message("“${app.name}” is on the home screen") }
             }
         }
         // WebXR games open in the built-in browser, which enters VR through the WebXR polyfill.
         val xrCards = WebXrGames.ALL.map { (name, detail, url) ->
             val app = WebApps.App(name, url, null)
-            Card(name, detail, { WebApps.icon(app) }, { tr("Играть") }) { host.openWebApp(app) }
+            Card(name, detail, { WebApps.icon(app) }, { tr("Play") }) { host.openWebApp(app) }
         }
         sections = listOfNotNull(
-            Section(tr("VR‑режимы"), modes),
-            Section("WebXR‑игры", xrCards),
-            Section(tr("Приложения PhoneXR"), apps),
-            Section(if (loading) "Игры · загрузка…" else tr("Игры"), gameCards).takeIf { loading || gameCards.isNotEmpty() },
-            Section(tr("Моды Minecraft"), modCards).takeIf { modCards.isNotEmpty() },
-            Section(tr("Веб‑приложения"), webCards).takeIf { webCards.isNotEmpty() },
+            Section(tr("VR modes"), modes),
+            Section("WebXR games", xrCards),
+            Section(tr("PhoneXR apps"), apps),
+            Section(if (loading) "Games · loading…" else tr("Games"), gameCards).takeIf { loading || gameCards.isNotEmpty() },
+            Section(tr("Minecraft mods"), modCards).takeIf { modCards.isNotEmpty() },
+            Section(tr("Web apps"), webCards).takeIf { webCards.isNotEmpty() },
         )
     }
 }

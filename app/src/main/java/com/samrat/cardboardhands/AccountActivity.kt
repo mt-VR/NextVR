@@ -84,17 +84,17 @@ class AccountActivity : ComponentActivity() {
     @Composable
     private fun Screen() {
         HigPage(
-            title = if (required) "PhoneXR" else tr("Аккаунт"),
-            subtitle = if (required) "Для входа в PhoneXR нужен аккаунт: друзья, звонки, магазин и настройки идут с вами на любой телефон." else null,
+            title = if (required) "PhoneXR" else tr("Account"),
+            subtitle = if (required) "Signing in to PhoneXR needs an account: friends, calls, the store and the settings travel with you to any phone." else null,
             onBack = if (required) null else ::finish
         ) {
             val current = user
             if (current != null) {
-                HigSection(footer = "С аккаунтом вы видны друзьям в приложении «Звонки» в шлеме и можете звонить им персоной.") {
+                HigSection(footer = "With an account, friends see you in the Calls app in the headset and you can call them as your Persona.") {
                     HigRow(current.name, current.email)
                 }
                 HigSection {
-                    HigLink(tr("Выйти")) {
+                    HigLink(tr("Sign out")) {
                         Account.signOut(this@AccountActivity)
                         Calls.stop()
                         user = null
@@ -104,12 +104,12 @@ class AccountActivity : ComponentActivity() {
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 CupertinoText(
-                    if (creating) "Создайте аккаунт PhoneXR" else "Войдите в аккаунт PhoneXR",
+                    if (creating) "Create a PhoneXR account" else "Sign in to your PhoneXR account",
                     fontSize = 22.sp, fontWeight = FontWeight.SemiBold
                 )
-                if (creating) Field("Имя", name, false) { name = it }
-                Field("Почта", email, false, KeyboardType.Email) { email = it }
-                Field("Пароль (от 6 символов)", password, true, KeyboardType.Password) { password = it }
+                if (creating) Field("Name", name, false) { name = it }
+                Field("E-mail", email, false, KeyboardType.Email) { email = it }
+                Field("Password (6 characters or more)", password, true, KeyboardType.Password) { password = it }
                 error?.let { CupertinoText(it, color = Color(0xFFFF453A)) }
                 Box(
                     Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(25.dp)).background(Color(0xFF0A84FF))
@@ -117,10 +117,10 @@ class AccountActivity : ComponentActivity() {
                     contentAlignment = Alignment.Center
                 ) {
                     if (busy) HigSpinner()
-                    else CupertinoText(if (creating) "Создать аккаунт" else tr("Войти"), color = Color.White, fontWeight = FontWeight.SemiBold)
+                    else CupertinoText(if (creating) "Create account" else tr("Sign in"), color = Color.White, fontWeight = FontWeight.SemiBold)
                 }
                 CupertinoText(
-                    if (creating) "Уже есть аккаунт? Войти" else "Нет аккаунта? Создать",
+                    if (creating) "Already have an account? Sign in" else "No account? Create one",
                     color = CupertinoTheme.colorScheme.accent,
                     modifier = Modifier.clickable { creating = !creating; error = null }.padding(vertical = 8.dp)
                 )

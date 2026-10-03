@@ -1,92 +1,94 @@
-Переходник Gear VR -> PhoneXR
-=============================
+Gear VR -> PhoneXR shim
+=======================
 
-Игры Gear VR рисуют через VrApi (libvrapi.so) из Oculus Mobile SDK. Этот libvrapi.so —
-только загрузчик: он ищет системный драйвер Oculus (com.oculus.systemdriver), который был
-лишь на телефонах Samsung, и без него игра не стартует. Переходник собирает свой
-libvrapi.so с теми же экспортами, что у оригинала, и выполняет вызовы через OpenXR на
-рантайме PhoneXR (Monado). Проверки «это Samsung» в нём нет, vrapi_Initialize проходит
-на любом телефоне с PhoneXR.
+Gear VR games render through VrApi (libvrapi.so) from the Oculus Mobile SDK. That libvrapi.so is
+only a loader: it looks for the Oculus system driver (com.oculus.systemdriver), which existed
+only on Samsung phones, and without it the game does not start. The shim builds its own
+libvrapi.so with the same exports as the original and performs the calls through OpenXR on the
+PhoneXR runtime (Monado). There is no "this is a Samsung" check in it, so vrapi_Initialize
+succeeds on any phone with PhoneXR.
 
-Устройство
-----------
-src/xr_backend.{h,cpp}   OpenXR: instance, сессия на EGL-контексте игры, кадры, свопчейны,
-                         голова и глаза, контроллеры, перевод времени CLOCK_MONOTONIC <-> XrTime.
-src/vrapi_system.cpp     vrapi_Initialize/Shutdown, свойства и статусы системы, трекинг-пространства,
-                         Guardian, производительность, заглушки Vulkan и прочих экспортов.
+Layout
+------
+src/xr_backend.{h,cpp}   OpenXR: instance, a session on the game's EGL context, frames, swapchains,
+                         head and eyes, controllers, CLOCK_MONOTONIC <-> XrTime conversion.
+src/vrapi_system.cpp     vrapi_Initialize/Shutdown, system properties and statuses, tracking spaces,
+                         Guardian, performance, stubs for Vulkan and the other exports.
 src/vrapi_frame.cpp      vrapi_EnterVrMode/LeaveVrMode, GetPredictedDisplayTime, GetPredictedTracking(2),
-                         WaitFrame/BeginFrame, SubmitFrame2 и старый SubmitFrame, PollEvent.
-src/vrapi_swapchain.cpp  vrapi_CreateTextureSwapChain(…4): GL-текстуры игры; при отправке кадра
-                         выбранная картинка копируется (glBlitFramebuffer) в свопчейн OpenXR.
-src/vrapi_input.cpp      контроллеры: в режиме Gear VR правый контроллер PhoneXR = Gear VR Controller
-                         (курок, тачпад = стик + A, назад = B); в режиме Quest — два Touch.
+                         WaitFrame/BeginFrame, SubmitFrame2 and the old SubmitFrame, PollEvent.
+src/vrapi_swapchain.cpp  vrapi_CreateTextureSwapChain(…4): the game's GL textures; when a frame is
+                         submitted the chosen image is copied (glBlitFramebuffer) into the OpenXR swapchain.
+src/vrapi_input.cpp      controllers: in Gear VR mode the right PhoneXR controller = Gear VR Controller
+                         (trigger, touchpad = stick + A, back = B); in Quest mode — two Touch controllers.
 
-Экспорты сверены с оригинальным libvrapi.so 1.50 (arm64): все 104 символа на месте.
+The exports were checked against the original libvrapi.so 1.50 (arm64): all 104 symbols are there.
 
-Какое устройство видит игра, задаётся на телефоне:
-  adb shell setprop debug.phonexr.vrapi.product gearvr   (по умолчанию, Galaxy S8 + Gear VR)
+Which device the game sees is set on the phone:
+  adb shell setprop debug.phonexr.vrapi.product gearvr   (the default, Galaxy S8 + Gear VR)
   adb shell setprop debug.phonexr.vrapi.product go
   adb shell setprop debug.phonexr.vrapi.product quest
-Логи: adb logcat -s PhoneXR-VrApi PhoneXR-GearVR
+Logs: adb logcat -s PhoneXR-VrApi PhoneXR-GearVR
 
-Сборка
-------
+Building
+--------
   cmake -S gearvr-shim -B gearvr-shim/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/<версия>/build/cmake/android.toolchain.cmake \
+    -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/<version>/build/cmake/android.toolchain.cmake \
     -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26
   cmake --build gearvr-shim/build
-Для 32-битных игр то же с -B gearvr-shim/build32 -DANDROID_ABI=armeabi-v7a.
-Результат: gearvr-shim/build/assets/libvrapi.so и libvrapi32.so (оттуда их берёт приложение PhoneXR).
+For 32-bit games, the same with -B gearvr-shim/build32 -DANDROID_ABI=armeabi-v7a.
+Result: gearvr-shim/build/assets/libvrapi.so and libvrapi32.so (the PhoneXR app picks them up there).
 
-Перенос игры:
-  python3 sdk/tools/phonexr_port.py игра.apk
-Инструмент заменит lib/arm64-v8a/libvrapi.so переходником, добавит libopenxr_loader.so,
-поправит манифест и подпишет APK.
+Porting a game:
+  python3 sdk/tools/phonexr_port.py game.apk
+The tool replaces lib/arm64-v8a/libvrapi.so with the shim, adds libopenxr_loader.so,
+fixes up the manifest and signs the APK.
 
-Заголовки VrApi
----------------
-Копия VrApi из Oculus Mobile SDK 1.50 лежит в third_party/VrApi (Include, Libs, Projects).
-Папка в .gitignore и в репозиторий не попадает: SDK распространяется по лицензии Oculus,
-выкладывать его нельзя. Без неё сборка остановится; другой путь: -DVRAPI_ROOT=<sdk>/VrApi.
+VrApi headers
+-------------
+A copy of VrApi from the Oculus Mobile SDK 1.50 lives in third_party/VrApi (Include, Libs, Projects).
+The folder is in .gitignore and never reaches the repository: the SDK is distributed under the
+Oculus license and may not be published. Without it the build stops; the other way is
+-DVRAPI_ROOT=<sdk>/VrApi.
 
-Не проверено и не готово
-------------------------
-* На телефоне с настоящей игрой переходник ещё не запускался. Собирается без предупреждений,
-  но цвет, тайминги кадров и поведение Unity/Unreal нужно проверять на устройстве.
-* 32-битные игры (armeabi-v7a, armeabi) собираются отдельной копией переходника
-  (libvrapi32.so) с официальным 32-битным OpenXR loader Khronos 1.1.63
-  (app/src/main/assets/libopenxr_loader32.so). На устройстве 32-битный режим не проверен.
-* Только OpenGL ES. Vulkan-игры vrapi_Initialize отклоняет.
-* Из слоёв рисуется только проекционный (Projection2 и слои старого SubmitFrame).
-  Cylinder, Cube, Equirect, LoadingIcon, FishEye пропускаются: пропадут экраны загрузки,
-  оверлеи OVROverlay, 360-фоны.
-* Видеосвопчейны на Android Surface (vrapi_CreateAndroidSurfaceSwapChain) не поддерживаются:
-  плееры 360-видео не покажут картинку.
-* Структуры взяты из VrApi 1.50. Игры на очень старых SDK (2015–2016) могли собираться
-  с другой раскладкой структур и могут падать.
-* Тачпад и кнопка «назад» на самом шлеме Gear VR приходили в игру как события Android
-  (клавиши и касания), а не через VrApi. Их переходник не даёт.
-* Отслеживания рук через vrapi_GetHandPose нет (руки PhoneXR приходят как контроллеры),
-  вибрации нет, пол и Guardian не отслеживаются (пол считается на 1.6 м ниже глаз).
-* Если в GL-драйвере нет GL_EXT_sRGB_write_control, 8-битные кадры могут выглядеть
-  светлее, чем на Gear VR.
+Untested and unfinished
+-----------------------
+* The shim has not been run on a phone with a real game yet. It builds without warnings,
+  but the colors, frame timings and Unity/Unreal behavior have to be checked on a device.
+* 32-bit games (armeabi-v7a, armeabi) are built as a separate copy of the shim
+  (libvrapi32.so) with the official 32-bit Khronos OpenXR loader 1.1.63
+  (app/src/main/assets/libopenxr_loader32.so). The 32-bit mode is untested on a device.
+* OpenGL ES only. vrapi_Initialize rejects Vulkan games.
+* Of the layers, only the projection one is drawn (Projection2 and the layers of the old SubmitFrame).
+  Cylinder, Cube, Equirect, LoadingIcon and FishEye are skipped: loading screens,
+  OVROverlay overlays and 360 backgrounds disappear.
+* Video swapchains on an Android Surface (vrapi_CreateAndroidSurfaceSwapChain) are not supported:
+  360 video players will show no image.
+* The structures come from VrApi 1.50. Games built against very old SDKs (2015–2016) may have used
+  a different structure layout and may crash.
+* The touchpad and the back button on the Gear VR headset itself reached the game as Android events
+  (keys and touches), not through VrApi. The shim does not provide them.
+* There is no hand tracking through vrapi_GetHandPose (PhoneXR hands arrive as controllers),
+  no haptics, and the floor and Guardian are not tracked (the floor is assumed 1.6 m below the eyes).
+* If the GL driver has no GL_EXT_sRGB_write_control, 8-bit frames may look
+  brighter than on Gear VR.
 
-Чего переходник делать не будет
--------------------------------
-Обходить проверку покупки Oculus Platform (libovrplatformloader.so). Такие игры
-PhoneXR всё равно готовит и ставит, но библиотеку проверки не меняет: если игра без
-покупки не работает, она не запустится; если проверка ни на что не влияет, играть можно.
+What the shim will not do
+-------------------------
+Bypass the Oculus Platform purchase check (libovrplatformloader.so). PhoneXR still prepares and
+installs such games, but it does not touch the check library: if the game does not work without
+a purchase, it will not start; if the check does not matter, the game is playable.
 
-Драйвер без патча (com.oculus.systemdriver)
-------------------------------------------
-libvrapi.so внутри игры — только загрузчик: vrapi_Initialize открывает пакет
-com.oculus.systemdriver, вызывает DriverLoader.load64 / load64Ext (в 32-битных играх load32 /
-load32Ext) с (Context игры, Context драйвера, 5 int[, long]) и получает адрес функции
-«функция по имени». Ею загрузчик по именам (vrapi_Initialize, vrapi_SubmitFrame2, … — те же, что
-экспорты) заполняет свою таблицу; подпись пакета не проверяется.
-Цель phonexr_vrapi собирает тот же VrApi + src/vrapi_driver.cpp (get_proc и JNI procAddress),
-vrapi-driver/build_driver_apk.py упаковывает его с загрузчиком OpenXR (arm64 и arm) в
-PhoneXR VrApi Driver → app/src/main/assets/runtime/phonexr-vrapi-driver.apk.
-Игры с targetSdk 30+ не видят чужие пакеты: PhoneXR запускает их через GameLauncher рантайма,
-тот — через GameLauncher драйвера, и игра получает URI обоих пакетов, что делает их видимыми.
-Проверено с оригинальным загрузчиком 1.1.50 из SDK: arm64 и armeabi-v7a — vrapi_Initialize = 0.
+The driver without patching (com.oculus.systemdriver)
+-----------------------------------------------------
+The libvrapi.so inside a game is only a loader: vrapi_Initialize opens the
+com.oculus.systemdriver package, calls DriverLoader.load64 / load64Ext (load32 / load32Ext in
+32-bit games) with (the game's Context, the driver's Context, 5 int[, long]) and gets the address of a
+"function by name" function. With it the loader fills its own table by name (vrapi_Initialize,
+vrapi_SubmitFrame2, … — the same ones as the exports); the package signature is not checked.
+The phonexr_vrapi target builds the same VrApi plus src/vrapi_driver.cpp (get_proc and the JNI
+procAddress), and vrapi-driver/build_driver_apk.py packs it together with the OpenXR loader
+(arm64 and arm) into PhoneXR VrApi Driver → app/src/main/assets/runtime/phonexr-vrapi-driver.apk.
+Games with targetSdk 30+ cannot see other packages: PhoneXR launches them through the runtime's
+GameLauncher, which goes through the driver's GameLauncher, and the game receives the URIs of both
+packages, which makes them visible.
+Checked with the original loader 1.1.50 from the SDK: arm64 and armeabi-v7a — vrapi_Initialize = 0.

@@ -1,13 +1,14 @@
-# Тесты, сборка и релиз PhoneXR.
+# Tests, build and release for PhoneXR.
 #
-# * push в main — юнит-тесты, сборка APK (full, lite, BE) и SDK, а затем релиз
-#   «latest»: файлы в нём перезаписываются, значит ссылки на них не меняются,
-#   а сам релиз всегда свежий (обычный, не предварительный).
-# * push тега v* — тот же прогон, но релиз версии: PhoneXR-<версия>.apk и т. д.
-# * pull request в main — те же тесты и сборка, но без публикации: видно до слияния.
-# * Ручной запуск (Actions → Run workflow) — как релиз версии, если указать тег,
-#   иначе просто свежая сборка в релиз latest.
-name: Тесты, сборка и релиз
+# * push to main — unit tests, APK builds (full, lite, BE) and the SDK, then the
+#   "latest" release: its files are overwritten, so the links to them never change
+#   while the release itself always holds the freshest build (a normal release,
+#   not a pre-release).
+# * push of a v* tag — the same run, but a versioned release: PhoneXR-<version>.apk and so on.
+# * pull request to main — the same tests and build, but nothing is published: visible before merging.
+# * Manual run (Actions → Run workflow) — a versioned release when a tag is given,
+#   otherwise just a fresh build into the latest release.
+name: Tests, build and release
 
 on:
   push:
@@ -18,21 +19,21 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Тег версии, например v2.0.2 (пусто — предрелиз latest)"
+        description: "Version tag, for example v2.0.2 (empty — the latest release)"
         required: false
         default: ""
 
 permissions:
   contents: write
 
-# Два push подряд в main не должны собирать релиз одновременно.
+# Two pushes in a row to main must not build a release at the same time.
 concurrency:
   group: build-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
-    name: Юнит-тесты
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +42,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Лицензии Android SDK
+      - name: Android SDK licenses
         run: |
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           if [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
@@ -49,9 +50,9 @@ jobs:
           elif command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses >/dev/null 2>&1 || true
           fi
-      - name: Тесты app, sdk и OrangeHanding
+      - name: Tests for app, sdk and OrangeHanding
         run: ./gradlew test --no-daemon --stacktrace
-      - name: Отчёты, если тесты упали
+      - name: Reports, if the tests failed
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -60,7 +61,7 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    name: Сборка и релиз
+    name: Build and release
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -70,7 +71,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Лицензии Android SDK
+      - name: Android SDK licenses
         run: |
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           if [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
@@ -78,20 +79,20 @@ jobs:
           elif command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses >/dev/null 2>&1 || true
           fi
-      - name: Сборка APK (full, lite, BE) и SDK
+      - name: Build the APKs (full, lite, BE) and the SDK
         run: ./gradlew :app:assembleFullDebug :app:assembleLiteDebug :app:assembleBeDebug :sdk:build --no-daemon --stacktrace
-      - name: Имена файлов
+      - name: File names
         id: files
         run: |
           set -euo pipefail
           VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
           SHA=$(git rev-parse --short HEAD)
           mkdir -p dist/latest dist/versioned sdk-zip/PhoneXR-SDK
-          # Стабильные имена: у предрелиза latest ссылки не меняются от сборки к сборке.
+          # Stable names: the links of the latest release stay the same from build to build.
           cp app/build/outputs/apk/full/debug/app-full-debug.apk dist/latest/PhoneXR-full.apk
           cp app/build/outputs/apk/lite/debug/app-lite-debug.apk dist/latest/PhoneXR-lite.apk
           cp app/build/outputs/apk/be/debug/app-be-debug.apk   dist/latest/PhoneXR-BE.apk
-          # Версионные имена: на них ссылается сайт (index.html) и постоянные релизы.
+          # Versioned names: the site (index.html) and the permanent releases link to these.
           cp app/build/outputs/apk/full/debug/app-full-debug.apk "dist/versioned/PhoneXR-$VERSION.apk"
           cp app/build/outputs/apk/lite/debug/app-lite-debug.apk "dist/versioned/PhoneXR-$VERSION-lite.apk"
           cp app/build/outputs/apk/be/debug/app-be-debug.apk   "dist/versioned/PhoneXR-$VERSION-BE.apk"
@@ -101,14 +102,14 @@ jobs:
           cp dist/latest/PhoneXR-SDK.zip "dist/versioned/PhoneXR-SDK-$VERSION.zip"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-      - name: APK в артефакты прогона
+      - name: APKs as run artifacts
         uses: actions/upload-artifact@v4
         with:
           name: phonexr-apk
           path: dist/latest/*
           retention-days: 14
-      - name: В релиз
-        # В pull request сборка только проверяется: релизов из них не делаем.
+      - name: Publish the release
+        # A pull request only checks the build: no releases are made from one.
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -122,39 +123,44 @@ jobs:
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then TAG="$GITHUB_REF_NAME"
           fi
           if [ -n "$TAG" ]; then
-            # Версия: тег v* или ручной запуск с тегом.
+            # A version: a v* tag or a manual run with a tag.
             gh release view "$TAG" >/dev/null 2>&1 \
               || gh release create "$TAG" --target "$GITHUB_SHA" --title "PhoneXR ${TAG#v}" --generate-notes
             gh release upload "$TAG" dist/versioned/* --clobber
-            echo "Релиз $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+            echo "Release $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
           else
-            # Push в main: один обычный релиз latest. Файлы в нём перезаписываются, поэтому
-            # релиз всегда свежий, а ссылки на него постоянные; тег latest переставляется
-            # на собранный коммит. Из предварительного релиз становится обычным.
-            NOTES="Автосборка из ${GITHUB_REF_NAME}: версия $VERSION, коммит $SHA."
+            # Push to main: a single normal latest release. Its files are overwritten, so the
+            # release is always fresh while the links to it stay constant; the latest tag is
+            # moved onto the commit that was built. A pre-release becomes a normal one.
+            NOTES="Automatic build from ${GITHUB_REF_NAME}: version $VERSION, commit $SHA."
             if gh release view latest >/dev/null 2>&1; then
               gh release edit latest \
-                --title "PhoneXR main — последняя сборка" --notes "$NOTES"
+                --title "PhoneXR main — latest build" --notes "$NOTES"
               gh release upload latest dist/latest/* --clobber
             else
               gh release create latest --target "$GITHUB_SHA" \
-                --title "PhoneXR main — последняя сборка" --notes "$NOTES" dist/latest/*
+                --title "PhoneXR main — latest build" --notes "$NOTES" dist/latest/*
             fi
-            # Ровно то, что просили: релиз обычный, а не предварительный. Если он уже
-            # существовал предрелизом (или флаг где-то потерялся) — снимаем его здесь.
-            # Обновлять релиз можно только по id: у /releases/tags/<тег> есть лишь GET.
-            RELEASE_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')
-            if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-              echo "::error::релиз latest не найден, публикация не удалась"
+            # Exactly what was asked for: a normal release, not a pre-release. If it already
+            # existed as a pre-release (or the flag got lost somewhere), clear it here.
+            # The REST API only takes a release id for PATCH — repos/.../releases/tags/<tag>
+            # exists for GET alone and answers 404 to a PATCH, so look the id up first.
+            RELEASE_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq .id 2>/dev/null || true)
+            if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+                -F prerelease=false -f make_latest=true >/dev/null
+            elif gh release edit latest --prerelease=false --latest >/dev/null 2>&1; then
+              # The id could not be looked up, but gh cleared the flag by tag all the same.
+              echo "Cleared the pre-release flag of the latest release by tag."
+            else
+              echo "::error::the latest release was not found, publishing failed"
               exit 1
             fi
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
-              -F prerelease=false >/dev/null
-            # И тег latest — на собранный коммит, чтобы страница релиза показывала этот код.
+            # And the latest tag goes onto the commit that was built, so the release page shows this code.
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
               -f sha="$GITHUB_SHA" -F force=true >/dev/null 2>&1 || true
             {
-              echo "Опубликован релиз latest (версия $VERSION, коммит $SHA):"
+              echo "Published the latest release (version $VERSION, commit $SHA):"
               echo "- https://github.com/$GITHUB_REPOSITORY/releases/tag/latest"
               echo "- Full: https://github.com/$GITHUB_REPOSITORY/releases/download/latest/PhoneXR-full.apk"
               echo "- Lite: https://github.com/$GITHUB_REPOSITORY/releases/download/latest/PhoneXR-lite.apk"

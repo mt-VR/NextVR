@@ -31,8 +31,8 @@ class VideoRecorder(private val context: Context, width: Int, height: Int) {
             put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/PhoneXR")
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
-        uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error("Не удалось создать видео")
-        descriptor = context.contentResolver.openFileDescriptor(uri, "rw") ?: error("Нет доступа к видео")
+        uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error("Couldn't create the video")
+        descriptor = context.contentResolver.openFileDescriptor(uri, "rw") ?: error("No access to the video")
         val sound = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         recorder.apply {
             if (sound) setAudioSource(MediaRecorder.AudioSource.MIC)

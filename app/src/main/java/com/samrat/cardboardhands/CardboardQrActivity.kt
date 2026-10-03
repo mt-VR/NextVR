@@ -33,18 +33,18 @@ class CardboardQrActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val busy = AtomicBoolean(false)
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startCamera() else status.text = tr("Камера нужна для сканирования QR")
+        if (granted) startCamera() else status.text = tr("The camera is needed to scan the QR")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
         status = TextView(this).apply {
-            text = tr("Наведите камеру на QR‑код профиля Cardboard")
+            text = tr("Point the camera at the QR code of the Cardboard profile")
             setTextColor(Color.WHITE); textSize = 18f; gravity = Gravity.CENTER
             setBackgroundColor(0xB0000000.toInt()); setPadding(28, 22, 28, 22)
         }
-        val close = Button(this).apply { text = tr("Закрыть"); setOnClickListener { finish() } }
+        val close = Button(this).apply { text = tr("Close"); setOnClickListener { finish() } }
         setContentView(FrameLayout(this).apply {
             addView(preview, FrameLayout.LayoutParams(-1, -1))
             addView(status, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
@@ -73,17 +73,17 @@ class CardboardQrActivity : ComponentActivity() {
                             mm != null -> done(mm)
                             raw != null && (raw.contains("://") || CardboardProfile.isShortLink(raw)) && resolving.compareAndSet(false, true) -> {
                                 // A short link: follow it to the real profile.
-                                status.text = tr("Открываю профиль шлема…")
+                                status.text = tr("Opening the headset profile…")
                                 Thread {
                                     val found = CardboardProfile.resolve(raw)?.let(CardboardProfile::interLensMm)
                                         ?: Settings.DEFAULT_IPD_MM.takeIf { CardboardProfile.isShortLink(raw) }
                                     runOnUiThread {
                                         resolving.set(false)
-                                        if (found != null) done(found) else status.text = tr("QR найден, но это не профиль Cardboard")
+                                        if (found != null) done(found) else status.text = tr("A QR was found, but it is not a Cardboard profile")
                                     }
                                 }.start()
                             }
-                            raw != null && !resolving.get() -> status.text = tr("QR найден, но это не профиль Cardboard")
+                            raw != null && !resolving.get() -> status.text = tr("A QR was found, but it is not a Cardboard profile")
                         }
                     }
                     .addOnCompleteListener { busy.set(false); proxy.close() }

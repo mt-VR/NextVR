@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class ScreenStream: ObservableObject {
     @Published var running = false
-    @Published var status = "Остановлено"
+    @Published var status = "Stopped"
     private var listener: NWListener?
     private var clients: [NWConnection] = []
     private var timer: Timer?
@@ -28,7 +28,7 @@ final class ScreenStream: ObservableObject {
             let listener = try NWListener(using: .tcp, on: 24820)
             listener.newConnectionHandler = { [weak self] connection in
                 connection.start(queue: .main)
-                Task { @MainActor in self?.clients.append(connection); self?.status = "PhoneXR подключён · передача экрана" }
+                Task { @MainActor in self?.clients.append(connection); self?.status = "PhoneXR connected · sharing the screen" }
             }
             listener.stateUpdateHandler = { [weak self] state in
                 if case .failed(let error) = state { Task { @MainActor in self?.status = error.localizedDescription; self?.stop() } }
@@ -43,7 +43,7 @@ final class ScreenStream: ObservableObject {
                     self?.announcer?.send(content: Data("PHONEXR_DESKTOP_V1 24820 \(name)".utf8), completion: .contentProcessed { _ in })
                 }
             }
-            running = true; status = "Ожидание PhoneXR в локальной сети…"
+            running = true; status = "Waiting for PhoneXR on the local network…"
             timer = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.sendFrame() }
             }
@@ -53,7 +53,7 @@ final class ScreenStream: ObservableObject {
     func stop() {
         timer?.invalidate(); timer = nil; announceTimer?.invalidate(); announceTimer = nil
         announcer?.cancel(); announcer = nil; listener?.cancel(); listener = nil
-        clients.forEach { $0.cancel() }; clients.removeAll(); running = false; status = "Остановлено"
+        clients.forEach { $0.cancel() }; clients.removeAll(); running = false; status = "Stopped"
     }
 
     private func sendFrame() {

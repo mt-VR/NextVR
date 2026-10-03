@@ -49,7 +49,7 @@ object DepthModel {
             failure = result.exceptionOrNull()
             partial.delete()
         }
-        throw failure ?: IllegalStateException("Нейросеть глубины не скачалась")
+        throw failure ?: IllegalStateException("The depth neural network didn't download")
     }
 
     /** A copy in the PhoneXR store, when the store has one. */
@@ -68,14 +68,14 @@ object DepthModel {
             }
             val code = connection.responseCode
             if (code in 300..399) {
-                val next = connection.getHeaderField("Location") ?: throw IllegalStateException("Пустая переадресация")
+                val next = connection.getHeaderField("Location") ?: throw IllegalStateException("An empty redirect")
                 connection.disconnect()
                 url = URL(url, next)
                 return@repeat
             }
             if (code != 200) {
                 connection.disconnect()
-                throw IllegalStateException("Сервер ответил $code")
+                throw IllegalStateException("The server answered $code")
             }
             val total = connection.contentLengthLong
             connection.inputStream.use { input ->
@@ -95,7 +95,7 @@ object DepthModel {
             onProgress(1f)
             return
         }
-        throw IllegalStateException("Слишком много переадресаций")
+        throw IllegalStateException("Too many redirects")
     }
 
     /**
