@@ -15,7 +15,7 @@ import org.json.JSONObject
 object PxrPackage {
     /** Creates a portable PhoneXR package around an already prepared Android build. */
     fun packAndroid(context: Context, apk: File, title: String = apk.nameWithoutExtension): File {
-        require(apk.isFile && apk.length() > 0) { "APK не найден" }
+        require(apk.isFile && apk.length() > 0) { "The APK was not found" }
         val folder = File(context.filesDir, "pxr-exports").apply { mkdirs() }
         val safe = title.replace(Regex("[^A-Za-zА-Яа-я0-9._-]+"), "-").trim('-').ifEmpty { "PhoneXR-app" }
         val output = File(folder, "$safe.pxr")
@@ -33,7 +33,7 @@ object PxrPackage {
 
     /** The APK inside a .pxr package as a file; anything else is returned as it is. */
     fun androidApk(context: Context, source: Uri): File = unpack(context, source)
-        ?: File(requireNotNull(source.path) { "Не удалось открыть файл" })
+        ?: File(requireNotNull(source.path) { "Couldn't open the file" })
 
     fun androidPayload(context: Context, source: Uri): Uri {
         val apk = unpack(context, source) ?: return source
@@ -52,7 +52,7 @@ object PxrPackage {
         var validManifest = false
         var foundAndroid = false
         context.contentResolver.openInputStream(source).use { raw ->
-            requireNotNull(raw) { "Не удалось открыть .pxr" }
+            requireNotNull(raw) { "Couldn't open the .pxr" }
             ZipInputStream(BufferedInputStream(raw)).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
@@ -70,8 +70,8 @@ object PxrPackage {
                 }
             }
         }
-        require(validManifest) { "Это не пакет PhoneXR .pxr" }
-        require(foundAndroid && output.length() > 0) { "В .pxr нет Android APK" }
+        require(validManifest) { "This is not a PhoneXR .pxr package" }
+        require(foundAndroid && output.length() > 0) { "The .pxr has no Android APK" }
         return output
     }
 }

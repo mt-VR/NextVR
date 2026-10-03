@@ -48,15 +48,15 @@ class ApkPatcherTest {
         val folder = createTempDir()
         val result = patch(folder)
         val libraries = dataOffsets(result.apk).filterKeys { it.startsWith("lib/") && it.endsWith(".so") }
-        assertTrue("в сборке не осталось библиотек", libraries.isNotEmpty())
+        assertTrue("no libraries were left in the build", libraries.isNotEmpty())
         libraries.forEach { (name, offset) ->
             // Signing rewrites the archive; left to itself it re-aligns entries on 4 bytes, and a
-            // library off its page makes the installer answer "приложение не установлено".
-            assertEquals("$name не на границе страницы 16 КБ", 0L, offset % 16_384)
+            // library off its page makes the installer answer "app not installed".
+            assertEquals("$name is not on a 16 KB page boundary", 0L, offset % 16_384)
         }
         ZipFile(result.apk).use { zip ->
             libraries.keys.forEach { name ->
-                assertEquals("$name сжата", ZipEntry.STORED, zip.getEntry(name).method)
+                assertEquals("$name is compressed", ZipEntry.STORED, zip.getEntry(name).method)
             }
         }
     }
@@ -68,7 +68,7 @@ class ApkPatcherTest {
         val names = ZipFile(result.apk).use { zip -> zip.entries().toList().map { it.name } }
         assertTrue(names.toString(), names.none { it.startsWith("lib/x86_64/") })
         assertTrue(names.toString(), "lib/arm64-v8a/libgame.so" in names)
-        assertTrue(result.changes.toString(), result.changes.any { it.contains("других процессоров") })
+        assertTrue(result.changes.toString(), result.changes.any { it.contains("other processors") })
     }
 
     @Test
@@ -93,7 +93,7 @@ class ApkPatcherTest {
         // The end of central directory sits in the last 64 KB, after the signing block.
         var end = bytes.size - 22
         while (end >= 0 && buffer.getInt(end) != 0x06054b50) end--
-        check(end >= 0) { "в APK нет центрального каталога" }
+        check(end >= 0) { "the APK has no central directory" }
         val count = buffer.getShort(end + 10).toInt() and 0xffff
         var entry = buffer.getInt(end + 16)
         val offsets = LinkedHashMap<String, Long>()

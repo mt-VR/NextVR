@@ -1,34 +1,34 @@
 PhoneXR Developer API
 =====================
 
-PhoneXR-приложение строится под PhoneXR, а не под Quest. Основной графический API — OpenXR;
-дополнительный PhoneXR Input API сообщает сырые жесты и Joy-Con.
+A PhoneXR app is built for PhoneXR, not for Quest. The main graphics API is OpenXR;
+the additional PhoneXR Input API reports raw gestures and the Joy-Con.
 
 1. OpenXR
-   Используйте стандартный Android OpenXR loader и профили Oculus Touch/Khronos Simple Controller.
-   PhoneXR Runtime предоставляет голову, левую/правую руку, позы, trigger, squeeze, A/X, B/Y,
-   menu и стики. В манифест скопируйте обязательные элементы из manifest.txt.
+   Use the standard Android OpenXR loader and the Oculus Touch/Khronos Simple Controller profiles.
+   PhoneXR Runtime provides the head, the left/right hand, poses, trigger, squeeze, A/X, B/Y,
+   menu and the sticks. Copy the required elements from manifest.txt into your manifest.
 
 2. PhoneXR Input API
-   Транспорт: UDP 127.0.0.1:42425, ASCII, версия пакета PH5, до 60 обновлений/с.
-   Готовые клиенты: src/main/kotlin/com/phonexr/sdk/PhoneXRInput.kt для Kotlin/Java и
-   runtime/phonexr_input.h для C/C++. Полная схема находится в protocol.txt.
+   Transport: UDP 127.0.0.1:42425, ASCII, packet version PH5, up to 60 updates/s.
+   Ready-made clients: src/main/kotlin/com/phonexr/sdk/PhoneXRInput.kt for Kotlin/Java and
+   runtime/phonexr_input.h for C/C++. The full schema is in protocol.txt.
 
-   В PH6 каждая рука также содержит thumbCurl/indexCurl/middleCurl/ringCurl/pinkyCurl
-   (в C: thumb_curl/index_curl/middle_curl/ring_curl/pinky_curl), значения 0..1. Это позволяет
-   приложению строить собственную позу пальцев без выбора одного фиксированного жеста.
+   In PH6 each hand also carries thumbCurl/indexCurl/middleCurl/ringCurl/pinkyCurl
+   (in C: thumb_curl/index_curl/middle_curl/ring_curl/pinky_curl), values 0..1. That lets the
+   app build its own finger pose instead of picking one fixed gesture.
 
-3. Жизненный цикл
-   Пользователь запускает игру из PhoneXR. PhoneXR включает камеру и поток API до старта Activity.
-   Игра открывает порт 42425 неблокирующе, всегда берёт последний пакет и продолжает работать через
-   OpenXR, если дополнительный поток временно недоступен.
+3. Lifecycle
+   The user launches the game from PhoneXR. PhoneXR turns on the camera and the API stream before
+   the Activity starts. The game opens port 42425 non-blocking, always takes the last packet and
+   keeps working through OpenXR when the extra stream is temporarily unavailable.
 
-4. Совместимость
-   Собирайте arm64-v8a, не требуйте конкретную модель гарнитуры, не встраивайте проверку магазина
-   Quest/Pico. Проверяйте 3DoF и 6DoF по флагу PHONEXR_FLAG_SIX_DOF и давайте пользователю играть
-   в обоих режимах.
+4. Compatibility
+   Build arm64-v8a, do not require a specific headset model, do not embed a Quest/Pico store check.
+   Check 3DoF and 6DoF through the PHONEXR_FLAG_SIX_DOF flag and let the user play
+   in both modes.
 
-5. Публикация
-   Выпустите APK или .pxr и JSON магазина с name, url, icon, description и size. PhoneXR скачает,
-   подготовит и передаст APK системному установщику. Android требует установку пакета; запуск APK
-   как файла внутри другого приложения без контейнера невозможен.
+5. Publishing
+   Release an APK or a .pxr plus the store JSON with name, url, icon, description and size. PhoneXR
+   downloads it, prepares it and hands the APK to the system installer. Android requires the package
+   to be installed; running an APK as a file inside another app without a container is impossible.

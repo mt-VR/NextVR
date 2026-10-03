@@ -24,11 +24,11 @@ object Environments {
     data class Place(val id: String, val title: String)
 
     val BUILT_IN = listOf(
-        Place(REAL_WORLD, "Реальный мир"),
-        Place("sunset", "Закат"),
-        Place("night", "Ночь"),
-        Place("space", "Космос"),
-        Place("studio", "Студия"),
+        Place(REAL_WORLD, "Real world"),
+        Place("sunset", "Sunset"),
+        Place("night", "Night"),
+        Place("space", "Space"),
+        Place("studio", "Studio"),
     )
 
     /** The easter egg: open space all around, the version in big letters wherever one looks. */

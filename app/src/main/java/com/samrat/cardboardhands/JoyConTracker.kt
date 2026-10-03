@@ -59,7 +59,7 @@ class JoyConTracker(context: Context) : AutoCloseable, InputManager.InputDeviceL
         val own = slot.motion()
         if (slot.hasMotion) return own
         val root = RootJoyCon.pose(left) ?: return own
-        return Motion(true, listOf("гироскоп (root)", "акселерометр (root)"), root.rateHz * 3, root.degreesPerSecond, own.events)
+        return Motion(true, listOf("gyroscope (root)", "accelerometer (root)"), root.rateHz * 3, root.degreesPerSecond, own.events)
     }
 
     /** Makes the current Joy-Con orientation the new "straight ahead". */
@@ -187,9 +187,9 @@ class JoyConTracker(context: Context) : AutoCloseable, InputManager.InputDeviceL
     }
 
     private fun sensorName(sensor: Sensor) = when (sensor.type) {
-        Sensor.TYPE_GYROSCOPE -> "гироскоп"
-        Sensor.TYPE_ACCELEROMETER -> "акселерометр"
-        Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> "ориентация"
+        Sensor.TYPE_GYROSCOPE -> "gyroscope"
+        Sensor.TYPE_ACCELEROMETER -> "accelerometer"
+        Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> "orientation"
         else -> sensor.stringType.substringAfterLast('.')
     }
 

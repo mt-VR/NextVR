@@ -18,4 +18,4 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as addon:
             for file in files:
                 path = os.path.join(directory, file)
                 addon.write(path, os.path.join(name, os.path.relpath(path, base)))
-print("Готово:", OUT, os.path.getsize(OUT), "байт")
+print("Done:", OUT, os.path.getsize(OUT), "bytes")

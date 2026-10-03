@@ -52,7 +52,7 @@ object PhoneXrRuntime {
             process.waitFor() == 0 && out.contains("Success")
         }.getOrDefault(false)
         if (rooted) return null
-        if (VirtualScreen.access() != VirtualScreen.Access.READY) return "Нет root и Shizuku"
+        if (VirtualScreen.access() != VirtualScreen.Access.READY) return "No root and no Shizuku"
         val done = java.util.concurrent.CountDownLatch(1)
         var problem: String? = null
         activity.runOnUiThread { InternalInstaller.install(activity, file) { problem = it; done.countDown() } }

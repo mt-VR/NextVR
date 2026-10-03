@@ -5,7 +5,7 @@ import android.view.MotionEvent
 import org.json.JSONObject
 
 /**
- * A window watched together in a call ("Смотреть вместе"): the same page is open on both sides, and
+ * A window watched together in a call ("Watch together"): the same page is open on both sides, and
  * what either person does to it — touches, typing, back and reload — is done to the other's copy too.
  * Both windows have the same size in pixels, so a touch lands on the same spot.
  */

@@ -66,13 +66,13 @@ class GyroTestActivity : ComponentActivity() {
             }
         }
         HigPage(
-            title = "Гироскоп Joy‑Con",
+            title = "Joy‑Con gyro",
             onBack = ::finish,
-            subtitle = "Поверните Joy‑Con — куб повторит поворот, а скорость вращения покажет, что данные идут."
+            subtitle = "Turn the Joy‑Con — the cube repeats the rotation, and the rotation speed shows the data is coming in."
         ) {
             if (Build.VERSION.SDK_INT < 31) {
-                HigSection(footer = "Датчики Joy‑Con Android отдаёт приложениям только с Android 12.") {
-                    HigRow("Нужен Android 12 или новее", detailColor = HigColors.bad)
+                HigSection(footer = "Android only hands Joy‑Con sensors to apps from Android 12 on.") {
+                    HigRow("Needs Android 12 or newer", detailColor = HigColors.bad)
                 }
                 return@HigPage
             }
@@ -85,13 +85,13 @@ class GyroTestActivity : ComponentActivity() {
                 Cube(left, leftMotion, Modifier.weight(1f))
                 Cube(right, rightMotion, Modifier.weight(1f))
             }
-            JoyConSection("Левый Joy‑Con", leftMotion)
-            JoyConSection("Правый Joy‑Con", rightMotion)
-            HigButton("Выровнять", filled = false) { tracker?.recenter() }
+            JoyConSection("Left Joy‑Con", leftMotion)
+            JoyConSection("Right Joy‑Con", rightMotion)
+            HigButton("Recenter", filled = false) { tracker?.recenter() }
             HigSection(
-                footer = "Держите оба Joy‑Con прямо и нажмите «Выровнять». Если датчики не найдены, ядро телефона " +
-                    "не отдаёт гироскоп Joy‑Con (так бывает, например, на Samsung с ядром 5.10) — " +
-                    "тогда поворот руки берётся только с камеры."
+                footer = "Hold both Joy‑Con straight and tap “Recenter”. If no sensors are found, the phone kernel " +
+                    "does not expose the Joy‑Con gyro (that happens, for example, on Samsung with kernel 5.10) — " +
+                    "then hand rotation comes from the camera only."
             ) {}
         }
     }
@@ -100,20 +100,20 @@ class GyroTestActivity : ComponentActivity() {
     private fun JoyConSection(title: String, motion: JoyConTracker.Motion) {
         val verdict = verdict(motion)
         HigSection(title = title) {
-            HigRow("Состояние", verdict.first, detailColor = verdict.second)
-            HigRow("Датчики", motion.sensors.ifEmpty { listOf("нет") }.joinToString(", "))
-            HigRow("Частота", "${motion.rateHz.roundToInt()} Гц · событий ${motion.events}")
-            HigRow("Скорость вращения", "${motion.degreesPerSecond.roundToInt()}°/с")
+            HigRow("State", verdict.first, detailColor = verdict.second)
+            HigRow("Sensors", motion.sensors.ifEmpty { listOf("none") }.joinToString(", "))
+            HigRow("Rate", "${motion.rateHz.roundToInt()} Hz · ${motion.events} events")
+            HigRow("Rotation speed", "${motion.degreesPerSecond.roundToInt()}°/s")
         }
     }
 
     @Composable
     private fun verdict(motion: JoyConTracker.Motion): Pair<String, Color> = when {
-        !motion.connected -> "Не подключён — подключите по Bluetooth" to HigColors.secondary
-        motion.sensors.none { it == "гироскоп" || it == "ориентация" } ->
-            "Подключён, но гироскопа нет" to HigColors.bad
-        motion.rateHz < 1f -> "Гироскоп есть, но данные не приходят" to HigColors.bad
-        else -> "Гироскоп работает" to HigColors.good
+        !motion.connected -> "Not connected — pair it over Bluetooth" to HigColors.secondary
+        motion.sensors.none { it == "gyroscope" || it == "orientation" } ->
+            "Connected, but there is no gyro" to HigColors.bad
+        motion.rateHz < 1f -> "There is a gyro, but no data arrives" to HigColors.bad
+        else -> "The gyro works" to HigColors.good
     }
 
     @Composable

@@ -241,7 +241,7 @@ class FusionBody(
                         }
                     }
                 }
-                check(partial.length() >= HEAVY_BYTES / 2) { "Модель скачалась не полностью" }
+                check(partial.length() >= HEAVY_BYTES / 2) { "The model didn't download completely" }
                 partial.renameTo(target)
             } finally {
                 connection.disconnect()

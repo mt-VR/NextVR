@@ -60,7 +60,7 @@ import kotlin.concurrent.thread
 class SettingsContent(
     private val context: Context,
     private val host: Host,
-) : ComposeContent(barTitle = tr("Настройки")) {
+) : ComposeContent(barTitle = tr("Settings")) {
     interface Host {
         /** The space easter egg all around the user in VR (five taps on the version). */
         fun easterEgg() = Unit
@@ -78,12 +78,12 @@ class SettingsContent(
 
     /** The sections, shown as tiles like Quest's settings: a title and what is inside. */
     private enum class Page(val title: String, val detail: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-        ABOUT(tr("О гарнитуре"), tr("Устройство, версия, аккаунт"), Icons.Rounded.Info),
-        CONNECTIVITY("Wi‑Fi и Bluetooth", tr("Сеть, контроллеры, клавиатура"), Icons.Rounded.Wifi),
-        HANDS(tr("Руки и касания"), tr("Трекинг рук, щипок"), Icons.Rounded.PanTool),
-        UPDATE(tr("Обновление ПО"), tr("Версия PhoneXR"), Icons.Rounded.SystemUpdate),
-        AVATAR(tr("Аватар"), tr("Avaturn или VRoid Hub"), Icons.Rounded.Face),
-        ROOM(tr("Сканирование комнаты"), tr("Сетка, стол, 6DoF"), Icons.Rounded.ViewInAr),
+        ABOUT(tr("About headset"), tr("Device, version, account"), Icons.Rounded.Info),
+        CONNECTIVITY("Wi‑Fi and Bluetooth", tr("Network, controllers, keyboard"), Icons.Rounded.Wifi),
+        HANDS(tr("Hands and touch"), tr("Hand tracking, pinch"), Icons.Rounded.PanTool),
+        UPDATE(tr("Software Update"), tr("PhoneXR version"), Icons.Rounded.SystemUpdate),
+        AVATAR(tr("Avatar"), tr("Avaturn or VRoid Hub"), Icons.Rounded.Face),
+        ROOM(tr("Room scan"), tr("Grid, table, 6DoF"), Icons.Rounded.ViewInAr),
     }
 
     /** Null: the tiles of all sections; otherwise the section that is open. */
@@ -179,7 +179,7 @@ class SettingsContent(
             ) {
                 androidx.compose.material3.Icon(Icons.Rounded.Search, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(22.dp))
                 androidx.compose.material3.Text(
-                    if (filter.isEmpty() && !typing) tr("Поиск в настройках") else filter + if (typing) "▏" else "",
+                    if (filter.isEmpty() && !typing) tr("Search in settings") else filter + if (typing) "▏" else "",
                     color = if (filter.isEmpty()) colors.onSurfaceVariant else colors.onSurface
                 )
             }
@@ -191,7 +191,7 @@ class SettingsContent(
                         repeat(4 - row.size) { Box(Modifier.weight(1f)) }
                     }
                 }
-                if (shown.isEmpty()) androidx.compose.material3.Text(tr("Ничего не найдено"), color = colors.onSurfaceVariant)
+                if (shown.isEmpty()) androidx.compose.material3.Text(tr("Nothing found"), color = colors.onSurfaceVariant)
             }
         }
     }
@@ -220,50 +220,50 @@ class SettingsContent(
         val version = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
         val runtime = when (PhoneXrRuntime.state(context)) {
             PhoneXrRuntime.State.READY -> "PhoneXR Runtime"
-            PhoneXrRuntime.State.OUTDATED -> "PhoneXR Runtime (есть обновление)"
-            PhoneXrRuntime.State.MISSING -> "не установлен"
+            PhoneXrRuntime.State.OUTDATED -> "PhoneXR Runtime (update available)"
+            PhoneXrRuntime.State.MISSING -> "not installed"
         }
         HigSection {
-            HigRow("Устройство", "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}")
+            HigRow("Device", "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}")
             HigRow("Android", Build.VERSION.RELEASE)
             // Five taps in a row on the version: the easter egg.
             HigLink("PhoneXR", value = version ?: "—") {
                 if (taps.tap()) { host.easterEgg(); status = null }
-                else if (taps.left in 1..3) status = "Ещё ${taps.left}…"
+                else if (taps.left in 1..3) status = "${taps.left} more…"
             }
-            HigRow("Аккаунт", Account.current(context)?.let { "${it.name} · ${it.email}" } ?: "—")
+            HigRow("Account", Account.current(context)?.let { "${it.name} · ${it.email}" } ?: "—")
         }
-        HigSection(title = "Шлем") {
-            HigRow("Отслеживание", host.trackingText())
-            HigRow("Экран", "${metrics.widthPixels}×${metrics.heightPixels}, по ${metrics.widthPixels / 2}×${metrics.heightPixels} на глаз")
-            HigRow("Поле зрения", "90° по вертикали")
-            HigRow("Межзрачковое", "${Settings.ipdMm(context)} мм")
-            HigRow("Руки", "OrangeHanding: MediaPipe + YOLO11, 21 точка на руку")
+        HigSection(title = "Headset") {
+            HigRow("Tracking", host.trackingText())
+            HigRow("Screen", "${metrics.widthPixels}×${metrics.heightPixels}, ${metrics.widthPixels / 2}×${metrics.heightPixels} per eye")
+            HigRow("Field of view", "90° vertical")
+            HigRow("Interpupillary", "${Settings.ipdMm(context)} mm")
+            HigRow("Hands", "OrangeHanding: MediaPipe + YOLO11, 21 points per hand")
             HigRow("OpenXR", runtime)
-            HigRow("Батарея", battery?.let { "$it %" } ?: "—")
+            HigRow("Battery", battery?.let { "$it %" } ?: "—")
         }
     }
 
     @Composable
     private fun Connectivity() {
-        HigSection(footer = "Системные сети открываются прямо в отдельном VR‑окне. Для управления Android‑окнами нужен Shizuku.") {
+        HigSection(footer = "System networks open right in a separate VR window. Managing Android windows needs Shizuku.") {
             HigRow("Shizuku", host.shizukuText())
-            HigLink("Открыть настройки Android") { host.openSystemSettings() }
-            HigLink("Разрешить Shizuku") { host.requestShizuku() }
+            HigLink("Open Android settings") { host.openSystemSettings() }
+            HigLink("Allow Shizuku") { host.requestShizuku() }
         }
     }
 
     @Composable
     private fun Hands() {
         HigSection(
-            title = "Нажатие",
-            footer = "Рука ведёт курсор, щипок большим и указательным пальцами — нажатие. Удерживайте щипок и ведите руку, чтобы листать."
+            title = "Pressing",
+            footer = "Your hand moves the cursor, a pinch of the thumb and index finger presses. Hold the pinch and move your hand to scroll."
         ) {
-            HigRow("Курсор и щипок", "Как на Quest")
+            HigRow("Cursor and pinch", "Like on Quest")
         }
         HigSection(
-            title = "Окна",
-            footer = "Чтобы переместить окно, поднесите руку к его левому или правому краю, сожмите кулак и несите. Разожмите руку — окно останется там."
+            title = "Windows",
+            footer = "To move a window, bring your hand to its left or right edge, make a fist and carry it. Open your hand and the window stays there."
         ) {
         }
     }
@@ -271,25 +271,25 @@ class SettingsContent(
     @Composable
     private fun Update() {
         HigSection {
-            HigSwitchRow(tr("Автообновление"), Updates.autoUpdate(context)) { Updates.setAutoUpdate(context, it) }
-            HigSwitchRow(tr("Бета‑обновления"), Updates.beta(context)) { Updates.setBeta(context, it); checkUpdate() }
+            HigSwitchRow(tr("Automatic Updates"), Updates.autoUpdate(context)) { Updates.setAutoUpdate(context, it) }
+            HigSwitchRow(tr("Beta Updates"), Updates.beta(context)) { Updates.setBeta(context, it); checkUpdate() }
         }
         val found = release
         HigSection {
             when {
-                checking -> HigRow("Проверка обновлений…", trailing = { HigSpinner() })
+                checking -> HigRow("Checking for updates…", trailing = { HigSpinner() })
                 found == null -> {
-                    HigRow("PhoneXR ${Updates.currentVersion(context)}", if (checked) "Установлена последняя версия ПО" else null)
-                    HigLink("Проверить снова") { checkUpdate() }
+                    HigRow("PhoneXR ${Updates.currentVersion(context)}", if (checked) "The software is up to date" else null)
+                    HigLink("Check again") { checkUpdate() }
                 }
                 else -> {
                     HigRow("PhoneXR ${found.version}", Updates.formatSize(found.size))
                     val progress = downloadProgress
                     HigLink(
                         when {
-                            progress == null -> tr("Обновить сейчас")
-                            progress < 0f -> tr("Загрузка…")
-                            else -> "Загрузка ${(progress * 100).toInt()}%"
+                            progress == null -> tr("Update Now")
+                            progress < 0f -> tr("Loading…")
+                            else -> "Downloading ${(progress * 100).toInt()}%"
                         },
                         enabled = progress == null
                     ) {
@@ -299,7 +299,7 @@ class SettingsContent(
                             downloadProgress = null
                             val activity = context as? android.app.Activity
                             if (file != null && activity != null) activity.runOnUiThread { Updates.install(activity, file) }
-                            else status = "Обновление не скачалось"
+                            else status = "The update didn't download"
                         }
                     }
                 }
@@ -311,14 +311,14 @@ class SettingsContent(
     private fun Avatar() {
         val source = remember(page) { AvatarModel.source(context) }
         HigSection(
-            footer = "Сделайте аватар по селфи в Avaturn или выберите персонажа на VRoid Hub — окно откроется здесь же. " +
-                "Нажмите там «Скачать» или «Экспорт»: PhoneXR сам заберёт модель, и аватар оживёт по вашему трекингу. " +
-                "Аватары Avaturn — avaturn.me, VRoid — hub.vroid.com (условия каждой модели задаёт её автор)."
+            footer = "Make an avatar from a selfie in Avaturn or pick a character on VRoid Hub — the window opens right here. " +
+                "Tap “Download” or “Export” there: PhoneXR picks the model up itself and the avatar comes alive with your tracking. " +
+                "Avaturn avatars — avaturn.me, VRoid — hub.vroid.com (the author of each model sets its terms)."
         ) {
-            HigRow(tr("Сейчас"), if (source == AvatarModel.Source.STANDARD) tr("Стандартный") else source.title)
-            HigLink(tr("Создать в Avaturn")) { host.avatarWeb(vroid = false) }
-            HigLink(tr("Сделать в VRoid"), value = "Google Play") { AvatarModel.openVroid(context) }
-            if (source != AvatarModel.Source.STANDARD) HigLink(tr("Вернуть стандартный")) { AvatarModel.reset(context); status = tr("Стандартный аватар") }
+            HigRow(tr("Current"), if (source == AvatarModel.Source.STANDARD) tr("Standard") else source.title)
+            HigLink(tr("Create in Avaturn")) { host.avatarWeb(vroid = false) }
+            HigLink(tr("Make in VRoid"), value = "Google Play") { AvatarModel.openVroid(context) }
+            if (source != AvatarModel.Source.STANDARD) HigLink(tr("Back to standard")) { AvatarModel.reset(context); status = tr("Standard avatar") }
         }
     }
 
@@ -326,16 +326,16 @@ class SettingsContent(
     private fun Room() {
         if (host.trackingText().startsWith("3DoF")) {
             HigSection {
-                HigRow("Нужен 6DoF", "Сканирование пола, стен и столов работает только в 6DoF. Включите 6DoF в настройках PhoneXR и установите Google Play Services for AR.",
+                HigRow("6DoF needed", "Scanning the floor, walls and tables only works in 6DoF. Turn on 6DoF in the PhoneXR settings and install Google Play Services for AR.",
                     detailColor = Color(0xFFFF9F0A))
             }
             return
         }
         HigSection(
-            footer = "Медленно осмотрите пол, стены и поверхности со всех сторон. PhoneXR показывает найденные горизонтальные и вертикальные плоскости."
+            footer = "Slowly look over the floor, the walls and the surfaces from every side. PhoneXR shows the horizontal and vertical planes it finds."
         ) {
             HigRow(host.roomText())
-            HigLink(tr("Начать новое сканирование")) { host.startRoomScan() }
+            HigLink(tr("Start a new scan")) { host.startRoomScan() }
         }
     }
 }

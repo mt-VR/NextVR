@@ -1,31 +1,31 @@
 PhoneXR SDK
 ===========
 
-Набор для переноса и разработки OpenXR-игр под PhoneXR — VR на обычном телефоне
-(Cardboard + рантайм Monado + трекинг рук камерой + Joy-Con вместо контроллеров).
+A kit for porting and developing OpenXR games for PhoneXR — VR on an ordinary phone
+(Cardboard + the Monado runtime + camera hand tracking + a Joy-Con instead of controllers).
 
-Состав:
+Contents:
 
-  tools/phonexr_port.py   Готовит чужой APK к запуску на PhoneXR: правит манифест,
-                          подменяет OpenXR loader, выравнивает и подписывает.
-  src/                    Библиотека PhoneXRInput (Kotlin/JVM): сырые данные рук и Joy-Con.
-  runtime/phonexr_input.h То же самое для игр на C/C++, один заголовок.
-  docs/porting.txt        Как перенести игру и что перенести нельзя.
-  docs/protocol.txt       Формат потока данных PhoneXR.
-  docs/manifest.txt       Что нужно в манифесте своей игры, чтобы не было чёрного экрана.
-  docs/engines.txt        Подключение Unity, Godot 4 и Lua-движков.
-  docs/api.txt            PhoneXR Developer API: OpenXR, PH5, lifecycle и публикация.
-  docs/ai-prompts.txt     Полные промты для генерации PhoneXR-проектов.
+  tools/phonexr_port.py   Prepares someone else's APK to run on PhoneXR: fixes the manifest,
+                          swaps the OpenXR loader, aligns and signs it.
+  src/                    The PhoneXRInput library (Kotlin/JVM): raw hand and Joy-Con data.
+  runtime/phonexr_input.h The same thing for C/C++ games, a single header.
+  docs/porting.txt        How to port a game and what cannot be ported.
+  docs/protocol.txt       The format of the PhoneXR data stream.
+  docs/manifest.txt       What your own game needs in its manifest to avoid a black screen.
+  docs/engines.txt        Hooking up Unity, Godot 4 and Lua engines.
+  docs/api.txt            The PhoneXR Developer API: OpenXR, PH5, lifecycle and publishing.
+  docs/ai-prompts.txt     Full prompts for generating PhoneXR projects.
 
-Сборка библиотеки и тесты:
+Building the library and running the tests:
 
   ./gradlew :sdk:build
 
-Что можно переносить
---------------------
-Только сборки, которые вы вправе запускать: свои, открытые проекты, игры,
-распространяемые вне магазина Meta, и купленные копии, полученные законно.
+What may be ported
+------------------
+Only builds you are allowed to run: your own, open projects, games
+distributed outside the Meta store, and purchased copies obtained lawfully.
 
-Игры из магазина Quest (Beat Saber, Job Simulator и подобные) перенести нельзя:
-они проверяют покупку через сервисы Meta и работают на её закрытом рантайме.
-Инструмент такие сборки распознаёт и отказывается их готовить.
+Games from the Quest store (Beat Saber, Job Simulator and the like) cannot be ported:
+they verify the purchase through Meta services and run on Meta's closed runtime.
+The tool recognizes such builds and refuses to prepare them.

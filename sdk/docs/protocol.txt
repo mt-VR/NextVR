@@ -1,44 +1,44 @@
-Поток данных PhoneXR
-====================
+The PhoneXR data stream
+=======================
 
-Пока в PhoneXR включён трекинг, он 60 раз в секунду шлёт UDP-пакет ASCII-текстом:
+While tracking is on in PhoneXR, it sends a UDP packet of ASCII text 60 times per second:
 
-  127.0.0.1:42424   рантайму Monado
-  127.0.0.1:42425   игре через SDK
+  127.0.0.1:42424   to the Monado runtime
+  127.0.0.1:42425   to the game through the SDK
 
-Порт занимает один клиент. Если данных нет, их уже читает другое приложение.
+One client holds a port. If there is no data, another app is already reading it.
 
-Формат (версия PH6, текущая), числа разделены пробелами:
+Format (version PH6, the current one), numbers separated by spaces:
 
-  PH6 <левая рука> <правая рука> <флаги> <pinchL palmL pinchR palmR>
+  PH6 <left hand> <right hand> <flags> <pinchL palmL pinchR palmR>
 
-Каждая рука — 19 значений:
+Each hand is 19 values:
 
   present fist index thumb x y z qx qy qz qw buttons stickX stickY thumbCurl indexCurl middleCurl ringCurl pinkyCurl
 
-  present   1, если рука видна камере или подключён Joy-Con этой стороны
-  fist      кулак; index — только указательный; thumb — только большой
-            (в режиме «только руки» все три всегда 0)
-  x y       ладонь в кадре, 0..1; x растёт вправо, y вниз
-  z         близость к камере, 0..1 (1 — ближе всего)
-  qx qy qz qw  поворот от гироскопа Joy-Con; без гироскопа 0 0 0 1
-  buttons   биты кнопок Joy-Con:
-              1 A/X, 2 B/Y, 4 курок, 8 хват, 16 меню, 32 нажатие стика, 64 системная
+  present   1 if the hand is visible to the camera or a Joy-Con of that side is connected
+  fist      a fist; index — the index finger only; thumb — the thumb only
+            (in "hands only" mode all three are always 0)
+  x y       the palm in the frame, 0..1; x grows to the right, y downwards
+  z         closeness to the camera, 0..1 (1 is the closest)
+  qx qy qz qw  rotation from the Joy-Con gyro; without a gyro 0 0 0 1
+  buttons   Joy-Con button bits:
+              1 A/X, 2 B/Y, 4 trigger, 8 grip, 16 menu, 32 stick click, 64 system
 
-  stickX stickY  стик Joy-Con, -1..1 (x вправо, y вверх)
-  *Curl          сгиб пальца, 0 — полностью прямой, 1 — полностью согнутый
+  stickX stickY  the Joy-Con stick, -1..1 (x to the right, y up)
+  *Curl          the finger curl, 0 — fully straight, 1 — fully curled
 
-После флагов — щипок и ладонь к лицу (0/1) для левой и правой руки.
+After the flags come the pinch and the palm-to-face (0/1) for the left and the right hand.
 
-Флаги:
+Flags:
 
-  1  включено отслеживание положения по камере (6DoF)
-  2  режим «только руки»: жесты пальцев ничего не нажимают
+  1  positional tracking from the camera is on (6DoF)
+  2  "hands only" mode: finger gestures press nothing
 
-PH5 — предыдущая версия без *Curl; PH4 — без стика, щипка и ладони.
-SDK читает PH6, PH5 и PH4.
+PH5 is the previous version without *Curl; PH4 is without the stick, the pinch and the palm.
+The SDK reads PH6, PH5 and PH4.
 
-Чтение:
+Reading:
 
   Kotlin/JVM — com.phonexr.sdk.PhoneXRInput
   C/C++      — runtime/phonexr_input.h

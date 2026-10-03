@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Браузер PhoneXR</title>
+<title>PhoneXR Browser</title>
 <style>
   :root { --bg: #1c1c1e; --card: #2c2c2e; --line: #3a3a3c; --label: #fff; --secondary: #98989f; --accent: #ff9544; }
   * { box-sizing: border-box; }
@@ -35,44 +35,44 @@
 </style>
 </head>
 <body>
-  <h1>Браузер</h1>
-  <p class="sub">Щипок — нажать, щипок и движение — прокрутка. WebXR‑сайты открываются в шлеме.</p>
-  <div class="search" onclick="PhoneXR.editAddress()">🔍 Поиск или адрес</div>
+  <h1>Browser</h1>
+  <p class="sub">Pinch to press, pinch and move to scroll. WebXR sites open in the headset.</p>
+  <div class="search" onclick="PhoneXR.editAddress()">🔍 Search or address</div>
 
-  <h2>Избранное</h2>
+  <h2>Favorites</h2>
   <div class="grid">
     <a class="app" href="https://www.google.com"><div class="tile" style="background:#4285f4">G</div>Google</a>
     <a class="app" href="https://m.youtube.com"><div class="tile" style="background:#ff0033">▶</div>YouTube</a>
-    <a class="app" href="https://ru.wikipedia.org"><div class="tile" style="background:#636466">W</div>Википедия</a>
-    <a class="app" href="https://ya.ru"><div class="tile" style="background:#fc3f1d">Я</div>Яндекс</a>
+    <a class="app" href="https://ru.wikipedia.org"><div class="tile" style="background:#636466">W</div>Wikipedia</a>
+    <a class="app" href="https://ya.ru"><div class="tile" style="background:#fc3f1d">Y</div>Yandex</a>
     <a class="app" href="https://www.twitch.tv"><div class="tile" style="background:#9146ff">T</div>Twitch</a>
-    <a class="app" href="https://vk.com"><div class="tile" style="background:#0077ff">VK</div>ВКонтакте</a>
+    <a class="app" href="https://vk.com"><div class="tile" style="background:#0077ff">VK</div>VKontakte</a>
     <a class="app" href="https://moonrider.xyz/"><div class="tile" style="background:#e0409f">🌙</div>Moon Rider</a>
     <a class="app" href="https://github.com"><div class="tile" style="background:#24292f">GH</div>GitHub</a>
   </div>
 
-  <h2>Закладки</h2>
+  <h2>Bookmarks</h2>
   <div class="section" id="bookmarks"></div>
 
-  <h2>Настройки</h2>
+  <h2>Settings</h2>
   <div class="section">
-    <div class="row" onclick="toggle('desktop')"><div class="text"><div class="title">Версия для ПК</div><div class="url">Сайты как на компьютере</div></div><div class="switch" id="desktop"></div></div>
-    <div class="row" onclick="toggle('adblock')"><div class="text"><div class="title">Блокировка рекламы</div><div class="url">Реклама и трекеры не загружаются</div></div><div class="switch" id="adblock"></div></div>
-    <div class="row" onclick="newTab()"><div class="text"><div class="title">Новая вкладка</div><div class="url">Ещё одно окно браузера рядом</div></div><div class="btn">＋</div></div>
+    <div class="row" onclick="toggle('desktop')"><div class="text"><div class="title">Desktop version</div><div class="url">Sites as on a computer</div></div><div class="switch" id="desktop"></div></div>
+    <div class="row" onclick="toggle('adblock')"><div class="text"><div class="title">Ad blocking</div><div class="url">Ads and trackers are not loaded</div></div><div class="switch" id="adblock"></div></div>
+    <div class="row" onclick="newTab()"><div class="text"><div class="title">New tab</div><div class="url">One more browser window alongside</div></div><div class="btn">＋</div></div>
   </div>
 
-  <h2>История <button class="btn" onclick="PhoneXR.clearHistory(); load()">Очистить</button></h2>
+  <h2>History <button class="btn" onclick="PhoneXR.clearHistory(); load()">Clear</button></h2>
   <div class="section" id="history"></div>
 
 <script>
   var data = {};
   function esc(s) { return String(s).replace(/[&<>"]/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function rows(list, removable) {
-    if (!list || !list.length) return '<div class="empty">' + (removable ? 'Нажмите ☆ в панели над окном, чтобы добавить сайт' : 'Пока пусто') + '</div>';
+    if (!list || !list.length) return '<div class="empty">' + (removable ? 'Tap ☆ in the bar above the window to add a site' : 'Nothing here yet') + '</div>';
     return list.map(function(p) {
       return '<div class="row"><a class="text" href="' + esc(p.url) + '"><div class="title">' + esc(p.title || p.url) +
         '</div><div class="url">' + esc(p.url) + '</div></a>' +
-        (removable ? '<button class="btn" onclick="PhoneXR.removeBookmark(\'' + esc(p.url).replace(/'/g, "\\'") + '\'); load()">Удалить</button>' : '') + '</div>';
+        (removable ? '<button class="btn" onclick="PhoneXR.removeBookmark(\'' + esc(p.url).replace(/'/g, "\\'") + '\'); load()">Remove</button>' : '') + '</div>';
     }).join('');
   }
   function load() {

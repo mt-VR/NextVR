@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Собирает PXRCraft — QuestCraft (Minecraft: Java Edition в VR) для телефона с PhoneXR.
+Builds PXRCraft — QuestCraft (Minecraft: Java Edition in VR) for a phone with PhoneXR.
 
-QuestCraft распространяется под LGPL-3.0 (https://github.com/QuestCraftPlusPlus). Лаунчер у него
-собран в Unity, а для сборки из исходников нужен Unity 2022.3.62f3 с Android-модулем. Этот скрипт
-переносит официальный релиз без Unity:
-  * пакет com.qcxr.qcxr -> com.samrat.pxrcraft, название PXRCraft, своя иконка;
-  * снимает требования Quest (трекинг головы, Vulkan, отслеживание глаз), чтобы APK ставился на телефон;
-  * добавляет категорию OpenXR, чтобы PhoneXR показывал игру в списке;
-  * заменяет OpenXR loader на сборку PhoneXR и подписывает ключом PhoneXR.
+QuestCraft is distributed under LGPL-3.0 (https://github.com/QuestCraftPlusPlus). Its launcher is
+built in Unity, and building from source needs Unity 2022.3.62f3 with the Android module. This script
+ports the official release without Unity:
+  * the package com.qcxr.qcxr -> com.samrat.pxrcraft, the name PXRCraft, its own icon;
+  * drops the Quest requirements (head tracking, Vulkan, eye tracking) so the APK installs on a phone;
+  * adds the OpenXR category so PhoneXR shows the game in the list;
+  * replaces the OpenXR loader with the PhoneXR build and signs it with the PhoneXR key.
 
-Играть можно только со своей купленной копией Minecraft: Java Edition (вход через Microsoft).
+You can only play with your own purchased copy of Minecraft: Java Edition (signing in through Microsoft).
 
-Нужно: apktool, Java, Android SDK build-tools, Pillow.
-  python3 pxrcraft/build_pxrcraft.py                      # скачает релиз 6.0.0
-  python3 pxrcraft/build_pxrcraft.py --apk QCXR-6.0.0.apk # из готового файла
+Needs: apktool, Java, the Android SDK build-tools, Pillow.
+  python3 pxrcraft/build_pxrcraft.py                      # downloads release 6.0.0
+  python3 pxrcraft/build_pxrcraft.py --apk QCXR-6.0.0.apk # from a ready file
 """
 
 import argparse
@@ -42,7 +42,7 @@ def build_tool(name):
         candidate = os.path.join(folder, version, name)
         if os.path.exists(candidate):
             return candidate
-    raise SystemExit(f"Не найден {name} в Android SDK build-tools")
+    raise SystemExit(f"{name} not found in the Android SDK build-tools")
 
 
 def patch_manifest(path):
@@ -142,22 +142,22 @@ def patch_icons(folder):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Собирает PXRCraft из релиза QuestCraft")
-    parser.add_argument("--apk", help="готовый QCXR-*.apk; без него скачивается релиз")
-    parser.add_argument("--version", default="6.0.0", help="версия QuestCraft для скачивания")
+    parser = argparse.ArgumentParser(description="Builds PXRCraft from a QuestCraft release")
+    parser.add_argument("--apk", help="a ready QCXR-*.apk; without it the release is downloaded")
+    parser.add_argument("--version", default="6.0.0", help="the QuestCraft version to download")
     parser.add_argument("-o", "--output", default=os.path.join(ROOT, "Builds", "PXRCraft.apk"))
     arguments = parser.parse_args()
 
     for tool in ("apktool", "java"):
         if shutil.which(tool) is None:
-            raise SystemExit(f"Нужен {tool}")
+            raise SystemExit(f"{tool} is required")
 
     with tempfile.TemporaryDirectory() as work:
         source = arguments.apk
         if not source:
             source = os.path.join(work, "questcraft.apk")
             url = RELEASE_URL.format(arguments.version)
-            print(f"Скачиваю {url}")
+            print(f"Downloading {url}")
             urllib.request.urlretrieve(url, source)
 
         decoded = os.path.join(work, "decoded")
@@ -179,7 +179,7 @@ def main():
             "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android",
             "--out", arguments.output, aligned,
         ], check=True)
-    print(f"Готово: {arguments.output}")
+    print(f"Done: {arguments.output}")
     return 0
 
 

@@ -7,7 +7,7 @@ STAGE_DIR="$SCRIPT_DIR/livecontainer-stage"
 OUTPUT_IPA="$SCRIPT_DIR/PhoneXR-iOS-LiveContainer.ipa"
 
 if [[ ! -x "$APP_SOURCE/PhoneXR" ]]; then
-  echo "PhoneXR.app не найден. Сначала соберите device-версию." >&2
+  echo "PhoneXR.app not found. Build the device version first." >&2
   exit 1
 fi
 

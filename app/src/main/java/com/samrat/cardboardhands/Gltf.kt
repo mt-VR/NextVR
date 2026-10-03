@@ -175,7 +175,7 @@ class Gltf private constructor(json: JSONObject, private val bin: ByteBuffer) {
         fun load(stream: InputStream): Gltf {
             val bytes = stream.readBytes()
             val data = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            check(data.getInt(0) == 0x46546C67) { "Не файл .glb" }
+            check(data.getInt(0) == 0x46546C67) { "Not a .glb file" }
             var offset = 12
             var json: JSONObject? = null
             var bin: ByteBuffer? = null
@@ -186,7 +186,7 @@ class Gltf private constructor(json: JSONObject, private val bin: ByteBuffer) {
                 if (type == 0x004E4942) bin = ByteBuffer.wrap(bytes, offset + 8, length).slice().order(ByteOrder.LITTLE_ENDIAN)
                 offset += 8 + length
             }
-            return Gltf(json ?: error("В .glb нет описания"), bin ?: ByteBuffer.allocate(0))
+            return Gltf(json ?: error("The .glb has no description"), bin ?: ByteBuffer.allocate(0))
         }
     }
 }

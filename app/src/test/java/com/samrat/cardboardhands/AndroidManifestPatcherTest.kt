@@ -70,7 +70,7 @@ class AndroidManifestPatcherTest {
         val application = Xml.parse(result.bytes).first { it.tag == "application" }
         assertEquals("false", application.attributes["debuggable"])
         assertEquals("false", application.attributes["extractNativeLibs"])
-        assertTrue(result.changes.toString(), result.changes.any { it.startsWith("оптимизация") })
+        assertTrue(result.changes.toString(), result.changes.any { it.startsWith("optimization") })
     }
 
     @Test
@@ -97,7 +97,7 @@ class AndroidManifestPatcherTest {
         val after = Xml.parse(AndroidManifestPatcher.patch(manifest(QUEST)).bytes)
         // Values the patcher rewrites (targetSdk, required features) differ, the elements do not.
         before.forEach { element ->
-            assertTrue("пропал $element", after.any {
+            assertTrue("$element disappeared", after.any {
                 it.tag == element.tag && it.attributes["name"] == element.attributes["name"]
             })
         }
@@ -117,14 +117,14 @@ class AndroidManifestPatcherTest {
     private object Xml {
         fun parse(bytes: ByteArray): List<Element> {
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            check(buffer.getInt(4) == bytes.size) { "размер в заголовке не совпадает с файлом" }
+            check(buffer.getInt(4) == bytes.size) { "the size in the header does not match the file" }
             var strings = emptyList<String>()
             val elements = mutableListOf<Element>()
             var offset = 8
             while (offset + 8 <= bytes.size) {
                 val type = buffer.getShort(offset).toInt() and 0xffff
                 val size = buffer.getInt(offset + 4)
-                check(size > 0 && offset + size <= bytes.size) { "чанк $type выходит за файл" }
+                check(size > 0 && offset + size <= bytes.size) { "chunk $type runs past the file" }
                 when (type) {
                     0x0001 -> strings = strings(buffer, offset)
                     0x0102 -> elements += element(buffer, offset, strings)

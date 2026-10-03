@@ -195,7 +195,7 @@ object GameStore {
                 .onSuccess { return it }
                 .onFailure { failures += it }
         }
-        throw failures.firstOrNull() ?: FileNotFoundException("Файл «$name» не найден в магазине")
+        throw failures.firstOrNull() ?: FileNotFoundException("The file “$name” was not found in the store")
     }
 
     fun description(item: Item): String? = item.descriptionText ?: item.descriptionPath?.let { path ->
@@ -218,7 +218,7 @@ object GameStore {
         // A half-downloaded game is the usual reason a store download "just stops": say it first.
         if (item.size > 0 && directory.usableSpace in 1 until item.size + (64L shl 20)) {
             throw StoreException(
-                "На телефоне не хватает места: нужно ${megabytes(item.size)}, свободно ${megabytes(directory.usableSpace)}"
+                "The phone is short on space: ${megabytes(item.size)} needed, ${megabytes(directory.usableSpace)} free"
             )
         }
         // Mods keep their own extension: Minecraft recognises them by it.
@@ -265,17 +265,17 @@ object GameStore {
             reachable = true
             if (JSONArray(body).length() > 0) live += location
         }
-        if (!reachable) throw StoreException("Сервер магазина недоступен. Проверьте интернет.")
+        if (!reachable) throw StoreException("The store server is unreachable. Check your internet connection.")
         return live.ifEmpty { listOf(locations.first()) }.also { found = it }
     }
 
     /** Shown when the store is empty: either there are no games yet, or reading is not allowed. */
-    const val EMPTY_HINT = "Файлы не найдены. Положите игры в bucket «$FOLDER» Supabase и разрешите всем " +
-        "чтение в Storage → Policies (SELECT для anon)."
+    const val EMPTY_HINT = "No files found. Put the games into the “$FOLDER” bucket in Supabase and allow everyone " +
+        "to read in Storage → Policies (SELECT for anon)."
 
     private fun listFolder(bucket: String, prefix: String): List<JSONObject> {
         val (code, body) = request("POST", "/storage/v1/object/list/$bucket", listBody(prefix))
-        if (code != 200) throw StoreException("Магазин недоступен (код $code): ${errorText(body)}")
+        if (code != 200) throw StoreException("The store is unavailable (code $code): ${errorText(body)}")
         val array = JSONArray(body)
         return (0 until array.length()).map { array.getJSONObject(it) }
             .filterNot { it.getString("name") == ".emptyFolderPlaceholder" }
@@ -305,7 +305,7 @@ object GameStore {
             if (connection.responseCode == 200) return Response(connection)
             connection.disconnect()
         }
-        throw FileNotFoundException("Файл «$path» не скачивается из Supabase")
+        throw FileNotFoundException("The file “$path” does not download from Supabase")
     }
 
     /** A file outside Supabase, e.g. a GitHub release asset (which redirects to its CDN). */
@@ -320,15 +320,15 @@ object GameStore {
             if (code in 300..399) {
                 val next = connection.getHeaderField("Location")
                 connection.disconnect()
-                url = URL(url, next ?: throw FileNotFoundException("Пустая переадресация: $address"))
+                url = URL(url, next ?: throw FileNotFoundException("An empty redirect: $address"))
             } else if (code == 200) {
                 return Response(connection)
             } else {
                 connection.disconnect()
-                throw FileNotFoundException("Файл по ссылке не скачивается (код $code): $address")
+                throw FileNotFoundException("The file at the link does not download (code $code): $address")
             }
         }
-        throw FileNotFoundException("Слишком много переадресаций: $address")
+        throw FileNotFoundException("Too many redirects: $address")
     }
 
     private fun request(method: String, path: String, body: String?): Pair<Int, String> {
@@ -357,7 +357,7 @@ object GameStore {
         return connection
     }
 
-    private fun megabytes(bytes: Long) = "%.0f МБ".format(bytes / (1L shl 20).toDouble())
+    private fun megabytes(bytes: Long) = "%.0f MB".format(bytes / (1L shl 20).toDouble())
 
     private fun errorText(body: String) = runCatching { JSONObject(body).optString("message", body) }.getOrDefault(body)
 }

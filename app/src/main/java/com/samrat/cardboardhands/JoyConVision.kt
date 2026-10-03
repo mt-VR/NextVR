@@ -45,19 +45,19 @@ class JoyConVision {
             /**
              * The colours Joy-Con come in, for picking instead of teaching the camera. Grey and
              * white ones are not here: the camera finds a Joy-Con by its colour, and those have
-             * none to find — for them use "запомнить цвет" in front of a plain background.
+             * none to find — for them use "remember the color" in front of a plain background.
              */
             val PRESETS: List<Pair<String, Target>> = listOf(
-                "Неоновый синий" to NEON_BLUE,
-                "Неоновый красный" to NEON_RED,
-                "Неоновый жёлтый" to NEON_YELLOW,
-                "Неоновый зелёный" to NEON_GREEN,
-                "Неоновый розовый" to NEON_PINK,
-                "Неоновый фиолетовый" to NEON_PURPLE,
-                "Неоновый оранжевый" to NEON_ORANGE,
-                "Синий" to BLUE,
-                "Пастельно‑розовый" to PASTEL_PINK,
-                "Пастельно‑зелёный" to PASTEL_GREEN,
+                "Neon blue" to NEON_BLUE,
+                "Neon red" to NEON_RED,
+                "Neon yellow" to NEON_YELLOW,
+                "Neon green" to NEON_GREEN,
+                "Neon pink" to NEON_PINK,
+                "Neon purple" to NEON_PURPLE,
+                "Neon orange" to NEON_ORANGE,
+                "Blue" to BLUE,
+                "Pastel pink" to PASTEL_PINK,
+                "Pastel green" to PASTEL_GREEN,
             )
 
             /** The preset closest to [target], so the settings screen can show what is chosen. */

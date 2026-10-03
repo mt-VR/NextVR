@@ -21,13 +21,13 @@ import kotlin.math.sqrt
  * Noise is removed twice: the platform's voice-call pipeline (noise suppression) cleans the
  * microphone, and a neural network (YAMNet, 521 sound classes) decides whether the sound is
  * speech at all — a door, music or a keyboard do not move the mouth. While speech is on, the mouth
- * follows the loudness of each syllable; bright sounds (и, е) spread it, dark ones (о, у) round it.
+ * follows the loudness of each syllable; bright sounds (i, e) spread it, dark ones (o, u) round it.
  */
 class Voice(private val context: Context) {
     /** 0 closed .. 1 wide open. */
     @Volatile var mouthOpen = 0f
         private set
-    /** 0 spread (и) .. 1 round (о, у). */
+    /** 0 spread (i) .. 1 round (o, u). */
     @Volatile var mouthRound = .5f
         private set
     @Volatile var talking = false

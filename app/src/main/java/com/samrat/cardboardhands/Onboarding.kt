@@ -14,7 +14,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * First start of the headset: "Привет", "Hello" and "你好" on an app card that turns light, dark,
+ * First start of the headset: "Hi", "Hello" and "你好" on an app card that turns light, dark,
  * light every three seconds, then one card with hello in the world's languages, then
  * the hands, the user's name, the room
  * room scan (6DoF), a reach calibration for touching, and "Welcome" before the home screen appears.
@@ -168,15 +168,15 @@ class Onboarding(private val context: Context, private val host: Host) {
     private fun account(t: Float) {
         card()
         if (accountMode == 0) {
-            title(tr("Аккаунт PhoneXR"))
-            body(tr("Войдите, чтобы звонить друзьям, видеть их в VR и сохранять настройки. Можно и позже — в приложении на телефоне."))
-            button(RectF(WIDTH / 2f - 420f, 620f, WIDTH / 2f - 20f, 710f), tr("Войти")) { openForm(1) }
-            button(RectF(WIDTH / 2f + 20f, 620f, WIDTH / 2f + 420f, 710f), tr("Создать аккаунт"), FAINT, INK) { openForm(2) }
-            button(RectF(WIDTH / 2f - 150f, 760f, WIDTH / 2f + 150f, 830f), tr("Позже"), FAINT, INK) { go(Step.HANDS) }
+            title(tr("PhoneXR account"))
+            body(tr("Sign in to call friends, see them in VR and keep your settings. You can also do it later in the phone app."))
+            button(RectF(WIDTH / 2f - 420f, 620f, WIDTH / 2f - 20f, 710f), tr("Sign in")) { openForm(1) }
+            button(RectF(WIDTH / 2f + 20f, 620f, WIDTH / 2f + 420f, 710f), tr("Create account"), FAINT, INK) { openForm(2) }
+            button(RectF(WIDTH / 2f - 150f, 760f, WIDTH / 2f + 150f, 830f), tr("Later"), FAINT, INK) { go(Step.HANDS) }
             return
         }
-        text(if (accountMode == 1) tr("Вход") else tr("Регистрация"), WIDTH / 2f, 105f, 56f, INK, bold = true)
-        val rows = if (accountMode == 2) listOf(tr("Почта"), tr("Пароль"), tr("Имя")) else listOf(tr("Почта"), tr("Пароль"))
+        text(if (accountMode == 1) tr("Sign in") else tr("Create account"), WIDTH / 2f, 105f, 56f, INK, bold = true)
+        val rows = if (accountMode == 2) listOf(tr("E-mail"), tr("Password"), tr("Name")) else listOf(tr("E-mail"), tr("Password"))
         val fieldH = 64f
         val gap = 12f
         rows.forEachIndexed { i, label ->
@@ -195,8 +195,8 @@ class Onboarding(private val context: Context, private val host: Host) {
             buttons += rect to { field = i }
         }
         val actions = 135f + rows.size * (fieldH + gap) + 4f
-        button(RectF(300f, actions, 560f, actions + 58f), tr("Назад"), FAINT, INK) { accountMode = 0; message = null }
-        val go = if (busy) "…" else if (accountMode == 1) tr("Войти") else tr("Создать")
+        button(RectF(300f, actions, 560f, actions + 58f), tr("Back"), FAINT, INK) { accountMode = 0; message = null }
+        val go = if (busy) "…" else if (accountMode == 1) tr("Sign in") else tr("Create")
         button(RectF(WIDTH - 560f, actions, WIDTH - 300f, actions + 58f), go) { submitAccount() }
         message?.let { text(it, WIDTH / 2f, actions + 40f, 28f, Color.rgb(211, 47, 47)) }
         keyboard.draw(hover)
@@ -215,10 +215,10 @@ class Onboarding(private val context: Context, private val host: Host) {
     private fun submitAccount() {
         if (busy) return
         if (!email.contains('@') || password.length < 6) {
-            message = tr("Введите почту и пароль (не короче 6 символов)")
+            message = tr("Enter your e-mail and a password (6+ characters)")
             return
         }
-        if (accountMode == 2 && name.isBlank()) { message = tr("Введите имя"); field = 2; return }
+        if (accountMode == 2 && name.isBlank()) { message = tr("Enter your name"); field = 2; return }
         busy = true
         message = null
         val signUp = accountMode == 2
@@ -256,42 +256,42 @@ class Onboarding(private val context: Context, private val host: Host) {
             Step.HELLO -> {
                 hello(t)
                 // Under the language row so a choice comes before "next".
-                if (t > 1.5f) button(RectF(WIDTH / 2f - 200f, 852f, WIDTH / 2f + 200f, 932f), tr("Продолжить")) {
+                if (t > 1.5f) button(RectF(WIDTH / 2f - 200f, 852f, WIDTH / 2f + 200f, 932f), tr("Continue")) {
                     go(if (Account.current(context) == null) Step.ACCOUNT else Step.HANDS)
                 }
             }
             Step.ACCOUNT -> account(t)
             Step.HANDS -> {
                 card()
-                title(tr("Покажите руки"))
-                body(tr("Держите обе руки перед собой, пальцы раскрыты. Не двигайтесь пару секунд."))
+                title(tr("Show your hands"))
+                body(tr("Hold both hands in front of you with fingers open. Keep still for a few seconds."))
                 val progress = if (bothHandsSince == 0L) 0f else ((SystemClock.elapsedRealtime() - bothHandsSince) / SCAN_MS.toFloat()).coerceIn(0f, 1f)
                 bar(progress)
-                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Пропустить"), FAINT, INK) { go(Step.NAME) }
+                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Skip"), FAINT, INK) { go(Step.NAME) }
             }
             Step.NAME -> {
                 card()
-                title(tr("Как вас зовут?"))
+                title(tr("What's your name?"))
                 paint.color = FAINT
                 canvas.drawRoundRect(RectF(300f, 220f, WIDTH - 300f, 330f), 55f, 55f, paint)
-                text(if (name.isEmpty()) tr("Имя пользователя") else name + if ((t * 2).toInt() % 2 == 0) "|" else "",
+                text(if (name.isEmpty()) tr("Username") else name + if ((t * 2).toInt() % 2 == 0) "|" else "",
                     WIDTH / 2f, 295f, 60f, if (name.isEmpty()) SOFT else INK)
-                button(RectF(WIDTH / 2f - 200f, 360f, WIDTH / 2f + 200f, 440f), tr("Готово")) { confirmName() }
+                button(RectF(WIDTH / 2f - 200f, 360f, WIDTH / 2f + 200f, 440f), tr("Done")) { confirmName() }
                 keyboard.draw(hover)
                 canvas.drawBitmap(keyboard.bitmap, null, keyboardRect, paint)
             }
             Step.ROOM -> {
                 card()
-                title(tr("Сканирование комнаты"))
-                body(tr("Осмотрите пол, стены и стол — PhoneXR покроет их сеткой и запомнит, где стоит стол: на нём будет клавиатура."))
-                text(if (host.tableFound()) tr("Стол найден ✓") else tr("Ищу стол…"), WIDTH / 2f, 640f, 44f, if (host.tableFound()) Color.rgb(11, 138, 27) else SOFT, bold = true)
-                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), if (host.tableFound()) tr("Готово") else tr("Пропустить"), if (host.tableFound()) BLUE else FAINT, if (host.tableFound()) Color.WHITE else INK) { go(Step.WELCOME) }
+                title(tr("Room scan"))
+                body(tr("Look at the floor, the walls and the table — PhoneXR covers them with a grid and remembers where the table is: the keyboard will lie on it."))
+                text(if (host.tableFound()) tr("Table found ✓") else tr("Looking for a table…"), WIDTH / 2f, 640f, 44f, if (host.tableFound()) Color.rgb(11, 138, 27) else SOFT, bold = true)
+                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), if (host.tableFound()) tr("Done") else tr("Skip"), if (host.tableFound()) BLUE else FAINT, if (host.tableFound()) Color.WHITE else INK) { go(Step.WELCOME) }
             }
             Step.REACH -> {
                 card()
-                title(tr("Касание"))
-                body(tr("Окна нажимаются пальцем: вытяните указательный палец, остальные согните, и коротко толкните руку вперёд. Три раза."))
-                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Пропустить"), FAINT, INK) { go(Step.WELCOME) }
+                title(tr("Touch"))
+                body(tr("Windows are pressed with a finger: point your index finger, curl the others, and push your hand forward briefly. Three times."))
+                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Skip"), FAINT, INK) { go(Step.WELCOME) }
                 for (i in 0 until 3) {
                     paint.color = if (i < pushes) Color.rgb(11, 138, 27) else FAINT
                     canvas.drawCircle(WIDTH / 2f + (i - 1) * 90f, 600f, 30f, paint)
@@ -300,7 +300,7 @@ class Onboarding(private val context: Context, private val host: Host) {
             Step.WELCOME -> {
                 val hi = Settings.userName(context).takeIf { it.isNotBlank() }
                 card()
-                written(tr("Добро пожаловать"), t, 150f, HEIGHT / 2f + 20f)
+                written(tr("Welcome"), t, 150f, HEIGHT / 2f + 20f)
                 if (hi != null && t > 1f) text(hi, WIDTH / 2f, HEIGHT / 2f + 150f, 64f, Color.argb(((t - 1f).coerceIn(0f, 1f) * 179).toInt(), 245, 246, 247))
                 if (t > 3f) {
                     Settings.setSetupDone(context)
@@ -313,7 +313,7 @@ class Onboarding(private val context: Context, private val host: Host) {
     }
 
     /**
-     * The first seconds: an app card in front of the user, light with "Привет", dark with "Hello",
+     * The first seconds: an app card in front of the user, light with "Hi", dark with "Hello",
      * light again with "你好" — each for three seconds, the change a quick cross-fade.
      */
     private fun greeting(t: Float) {
@@ -334,7 +334,7 @@ class Onboarding(private val context: Context, private val host: Host) {
         text(code, WIDTH / 2f, HEIGHT / 2f + 170f, 40f, Color.argb(alpha * 5 / 10, Color.red(ink), Color.green(ink), Color.blue(ink)))
         // The language is chosen on this very first card: the row appears with the card itself.
         if (t > .6f) {
-            text(tr("Выберите язык"), WIDTH / 2f, 700f, 34f, SOFT)
+            text(tr("Choose your language"), WIDTH / 2f, 700f, 34f, SOFT)
             languageRow()
         }
     }
@@ -361,7 +361,7 @@ class Onboarding(private val context: Context, private val host: Host) {
             }
         }
         val big = when (L10n.current) {
-            L10n.Lang.RU -> "Привет"
+            L10n.Lang.RU -> "Hi"
             L10n.Lang.EN -> "Hello"
             else -> "Olá"
         }
@@ -491,7 +491,7 @@ class Onboarding(private val context: Context, private val host: Host) {
         private val FAINT = Color.argb(34, 255, 255, 255)
         private val BLUE = Color.rgb(24, 119, 242)
         private const val GREETING_SECONDS = 3f
-        private val GREETINGS = listOf("Привет" to "RU", "Hello" to "EN", "你好" to "ZH")
+        private val GREETINGS = listOf("Hi" to "RU", "Hello" to "EN", "你好" to "ZH")
         /** Hello in the world's languages, row by row, for the card. */
         private val WORLD = listOf(
             "Hello" to "EN", "Hola" to "ES", "Bonjour" to "FR", "Hallo" to "DE", "Ciao" to "IT", "Olá" to "PT", "こんにちは" to "JA",
@@ -531,7 +531,7 @@ object HandProfile {
 
     /**
      * Where hands cut through the VR content: how much wider than the fingers the cut is and how
-     * far it is shifted (head-space tangent units), set in Settings → Калибровка рук.
+     * far it is shifted (head-space tangent units), set in Settings → Hand calibration.
      */
     data class Mask(val grow: Float, val dx: Float, val dy: Float)
 
@@ -555,7 +555,7 @@ object HandProfile {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putFloat("reach", reach.coerceAtLeast(.05f)).apply()
     }
 
-    /** How far forward (a share of the hand's distance, 0.06..0.30) a finger pushes to press; VR Settings → Руки и касания. */
+    /** How far forward (a share of the hand's distance, 0.06..0.30) a finger pushes to press; VR Settings → Hands and touch. */
     fun touchShare(context: Context): Float = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getFloat("touch_push", .14f)
 
     fun setTouchShare(context: Context, share: Float) {

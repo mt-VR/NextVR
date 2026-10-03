@@ -53,14 +53,14 @@ class VideoContent(
                     onReady()
                 }
                 media.setOnErrorListener { _, what, _ ->
-                    onError("Видео не открылось (код $what)")
+                    onError("The video didn't open (code $what)")
                     true
                 }
                 media.prepareAsync()
                 player = media
             }.onFailure {
                 media.release()
-                onError("Видео не открылось: ${it.message}")
+                onError("The video didn't open: ${it.message}")
                 onReady()
             }
         }
@@ -69,7 +69,7 @@ class VideoContent(
     override fun uv(eye: Int): FloatArray = Spatial.uv(layout, eye)
 
     override fun toolbarTitle(): String = buildString {
-        append(name.ifEmpty { "Видео" })
+        append(name.ifEmpty { "Video" })
         append(" · ")
         append(Spatial.describe(layout, shape))
         player?.let { append(" · ").append(time(position())).append(" / ").append(time(it.duration)) }

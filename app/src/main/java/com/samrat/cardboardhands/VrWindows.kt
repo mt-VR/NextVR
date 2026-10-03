@@ -237,7 +237,7 @@ class BrowserContent(
     }
 
     override fun toolbarTabs(): List<String> = tabs.map { tab ->
-        tab.title.ifEmpty { if (tab.url.startsWith("file:")) "Новая вкладка" else Uri.parse(tab.url).host?.removePrefix("www.") ?: tab.url }
+        tab.title.ifEmpty { if (tab.url.startsWith("file:")) "New tab" else Uri.parse(tab.url).host?.removePrefix("www.") ?: tab.url }
     }
 
     override val toolbarTab: Int get() = active
@@ -330,7 +330,7 @@ class BrowserContent(
         editing?.let { return it + "|" }
         val star = if (viewContext?.let { BrowserData.isBookmarked(it, currentUrl) } == true) "★ " else ""
         return star + when {
-            currentUrl.startsWith("file:") -> "Поиск или адрес"
+            currentUrl.startsWith("file:") -> "Search or address"
             else -> Uri.parse(currentUrl).host?.removePrefix("www.") ?: currentUrl
         }
     }
@@ -473,7 +473,7 @@ class BrowserContent(
                             .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                             .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "PhoneXR/$name")
                         context.getSystemService(android.app.DownloadManager::class.java).enqueue(request)
-                        android.widget.Toast.makeText(context, "Загрузка: $name", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "Downloading: $name", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
                 settings.userAgentString = if (BrowserData.desktop(context)) BrowserData.DESKTOP_AGENT else null
@@ -773,17 +773,17 @@ class ShizukuAppContent(context: Context, private val packageName: String, priva
         val surface = Surface(texture)
         Handler(Looper.getMainLooper()).post {
             if (VirtualScreen.access() != VirtualScreen.Access.READY) {
-                onError("Запустите Shizuku и разрешите доступ PhoneXR")
+                onError("Start Shizuku and allow PhoneXR access")
                 return@post
             }
             connection = VirtualScreen.bind(context) { bound ->
                 service = bound ?: return@bind
                 thread {
                     val id = runCatching { bound.createDisplay(surface, pixelWidth, pixelHeight, 320) }.getOrDefault(-1)
-                    if (id < 0) return@thread onError("Не удалось создать экран")
+                    if (id < 0) return@thread onError("Couldn't create the display")
                     displayId = id
                     val component = VirtualScreen.launcherComponent(context, packageName)
-                        ?: return@thread onError("Приложение не установлено")
+                        ?: return@thread onError("The app is not installed")
                     runCatching { bound.launch(component, id) }.getOrNull()?.let(onError)
                     onReady()
                 }
@@ -866,7 +866,7 @@ class DesktopStreamContent(private val onStatus: (String) -> Unit) : VrWindow.Co
         thread(name = "PhoneXR desktop stream") {
             while (running) {
                 runCatching {
-                    onStatus("Ищу PhoneXR Desktop в локальной сети…")
+                    onStatus("Looking for PhoneXR Desktop on the local network…")
                     val udp = DatagramSocket(null).also { discovery = it; it.reuseAddress = true; it.bind(InetSocketAddress(24819)) }
                     val bytes = ByteArray(512); val packet = DatagramPacket(bytes, bytes.size)
                     udp.receive(packet)
@@ -875,7 +875,7 @@ class DesktopStreamContent(private val onStatus: (String) -> Unit) : VrWindow.Co
                     val port = parts.getOrNull(1)?.toIntOrNull() ?: 24820
                     udp.close(); discovery = null
                     val tcp = Socket().also { socket = it; it.connect(InetSocketAddress(packet.address, port), 4000); it.tcpNoDelay = true }
-                    onStatus("Подключено: ${parts.getOrNull(2) ?: packet.address.hostAddress}")
+                    onStatus("Connected: ${parts.getOrNull(2) ?: packet.address.hostAddress}")
                     val input = DataInputStream(tcp.getInputStream())
                     while (running) {
                         val magic = ByteArray(4); input.readFully(magic)
@@ -887,7 +887,7 @@ class DesktopStreamContent(private val onStatus: (String) -> Unit) : VrWindow.Co
                             val old = next; next = frame; old?.takeIf { it !== frame }?.recycle(); onReady()
                         }
                     }
-                }.onFailure { if (running) { onStatus("Связь с ПК потеряна, переподключаюсь…"); Thread.sleep(700) } }
+                }.onFailure { if (running) { onStatus("Lost the link to the PC, reconnecting…"); Thread.sleep(700) } }
                 runCatching { socket?.close() }; socket = null
             }
         }
@@ -971,7 +971,7 @@ class PhotosContent(
         androidx.compose.foundation.layout.Column(
             androidx.compose.ui.Modifier.fillMaxSize().background(zone.ien.hig.theme.CupertinoTheme.colorScheme.systemBackground)
         ) {
-            VrTitle(tr("Фото"), if (photos.isEmpty()) "Нет фото или нет доступа к галерее" else "${photos.size} · новые сверху")
+            VrTitle(tr("Photos"), if (photos.isEmpty()) "No photos or no access to the gallery" else "${photos.size} · newest first")
             androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                 columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(5),
                 modifier = androidx.compose.ui.Modifier.fillMaxSize().padding(horizontal = 12.dp),
@@ -1031,10 +1031,10 @@ class PhotosContent(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 zone.ien.hig.CupertinoButton(onClick = { open = null }, colors = zone.ien.hig.CupertinoButtonDefaults.tintedButtonColors()) {
-                    zone.ien.hig.CupertinoText("‹ " + tr("Назад"))
+                    zone.ien.hig.CupertinoText("‹ " + tr("Back"))
                 }
                 if (!photo.video) zone.ien.hig.CupertinoButton(onClick = { makeStereo(photo) }, enabled = !busy) {
-                    zone.ien.hig.CupertinoText(if (busy) "Делаю 3D…" else "Сделать 3D")
+                    zone.ien.hig.CupertinoText(if (busy) "Making 3D…" else "Make 3D")
                 }
                 status?.let { zone.ien.hig.CupertinoText(it, color = androidx.compose.ui.graphics.Color.White) }
             }
@@ -1052,15 +1052,15 @@ class PhotosContent(
         thread {
             try {
                 if (!DepthModel.installed(context)) {
-                    status = "Нейросеть глубины не скачана: включите её в настройках PhoneXR (${DepthModel.MEGABYTES} МБ)"
+                    status = "The depth neural network is not downloaded: turn it on in the PhoneXR settings (${DepthModel.MEGABYTES} MB)"
                     return@thread
                 }
                 val made = SpatialPhoto.create(context, photo.uri, photo.name) { stage -> status = stage }
                 photos = query()
                 open = photos.firstOrNull { it.uri == made } ?: open
-                status = "Готово: 3D‑копия лежит в галерее"
+                status = "Done: the 3D copy is in the gallery"
             } catch (failure: Throwable) {
-                status = failure.message ?: "Не получилось сделать 3D"
+                status = failure.message ?: "Couldn't make the 3D version"
             } finally {
                 busy = false
             }

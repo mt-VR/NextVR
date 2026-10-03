@@ -26,7 +26,7 @@ object GameLibrary {
 
     /** The headset a build was made for. Quest and Gear VR both draw through VrApi, so the
      *  manifest — not the library — says which one it is. */
-    enum class Headset(val title: String) { QUEST("Quest"), GEAR_VR("Gear VR"), ANDROID_XR("Android XR"), UNKNOWN("VR‑гарнитура") }
+    enum class Headset(val title: String) { QUEST("Quest"), GEAR_VR("Gear VR"), ANDROID_XR("Android XR"), UNKNOWN("VR headset") }
 
     data class Game(
         val packageName: String,
@@ -202,10 +202,10 @@ object GameLibrary {
     /** The line under the game's name in the list: what it is and what PhoneXR has to do with it. */
     fun describe(game: Game) = when (game.kind) {
         Kind.OPENXR -> "OpenXR"
-        Kind.OPENXR_ORIGINAL -> "${game.headset.title} · OpenXR · без патча, через PhoneXR Runtime"
-        Kind.VRAPI_READY -> "${game.headset.title} · через переходник PhoneXR"
-        Kind.VRAPI_ORIGINAL -> "${game.headset.title} · VrApi · без патча, через драйвер PhoneXR"
-        Kind.VRAPI_UNSUPPORTED -> "${game.headset.title} · не поддерживается"
+        Kind.OPENXR_ORIGINAL -> "${game.headset.title} · OpenXR · unpatched, through PhoneXR Runtime"
+        Kind.VRAPI_READY -> "${game.headset.title} · through the PhoneXR shim"
+        Kind.VRAPI_ORIGINAL -> "${game.headset.title} · VrApi · unpatched, through the PhoneXR driver"
+        Kind.VRAPI_UNSUPPORTED -> "${game.headset.title} · not supported"
         Kind.DAYDREAM -> "Daydream / Cardboard"
     }
 }

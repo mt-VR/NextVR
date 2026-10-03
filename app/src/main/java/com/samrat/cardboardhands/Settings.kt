@@ -10,18 +10,18 @@ object Settings {
 
     /** What the camera reports to OpenXR. */
     enum class HandMode { CONTROLLERS, HANDS }
-    enum class HomeStyle(val title: String) { LARGE("Большое"), COMPACT("Компактная панель") }
+    enum class HomeStyle(val title: String) { LARGE("Large"), COMPACT("Compact panel") }
 
     /** A VR controller input a Joy-Con button can be bound to. */
     enum class Action(val title: String, val hint: String, val bit: Int) {
-        TRIGGER("Курок", "удар, выстрел, выбор в меню", JoyConButtons.TRIGGER),
-        SQUEEZE("Захват", "взять предмет, держать саблю", JoyConButtons.SQUEEZE),
-        PRIMARY("A / X", "нижняя кнопка контроллера", JoyConButtons.PRIMARY),
-        SECONDARY("B / Y", "верхняя кнопка контроллера", JoyConButtons.SECONDARY),
-        MENU("Меню", "пауза, выход в меню игры", JoyConButtons.MENU),
-        STICK_CLICK("Нажатие стика", "бег, приседание — зависит от игры", JoyConButtons.STICK_CLICK),
-        SYSTEM("Системная", "редко используется играми", JoyConButtons.SYSTEM),
-        NONE("Не назначено", "кнопка ничего не делает", 0),
+        TRIGGER("Trigger", "hit, shoot, pick in a menu", JoyConButtons.TRIGGER),
+        SQUEEZE("Grip", "take an object, hold a saber", JoyConButtons.SQUEEZE),
+        PRIMARY("A / X", "lower controller button", JoyConButtons.PRIMARY),
+        SECONDARY("B / Y", "upper controller button", JoyConButtons.SECONDARY),
+        MENU("Menu", "pause, back to the game menu", JoyConButtons.MENU),
+        STICK_CLICK("Stick click", "run, crouch — depends on the game", JoyConButtons.STICK_CLICK),
+        SYSTEM("System", "rarely used by games", JoyConButtons.SYSTEM),
+        NONE("Not assigned", "the button does nothing", 0),
     }
 
     /**
@@ -31,8 +31,8 @@ object Settings {
     private val DEFAULT_BINDINGS = mapOf(
         KeyEvent.KEYCODE_BUTTON_R2 to Action.TRIGGER,   // ZR
         KeyEvent.KEYCODE_BUTTON_L2 to Action.TRIGGER,   // ZL
-        KeyEvent.KEYCODE_BUTTON_R1 to Action.SQUEEZE,   // R и SR
-        KeyEvent.KEYCODE_BUTTON_L1 to Action.SQUEEZE,   // L и SL
+        KeyEvent.KEYCODE_BUTTON_R1 to Action.SQUEEZE,   // R and SR
+        KeyEvent.KEYCODE_BUTTON_L1 to Action.SQUEEZE,   // L and SL
         KeyEvent.KEYCODE_BUTTON_A to Action.PRIMARY,
         KeyEvent.KEYCODE_BUTTON_B to Action.SECONDARY,
         KeyEvent.KEYCODE_BUTTON_X to Action.PRIMARY,
@@ -146,16 +146,16 @@ object Settings {
 
     /** The shape of the cinema screen: how wide the picture is and whether it wraps around. */
     enum class ScreenShape(val title: String, val detail: String, val width: Int, val height: Int) {
-        NORMAL("Обычный 16:9", "Как телевизор: 1920×1080", 1920, 1080),
-        WIDE("Широкий 21:9", "Как в кино: 2560×1080", 2560, 1080),
-        ULTRA("Панорамный 32:9", "Во весь обзор: 3840×1080", 3840, 1080);
+        NORMAL("Normal 16:9", "Like a TV: 1920×1080", 1920, 1080),
+        WIDE("Wide 21:9", "Like in cinema: 2560×1080", 2560, 1080),
+        ULTRA("Panoramic 32:9", "Fills the view: 3840×1080", 3840, 1080);
 
         val aspect get() = width.toFloat() / height
     }
 
     /** How often the phone's own screen is redrawn; higher is smoother and eats more battery. */
     enum class Refresh(val title: String, val hz: Int) {
-        AUTO("Автоматически", 0), HZ60("60 Гц", 60), HZ90("90 Гц", 90), HZ120("120 Гц", 120)
+        AUTO("Automatic", 0), HZ60("60 Hz", 60), HZ90("90 Hz", 90), HZ120("120 Hz", 120)
     }
 
     fun screenShape(context: Context): ScreenShape = runCatching {
@@ -268,7 +268,7 @@ object Settings {
     private const val KEY_USER_NAME = "user_name"
     private const val KEY_SETUP_DONE = "setup_done"
     private const val KEY_SETUP_VERSION = "setup_version"
-    /** 2: the Horizon look, with "Привет" in the world's languages. 3: the language of the setup. */
+    /** 2: the Horizon look, with "Hi" in the world's languages. 3: the language of the setup. */
     private const val SETUP_VERSION = 3
     private const val KEY_UI_STYLE = "ui_style"
     private const val KEY_SCREEN_SHAPE = "screen_shape"
@@ -295,12 +295,12 @@ object Settings {
         KeyEvent.KEYCODE_BUTTON_R2 -> "ZR"
         KeyEvent.KEYCODE_BUTTON_START -> "+"
         KeyEvent.KEYCODE_BUTTON_SELECT -> "−"
-        KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> "стик"
+        KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR -> "stick"
         KeyEvent.KEYCODE_BUTTON_MODE -> "Home"
         KeyEvent.KEYCODE_DPAD_UP -> "↑"
         KeyEvent.KEYCODE_DPAD_DOWN -> "↓"
         KeyEvent.KEYCODE_DPAD_LEFT -> "←"
         KeyEvent.KEYCODE_DPAD_RIGHT -> "→"
-        else -> "код $code"
+        else -> "code $code"
     }
 }

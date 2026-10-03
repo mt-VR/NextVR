@@ -30,9 +30,9 @@ object ApkPatcher {
      * Old 32-bit games keep their libraries in "armeabi"; a 64-bit phone runs them with the v7a build.
      */
     private enum class Abi(val folder: String, val loaderAsset: String, val vrapiAsset: String, val title: String) {
-        ARM64("arm64-v8a", "libopenxr_loader.so", "libvrapi.so", "64 бита"),
-        ARMV7("armeabi-v7a", "libopenxr_loader32.so", "libvrapi32.so", "32 бита"),
-        ARMEABI("armeabi", "libopenxr_loader32.so", "libvrapi32.so", "32 бита");
+        ARM64("arm64-v8a", "libopenxr_loader.so", "libvrapi.so", "64-bit"),
+        ARMV7("armeabi-v7a", "libopenxr_loader32.so", "libvrapi32.so", "32-bit"),
+        ARMEABI("armeabi", "libopenxr_loader32.so", "libvrapi32.so", "32-bit");
 
         companion object {
             fun of(name: String): Abi? =
@@ -117,8 +117,8 @@ object ApkPatcher {
                         else if (name.startsWith("lib/") && name.endsWith(".so")) otherLibs = true
                         if (name.startsWith("lib/") && fileName in ENTITLEMENT && !checksPurchase) {
                             checksPurchase = true
-                            changes += "в игре есть проверка покупки Oculus ($fileName). PhoneXR её не трогает: " +
-                                "если игра действительно её требует, она не запустится"
+                            changes += "the game has an Oculus purchase check ($fileName). PhoneXR leaves it alone: " +
+                                "if the game really requires it, it will not start"
                         }
 
                         val data: ByteArray? = when {
@@ -158,15 +158,15 @@ object ApkPatcher {
                             }
                             abi != null && name == "lib/${abi.folder}/$LOADER" -> {
                                 loaderIn += abi
-                                changes += "OpenXR loader (${abi.title}) заменён на сборку PhoneXR"
-                                requireNotNull(asset(abi.loaderAsset)) { "В PhoneXR нет OpenXR loader для ${abi.title}" }
+                                changes += "the OpenXR loader (${abi.title}) was replaced with the PhoneXR build"
+                                requireNotNull(asset(abi.loaderAsset)) { "PhoneXR has no OpenXR loader for ${abi.title}" }
                             }
                             abi != null && name == "lib/${abi.folder}/$VRAPI" -> {
                                 vrapiIn += abi
                                 vrApi = true
-                                changes += "libvrapi.so (${abi.title}) заменён переходником Gear VR → OpenXR"
+                                changes += "libvrapi.so (${abi.title}) was replaced with a Gear VR → OpenXR shim"
                                 requireNotNull(asset(abi.vrapiAsset)) {
-                                    "Это игра Gear VR (${abi.title}), а в эту сборку PhoneXR не вложен переходник для неё"
+                                    "This is a Gear VR game (${abi.title}) and this PhoneXR build has no shim for it"
                                 }
                             }
                             else -> null
@@ -203,32 +203,32 @@ object ApkPatcher {
                     }
                     // A Gear VR game ships without OpenXR; the adapter loads it from the game's lib folder.
                     for (abi in vrapiIn - loaderIn) {
-                        val loader = requireNotNull(asset(abi.loaderAsset)) { "В PhoneXR нет OpenXR loader для ${abi.title}" }
+                        val loader = requireNotNull(asset(abi.loaderAsset)) { "PhoneXR has no OpenXR loader for ${abi.title}" }
                         val name = "lib/${abi.folder}/$LOADER"
                         zip.putNextEntry(storedEntry(name, loader, counting.count))
                         zip.write(loader)
                         zip.closeEntry()
-                        changes += "добавлен OpenXR loader PhoneXR (${abi.title})"
+                        changes += "the PhoneXR OpenXR loader (${abi.title}) was added"
                     }
                 }
                 if (fridaCallsDisabled > 0) {
-                    changes += "отключён несовместимый Frida-инжектор, который падал до запуска Unity"
+                    changes += "an incompatible Frida injector that crashed before Unity started was disabled"
                 }
                 if (unityLoaderChanged) {
-                    changes += "Unity переключён с жёсткого OculusXR на стандартный OpenXR"
+                    changes += "Unity was switched from hardwired OculusXR to standard OpenXR"
                 }
             }
         }
-        require(sawManifest) { "Это не APK: внутри нет AndroidManifest.xml" }
+        require(sawManifest) { "This is not an APK: there is no AndroidManifest.xml inside" }
         require(abis.isNotEmpty() || !otherLibs) {
-            "В APK нет библиотек для ARM (arm64-v8a или armeabi-v7a) — на телефоне такая сборка не запустится"
+            "The APK has no ARM libraries (arm64-v8a or armeabi-v7a) — such a build will not run on a phone"
         }
-        if (Abi.ARM64 !in abis && abis.isNotEmpty()) changes += "32-битная игра: PhoneXR запустит её в 32-битном режиме"
-        if (saved > 0) changes += "оптимизация: убраны библиотеки для других процессоров (−${size(saved)})"
-        if (unpackedLibs) changes += "оптимизация: библиотеки лежат в APK без сжатия — игра запускается быстрее"
+        if (Abi.ARM64 !in abis && abis.isNotEmpty()) changes += "32-bit game: PhoneXR will run it in 32-bit mode"
+        if (saved > 0) changes += "optimization: libraries for other processors were removed (−${size(saved)})"
+        if (unpackedLibs) changes += "optimization: the libraries sit in the APK uncompressed — the game starts faster"
         sign(::asset, unsigned, output)
         unsigned.delete()
-        if (changes.isEmpty()) changes += "APK уже подходит, изменена только подпись"
+        if (changes.isEmpty()) changes += "the APK already fits, only the signature changed"
         return Result(output, changes, vrApi, GameLibrary.headsetOf(markers, Abi.ARM64 in abis))
     }
 
@@ -257,15 +257,15 @@ object ApkPatcher {
         return redundant
     }
 
-    private fun size(bytes: Long) = if (bytes >= 1L shl 20) "%.0f МБ".format(bytes / (1L shl 20).toDouble())
-    else "%.0f КБ".format(bytes / 1024.0)
+    private fun size(bytes: Long) = if (bytes >= 1L shl 20) "%.0f MB".format(bytes / (1L shl 20).toDouble())
+    else "%.0f KB".format(bytes / 1024.0)
 
     /** A file to open as a zip: installed games already are files, picked documents are copied first. */
     private fun sourceFile(context: Context, source: Uri, copy: File): File {
         if (source.scheme == "file") return File(requireNotNull(source.path))
         copy.delete()
         context.contentResolver.openInputStream(source).use { raw ->
-            requireNotNull(raw) { "Не удалось открыть файл" }
+            requireNotNull(raw) { "Couldn't open the file" }
             FileOutputStream(copy).use { raw.copyTo(it) }
         }
         return copy
@@ -281,7 +281,7 @@ object ApkPatcher {
 
     private fun sign(asset: (String) -> ByteArray?, input: File, output: File) {
         val store = KeyStore.getInstance("PKCS12")
-        val key64 = requireNotNull(asset("phonexr-signing.p12")) { "В сборке PhoneXR нет ключа подписи" }
+        val key64 = requireNotNull(asset("phonexr-signing.p12")) { "The PhoneXR build has no signing key" }
         key64.inputStream().use { store.load(it, "android".toCharArray()) }
         val key = store.getKey("androiddebugkey", "android".toCharArray()) as java.security.PrivateKey
         val certificate = store.getCertificate("androiddebugkey") as X509Certificate
@@ -292,7 +292,7 @@ object ApkPatcher {
             // Signing rewrites the archive, and left alone it re-aligns every uncompressed entry on
             // 4 bytes, throwing away the 16 KB page alignment the libraries above were given. Android
             // maps an uncompressed library straight out of the APK, so a library off its page makes
-            // the installer answer "приложение не установлено" and nothing else.
+            // the installer answer "app not installed" and nothing else.
             .setAlignmentPreserved(true)
             .setV1SigningEnabled(true)
             .setV2SigningEnabled(true)

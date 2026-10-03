@@ -14,7 +14,7 @@ enum APKAnalyzer {
         guard ext == "apk" || ext == "zip" || ext == "pxr" else {
             return PackageReport(
                 title: url.deletingPathExtension().lastPathComponent,
-                details: ["Формат сохранён в библиотеке PhoneXR."],
+                details: ["The format is stored in the PhoneXR library."],
                 isAndroidAPK: false,
                 hasOpenXR: false,
                 canLaunchNatively: false
@@ -33,13 +33,13 @@ enum APKAnalyzer {
                 title: url.deletingPathExtension().lastPathComponent,
                 details: hasUnitySource ? [
                     "PhoneXR Source Package v2",
-                    "Unity-исходник включён",
-                    "Соберите Android или iPhone версию через XR Bridge на Mac"
+                    "Unity source included",
+                    "Build the Android or iPhone version with XR Bridge on a Mac"
                 ] : [
                     "PhoneXR Package v1",
-                    hasAndroid ? "Android APK включён" : "Android APK отсутствует",
-                    hasIOS ? "iPhone IPA включён" : "iPhone IPA отсутствует",
-                    "IPA устанавливается через LiveContainer"
+                    hasAndroid ? "Android APK included" : "No Android APK",
+                    hasIOS ? "iPhone IPA included" : "No iPhone IPA",
+                    "The IPA is installed through LiveContainer"
                 ],
                 isAndroidAPK: false,
                 hasOpenXR: hasAndroid || hasIOS || hasUnitySource,
@@ -55,11 +55,11 @@ enum APKAnalyzer {
         let nativeLibraries = entries.filter { $0.hasPrefix("lib/arm64-v8a/") && $0.hasSuffix(".so") }.count
 
         var details = [String]()
-        details.append(hasManifest ? "Android APK найден" : "ZIP не содержит AndroidManifest.xml")
-        details.append(hasLoader ? "OpenXR loader найден" : "OpenXR loader не найден")
-        if hasQuestPlugin { details.append("Найдены зависимости Meta/Oculus") }
-        details.append("ARM64 Android-библиотек: \(nativeLibraries)")
-        details.append("Для запуска на iPhone нужен исходный код и сборка под Metal/iOS")
+        details.append(hasManifest ? "Android APK found" : "The ZIP has no AndroidManifest.xml")
+        details.append(hasLoader ? "OpenXR loader found" : "No OpenXR loader found")
+        if hasQuestPlugin { details.append("Meta/Oculus dependencies found") }
+        details.append("ARM64 Android libraries: \(nativeLibraries)")
+        details.append("Running on an iPhone needs the source code and a Metal/iOS build")
 
         return PackageReport(
             title: url.deletingPathExtension().lastPathComponent,
@@ -110,6 +110,6 @@ enum APKAnalyzer {
 
     enum ImportError: LocalizedError {
         case invalidArchive
-        var errorDescription: String? { "Повреждённый или неподдерживаемый архив" }
+        var errorDescription: String? { "A damaged or unsupported archive" }
     }
 }

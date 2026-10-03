@@ -42,7 +42,7 @@ class AboutActivity : ComponentActivity() {
     @Composable
     private fun About(onEgg: () -> Unit) {
         val taps = remember { VersionTaps() }
-        HigPage(title = "О приложении", onBack = ::finish) {
+        HigPage(title = "About", onBack = ::finish) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -54,17 +54,17 @@ class AboutActivity : ComponentActivity() {
                 CupertinoText("PhoneXR", style = CupertinoTheme.typography.title1)
                 // Five taps in a row on the version: the easter egg.
                 CupertinoText(
-                    "Версия ${BuildConfig.VERSION_NAME}",
+                    "Version ${BuildConfig.VERSION_NAME}",
                     color = CupertinoTheme.colorScheme.secondaryLabel,
                     modifier = Modifier.clickable { if (taps.tap()) onEgg() }
                 )
             }
-            HigSection(title = "Команда", footer = "Made with ❤️") {
-                Person("Разработчик", "@Beketov_samrat")
-                Person("Тестировщик", "@livebradar")
-                Person("Тестировщик", "@vxtzx")
-                Person("Тестировщик", "@Kozzi042")
-                Person("Дизайнер", "@Freddytech87")
+            HigSection(title = "Team", footer = "Made with ❤️") {
+                Person("Developer", "@Beketov_samrat")
+                Person("Tester", "@livebradar")
+                Person("Tester", "@vxtzx")
+                Person("Tester", "@Kozzi042")
+                Person("Designer", "@Freddytech87")
             }
         }
     }
