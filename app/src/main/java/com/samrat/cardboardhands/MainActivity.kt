@@ -1,6 +1,7 @@
 package com.samrat.cardboardhands
 
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Settings
@@ -353,7 +354,8 @@ class MainActivity : ComponentActivity() {
             } else {
                 var left by remember { mutableIntStateOf(3) }
                 LaunchedEffect(Unit) {
-                    while (left > 0) { kotlinx.coroutines.delay(1000); left-- }
+                    // While the language list is open the countdown waits.
+                    while (left > 0) { kotlinx.coroutines.delay(1000); if (!languagePicker) left-- }
                     readyStep = 0
                     startActivity(Intent(this@MainActivity, VrHomeActivity::class.java))
                 }
@@ -364,6 +366,26 @@ class MainActivity : ComponentActivity() {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     androidx.compose.material3.Text(if (left > 0) "$left" else "", color = colors.onSurfaceVariant, fontSize = 64.sp)
+                }
+            }
+            // The language is chosen right here, on the first screen: before this the interface
+            // was only in Russian and the picker in Settings is not reachable until setup is over.
+            androidx.compose.material3.Surface(
+                onClick = { languagePicker = true },
+                shape = RoundedCornerShape(50),
+                color = colors.surfaceContainerHigh,
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Rounded.Language, null,
+                        tint = colors.onSurface, modifier = Modifier.size(20.dp)
+                    )
+                    androidx.compose.material3.Text(L10n.current.title, color = colors.onSurface, fontSize = 16.sp)
                 }
             }
         }
@@ -434,7 +456,11 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun Root() {
-        if (needsSetup) { Ready(); return }
+        if (needsSetup) {
+            Ready()
+            LanguagePicker()
+            return
+        }
         val backdrop = rememberLayerBackdrop()
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
@@ -464,20 +490,7 @@ class MainActivity : ComponentActivity() {
 
         pendingPatch?.let { PatchDialog(it) }
         guide?.let { GuideDialog(it) }
-        if (languagePicker) {
-            HigAlert(
-                title = tr("Язык"),
-                message = "PhoneXR",
-                actions = L10n.Lang.values().map { lang ->
-                    HigAction((if (lang == L10n.current) "✓ " else "") + lang.title) {
-                        languagePicker = false
-                        L10n.set(this@MainActivity, lang)
-                        recreate()
-                    }
-                } + HigAction(tr("Отмена"), HigActionStyle.CANCEL) { languagePicker = false },
-                onDismiss = { languagePicker = false }
-            )
-        }
+        LanguagePicker()
         update?.let { found ->
             HigAlert(
                 title = "Доступно PhoneXR ${found.version}",
@@ -498,6 +511,27 @@ class MainActivity : ComponentActivity() {
                 onDismiss = { error = null }
             )
         }
+    }
+
+    /**
+     * The language list: the same one on the first screen and in Settings → Язык. Chosen here, it
+     * applies to the whole interface at once: the activity is built again in the new language.
+     */
+    @Composable
+    private fun LanguagePicker() {
+        if (!languagePicker) return
+        HigAlert(
+            title = tr("Язык"),
+            message = "PhoneXR",
+            actions = L10n.Lang.values().map { lang ->
+                HigAction((if (lang == L10n.current) "✓ " else "") + lang.title) {
+                    languagePicker = false
+                    L10n.set(this@MainActivity, lang)
+                    recreate()
+                }
+            } + HigAction(tr("Отмена"), HigActionStyle.CANCEL) { languagePicker = false },
+            onDismiss = { languagePicker = false }
+        )
     }
 
     private var updateChecked = false

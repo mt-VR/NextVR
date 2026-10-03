@@ -255,7 +255,8 @@ class Onboarding(private val context: Context, private val host: Host) {
             }
             Step.HELLO -> {
                 hello(t)
-                if (t > 1.5f) button(RectF(WIDTH / 2f - 200f, 850f, WIDTH / 2f + 200f, 930f), tr("Продолжить")) {
+                // Under the language row so a choice comes before "next".
+                if (t > 1.5f) button(RectF(WIDTH / 2f - 200f, 852f, WIDTH / 2f + 200f, 932f), tr("Продолжить")) {
                     go(if (Account.current(context) == null) Step.ACCOUNT else Step.HANDS)
                 }
             }
@@ -266,16 +267,16 @@ class Onboarding(private val context: Context, private val host: Host) {
                 body(tr("Держите обе руки перед собой, пальцы раскрыты. Не двигайтесь пару секунд."))
                 val progress = if (bothHandsSince == 0L) 0f else ((SystemClock.elapsedRealtime() - bothHandsSince) / SCAN_MS.toFloat()).coerceIn(0f, 1f)
                 bar(progress)
-                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), "Пропустить", FAINT, INK) { go(Step.NAME) }
+                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Пропустить"), FAINT, INK) { go(Step.NAME) }
             }
             Step.NAME -> {
                 card()
-                title("Как вас зовут?")
+                title(tr("Как вас зовут?"))
                 paint.color = FAINT
                 canvas.drawRoundRect(RectF(300f, 220f, WIDTH - 300f, 330f), 55f, 55f, paint)
-                text(if (name.isEmpty()) "Имя пользователя" else name + if ((t * 2).toInt() % 2 == 0) "|" else "",
+                text(if (name.isEmpty()) tr("Имя пользователя") else name + if ((t * 2).toInt() % 2 == 0) "|" else "",
                     WIDTH / 2f, 295f, 60f, if (name.isEmpty()) SOFT else INK)
-                button(RectF(WIDTH / 2f - 200f, 360f, WIDTH / 2f + 200f, 440f), "Готово") { confirmName() }
+                button(RectF(WIDTH / 2f - 200f, 360f, WIDTH / 2f + 200f, 440f), tr("Готово")) { confirmName() }
                 keyboard.draw(hover)
                 canvas.drawBitmap(keyboard.bitmap, null, keyboardRect, paint)
             }
@@ -288,9 +289,9 @@ class Onboarding(private val context: Context, private val host: Host) {
             }
             Step.REACH -> {
                 card()
-                title("Касание")
-                body("Окна нажимаются пальцем: вытяните указательный палец, остальные согните, и коротко толкните руку вперёд. Три раза.")
-                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), "Пропустить", FAINT, INK) { go(Step.WELCOME) }
+                title(tr("Касание"))
+                body(tr("Окна нажимаются пальцем: вытяните указательный палец, остальные согните, и коротко толкните руку вперёд. Три раза."))
+                button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Пропустить"), FAINT, INK) { go(Step.WELCOME) }
                 for (i in 0 until 3) {
                     paint.color = if (i < pushes) Color.rgb(11, 138, 27) else FAINT
                     canvas.drawCircle(WIDTH / 2f + (i - 1) * 90f, 600f, 30f, paint)
@@ -331,6 +332,11 @@ class Onboarding(private val context: Context, private val host: Host) {
         val (word, code) = GREETINGS[index]
         text(word, WIDTH / 2f, HEIGHT / 2f + 60f, 190f, Color.argb(alpha, Color.red(ink), Color.green(ink), Color.blue(ink)), bold = true)
         text(code, WIDTH / 2f, HEIGHT / 2f + 170f, 40f, Color.argb(alpha * 5 / 10, Color.red(ink), Color.green(ink), Color.blue(ink)))
+        // The language is chosen on this very first card: the row appears with the card itself.
+        if (t > .6f) {
+            text(tr("Выберите язык"), WIDTH / 2f, 700f, 34f, SOFT)
+            languageRow()
+        }
     }
 
     /** One card with hello in the world's languages, the user's own in the middle, large. */
@@ -348,9 +354,10 @@ class Onboarding(private val context: Context, private val host: Host) {
                 val (word, code) = WORLD.getOrNull(index++) ?: continue
                 val appear = ((t - index * .025f) / .5f).coerceIn(0f, 1f)
                 val x = left + column * pitchX
-                val y = 150f + row * 150f
-                text(word, x, y, 44f, Color.argb((appear * 255).toInt(), 245, 246, 247))
-                text(code, x, y + 42f, 26f, Color.argb((appear * 150).toInt(), 245, 246, 247))
+                // A little higher than before: the language row lies under the last row of hellos.
+                val y = 130f + row * 128f
+                text(word, x, y, 40f, Color.argb((appear * 255).toInt(), 245, 246, 247))
+                text(code, x, y + 38f, 24f, Color.argb((appear * 150).toInt(), 245, 246, 247))
             }
         }
         val big = when (L10n.current) {
@@ -359,7 +366,8 @@ class Onboarding(private val context: Context, private val host: Host) {
             else -> "Olá"
         }
         val appear = (t / .6f).coerceIn(0f, 1f)
-        text(big, WIDTH / 2f, 150f + 2 * 150f + 40f, 150f, Color.argb((appear * 255).toInt(), 255, 255, 255), bold = true)
+        text(big, WIDTH / 2f, 130f + 2 * 128f + 44f, 140f, Color.argb((appear * 255).toInt(), 255, 255, 255), bold = true)
+        if (t > .6f) languageRow()
     }
 
     /** The Horizon card: white (or dark) glass with a soft shadow. */
@@ -429,11 +437,34 @@ class Onboarding(private val context: Context, private val host: Host) {
     }
 
     /** A Horizon pill: solid ink with white text, or a faint one with ink text. */
-    private fun button(rect: RectF, label: String, color: Int = BLUE, ink: Int = Color.WHITE, action: () -> Unit) {
+    private fun button(rect: RectF, label: String, color: Int = BLUE, ink: Int = Color.WHITE, size: Float = 44f, action: () -> Unit) {
         paint.color = color
         canvas.drawRoundRect(rect, rect.height() / 2, rect.height() / 2, paint)
-        text(label, rect.centerX(), rect.centerY() + 16f, 44f, ink, bold = true)
+        text(label, rect.centerX(), rect.centerY() + size * .36f, size, ink, bold = true)
         buttons += rect to action
+    }
+
+    /**
+     * The setup's own language row, on the very first screen: before this the setup spoke only
+     * Russian and there was no way to pick another language until it was over.
+     */
+    private fun languageRow() {
+        val languages = L10n.Lang.values()
+        val width = 350f
+        val gap = 18f
+        val left = (WIDTH - (languages.size * width + (languages.size - 1) * gap)) / 2f
+        languages.forEachIndexed { i, lang ->
+            val rect = RectF(
+                left + i * (width + gap), LANGUAGE_ROW_TOP,
+                left + i * (width + gap) + width, LANGUAGE_ROW_TOP + LANGUAGE_ROW_HEIGHT
+            )
+            button(
+                rect, lang.title,
+                if (lang == L10n.current) BLUE else FAINT,
+                if (lang == L10n.current) Color.WHITE else INK,
+                size = 32f
+            ) { L10n.set(context, lang) }
+        }
     }
 
     private fun text(value: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean = false) {
@@ -451,6 +482,9 @@ class Onboarding(private val context: Context, private val host: Host) {
         const val WIDTH = 1600
         const val HEIGHT = 1000
         private const val SCAN_MS = 2000L
+        /** The language row under the first cards (see [languageRow]). */
+        private const val LANGUAGE_ROW_TOP = 748f
+        private const val LANGUAGE_ROW_HEIGHT = 84f
         /** PhoneXR is dark only: white ink on dark glass, Meta's blue for the main button. */
         private val INK = Color.rgb(245, 246, 247)
         private val SOFT = Color.argb(170, 245, 246, 247)

@@ -127,6 +127,16 @@ object L10n {
         "Войти" to arrayOf("Sign in", "Entrar", "Iniciar sessão"),
         "Выйти" to arrayOf("Sign out", "Sair", "Terminar sessão"),
         "Язык" to arrayOf("Language", "Idioma", "Idioma"),
+        // The very first card of the setup: the language itself
+        "Выберите язык" to arrayOf("Choose your language", "Escolha o idioma", "Escolha o idioma"),
+        "Как вас зовут?" to arrayOf("What's your name?", "Como você se chama?", "Como se chama?"),
+        "Имя пользователя" to arrayOf("Username", "Nome de usuário", "Nome de utilizador"),
+        "Касание" to arrayOf("Touch", "Toque", "Toque"),
+        "Окна нажимаются пальцем: вытяните указательный палец, остальные согните, и коротко толкните руку вперёд. Три раза." to arrayOf(
+            "Windows are pressed with a finger: point your index finger, curl the others, and push your hand forward briefly. Three times.",
+            "As janelas são pressionadas com o dedo: aponte o indicador, dobre os outros e empurre a mão para a frente. Três vezes.",
+            "As janelas são premidas com o dedo: aponte o indicador, dobre os outros e empurre a mão para a frente. Três vezes."
+        ),
         "Обновление ПО" to arrayOf("Software Update", "Atualização de Software", "Atualização de software"),
         "О приложении" to arrayOf("About", "Sobre", "Acerca de"),
         "Сервер" to arrayOf("Server", "Servidor", "Servidor"),
