@@ -28,7 +28,7 @@ object Headsets {
         Headset("daydream", "Google Daydream View", 64, 39.3f, 35f, 60f),
         Headset("gearvr", "Samsung Gear VR", 62, 39f, 35f, 60f),
         Headset("mivr", "Xiaomi Mi VR Play", 62, 40f, 35f, 60f),
-        Headset("other", "Другой шлем", 64, 39.3f, 35f, 60f),
+        Headset("other", "Other headset", 64, 39.3f, 35f, 60f),
     )
 
     private const val PREFS = "headset"

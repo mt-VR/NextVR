@@ -22,9 +22,9 @@ struct ShareView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $model.page) {
-                Label("Передача экрана", systemImage: "display.and.arrow.down").tag(SharePage.screen)
-                Label("Управление VR", systemImage: "hand.point.up.left").tag(SharePage.remote)
-                Label("PhoneXR для Android", systemImage: "visionpro").tag(SharePage.android)
+                Label("Screen sharing", systemImage: "display.and.arrow.down").tag(SharePage.screen)
+                Label("VR control", systemImage: "hand.point.up.left").tag(SharePage.remote)
+                Label("PhoneXR for Android", systemImage: "visionpro").tag(SharePage.android)
             }.navigationTitle(productName)
         } detail: {
             switch model.page {
@@ -40,51 +40,51 @@ struct ShareView: View {
     }
 
     private var screenPage: some View {
-        page("Передача экрана", "Покажите экран Mac в пространственном окне PhoneXR.") {
+        page("Screen sharing", "Show the Mac screen in a spatial PhoneXR window.") {
             GroupBox {
                 VStack(alignment: .leading, spacing: 16) {
                     Label(stream.status, systemImage: stream.running ? "dot.radiowaves.left.and.right" : "display")
-                    Button(stream.running ? "Остановить передачу" : "Передавать экран") { stream.toggle() }
+                    Button(stream.running ? "Stop sharing" : "Share the screen") { stream.toggle() }
                         .buttonStyle(.borderedProminent).controlSize(.large)
-                    Text("Mac и телефон должны быть в одной локальной сети. При первом запуске разрешите запись экрана.")
+                    Text("The Mac and the phone have to be on the same local network. On the first run, allow screen recording.")
                         .font(.callout).foregroundStyle(.secondary)
                 }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
             }
             #if PHONEXR_LITE
-            Label("Lite: 10 кадров/с, уменьшенное разрешение и JPEG 55% для слабых Mac.", systemImage: "leaf.fill")
+            Label("Lite: 10 frames/s, a reduced resolution and JPEG 55% for slower Macs.", systemImage: "leaf.fill")
                 .foregroundStyle(.green)
             #else
-            Text("Полная версия передаёт до 20 кадров/с с повышенным качеством.").foregroundStyle(.secondary)
+            Text("The full version streams up to 20 frames/s at a higher quality.").foregroundStyle(.secondary)
             #endif
         }
     }
 
     private var remotePage: some View {
-        page("Управление VR", "Окна VR‑дома на экране Mac: браузер, приложения и игры — мышью и клавиатурой.") {
+        page("VR control", "The VR home windows on the Mac screen: the browser, apps and games — with a mouse and a keyboard.") {
             if model.devices.isEmpty {
-                Text("Сначала подключите телефон по USB на странице «PhoneXR для Android».").foregroundStyle(.secondary)
+                Text("First connect the phone over USB on the “PhoneXR for Android” page.").foregroundStyle(.secondary)
             }
             VrRemoteView()
         }
     }
 
     private var androidPage: some View {
-        page("PhoneXR для Android", "Свежий APK уже находится внутри приложения.") {
-            GroupBox("Подключённый телефон") {
+        page("PhoneXR for Android", "The latest APK is already inside the app.") {
+            GroupBox("Connected phone") {
                 VStack(alignment: .leading, spacing: 14) {
-                    Picker("Устройство", selection: $model.selectedSerial) {
-                        Text("Телефон не выбран").tag(nil as String?)
+                    Picker("Device", selection: $model.selectedSerial) {
+                        Text("No phone selected").tag(nil as String?)
                         ForEach(model.devices) { Text($0.model).tag($0.serial as String?) }
                     }
                     HStack {
-                        Button("Обновить список") { model.refresh() }
-                        Button("Установить новый PhoneXR") { model.install() }
+                        Button("Refresh the list") { model.refresh() }
+                        Button("Install the new PhoneXR") { model.install() }
                             .buttonStyle(.borderedProminent).disabled(!model.canInstall)
                     }
                     Text(model.status).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                 }.padding(10)
             }
-            Text("На телефоне включите «Для разработчиков → Отладка по USB», подключите data‑кабель и подтвердите ключ RSA.")
+            Text("On the phone turn on “Developer options → USB debugging”, plug in a data cable and confirm the RSA key.")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }
@@ -109,14 +109,14 @@ final class ShareModel: ObservableObject {
     @Published var page: SharePage = .screen
     @Published var devices: [Device] = []
     @Published var selectedSerial: String?
-    @Published var status = "Подключите Android по USB."
+    @Published var status = "Connect an Android device over USB."
     @Published var busy = false
     let bridge = AndroidBridge()
     var canInstall: Bool { !busy && devices.first { $0.serial == selectedSerial }?.isReady == true }
 
     init() { refresh() }
     func refresh() {
-        busy = true; status = "Поиск Android…"; let bridge = bridge
+        busy = true; status = "Looking for Android…"; let bridge = bridge
         Task.detached {
             let result = Result { try bridge.devices() }
             await MainActor.run {
@@ -124,7 +124,7 @@ final class ShareModel: ObservableObject {
                 switch result {
                 case .success(let found):
                     self.devices = found; if self.selectedSerial == nil { self.selectedSerial = found.first?.serial }
-                    self.status = found.isEmpty ? "Android не найден." : "Телефон найден. Можно установить PhoneXR."
+                    self.status = found.isEmpty ? "No Android device found." : "Phone found. PhoneXR can be installed."
                 case .failure(let error): self.status = error.localizedDescription
                 }
             }
@@ -132,9 +132,9 @@ final class ShareModel: ObservableObject {
     }
     func install() {
         guard let serial = selectedSerial, let apk = Bundle.main.url(forResource: "PhoneXR", withExtension: "apk") else {
-            status = "Встроенный PhoneXR.apk не найден."; return
+            status = "The bundled PhoneXR.apk was not found."; return
         }
-        busy = true; status = "Установка PhoneXR…"; let bridge = bridge
+        busy = true; status = "Installing PhoneXR…"; let bridge = bridge
         Task.detached {
             let result = Result { try bridge.install(apk: apk, serial: serial) }
             await MainActor.run { self.busy = false; self.status = result.fold({ $0 }, { $0.localizedDescription }) }

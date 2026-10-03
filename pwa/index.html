@@ -42,30 +42,30 @@
 <body>
 <div id="home">
   <h1>PhoneXR</h1>
-  <p class="sub">VR на iPhone: вставьте телефон в Cardboard. Камера, поворот головы и руки — без установки из App Store.</p>
-  <button class="big" id="enter">Войти в VR</button>
-  <p class="foot" id="hint">Для полного экрана: «Поделиться» → «На экран Домой», затем откройте PhoneXR с иконки.</p>
+  <p class="sub">VR on an iPhone: put the phone in a Cardboard. The camera, head rotation and hands — with no install from the App Store.</p>
+  <button class="big" id="enter">Enter VR</button>
+  <p class="foot" id="hint">For full screen: Share → Add to Home Screen, then open PhoneXR from the icon.</p>
 
-  <div class="caption">Управление</div>
+  <div class="caption">Controls</div>
   <div class="section">
-    <label class="row"><div class="icon" style="background:#34c759">✋</div><div class="text">Руки<div class="detail">Курсор рукой, щипок — нажать (MediaPipe)</div></div><input type="checkbox" id="hands" checked></label>
-    <label class="row"><div class="icon" style="background:#0a84ff">📷</div><div class="text">Камера вокруг<div class="detail">Смешанная реальность</div></div><input type="checkbox" id="passthrough" checked></label>
-    <div class="row"><div class="icon" style="background:#5e5ce6">👓</div><div class="text">Межзрачковое<div class="detail" id="ipdText">64 мм</div></div><input type="range" id="ipd" min="54" max="74" value="64"></div>
+    <label class="row"><div class="icon" style="background:#34c759">✋</div><div class="text">Hands<div class="detail">The hand is the cursor, a pinch presses (MediaPipe)</div></div><input type="checkbox" id="hands" checked></label>
+    <label class="row"><div class="icon" style="background:#0a84ff">📷</div><div class="text">Camera around you<div class="detail">Mixed reality</div></div><input type="checkbox" id="passthrough" checked></label>
+    <div class="row"><div class="icon" style="background:#5e5ce6">👓</div><div class="text">Interpupillary<div class="detail" id="ipdText">64 mm</div></div><input type="range" id="ipd" min="54" max="74" value="64"></div>
   </div>
 
-  <div class="caption">WebXR‑игры</div>
+  <div class="caption">WebXR games</div>
   <div class="section" id="games"></div>
-  <p class="foot">Игры на A‑Frame сами включают режим Cardboard на iPhone: нажмите в игре кнопку VR и поверните телефон.</p>
+  <p class="foot">A‑Frame games turn on Cardboard mode on an iPhone themselves: tap the VR button in the game and turn the phone.</p>
 
-  <div class="caption">О PhoneXR</div>
+  <div class="caption">About PhoneXR</div>
   <div class="section">
-    <a class="row" href="../"><div class="icon" style="background:#ff7a1a">⬇︎</div><div class="text">PhoneXR для Android и Mac</div><div class="chev">›</div></a>
+    <a class="row" href="../"><div class="icon" style="background:#ff7a1a">⬇︎</div><div class="text">PhoneXR for Android and Mac</div><div class="chev">›</div></a>
   </div>
 </div>
 
 <div id="vr"><canvas id="canvas"></canvas></div>
-<button id="exit">Выйти из VR</button>
-<div id="rotate">Поверните iPhone горизонтально<br>и вставьте его в Cardboard</div>
+<button id="exit">Exit VR</button>
+<div id="rotate">Turn the iPhone to landscape<br>and put it in the Cardboard</div>
 <video id="video" playsinline muted style="display:none"></video>
 <script src="app.js"></script>
 </body>

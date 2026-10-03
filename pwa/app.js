@@ -4,14 +4,14 @@
 'use strict';
 
 const APPS = [
-  { title: 'Moon Rider', detail: 'Ритм‑игра', url: 'https://moonrider.xyz/', color: '#e0409f', glyph: '🌙' },
-  { title: 'A‑Blast', detail: 'Тир', url: 'https://aframe.io/a-blast/', color: '#ff9f0a', glyph: '🎯' },
-  { title: 'Hello WebXR', detail: 'Мини‑игры', url: 'https://mixedreality.mozilla.org/hello-webxr/', color: '#5e5ce6', glyph: '👋' },
-  { title: 'XR Dinosaurs', detail: 'Динозавры', url: 'https://xrdinosaurs.com/', color: '#30d158', glyph: '🦖' },
-  { title: 'A‑Painter', detail: 'Рисование', url: 'https://aframe.io/a-painter/', color: '#0a84ff', glyph: '🎨' },
-  { title: 'YouTube', detail: 'Видео', url: 'https://m.youtube.com/', color: '#ff0033', glyph: '▶' },
-  { title: 'Sketchfab', detail: '3D‑модели', url: 'https://sketchfab.com/', color: '#1caad9', glyph: '🧊' },
-  { title: 'Выйти', detail: 'Из VR', url: null, color: '#636366', glyph: '✕' },
+  { title: 'Moon Rider', detail: 'Rhythm game', url: 'https://moonrider.xyz/', color: '#e0409f', glyph: '🌙' },
+  { title: 'A‑Blast', detail: 'Shooting gallery', url: 'https://aframe.io/a-blast/', color: '#ff9f0a', glyph: '🎯' },
+  { title: 'Hello WebXR', detail: 'Mini games', url: 'https://mixedreality.mozilla.org/hello-webxr/', color: '#5e5ce6', glyph: '👋' },
+  { title: 'XR Dinosaurs', detail: 'Dinosaurs', url: 'https://xrdinosaurs.com/', color: '#30d158', glyph: '🦖' },
+  { title: 'A‑Painter', detail: 'Drawing', url: 'https://aframe.io/a-painter/', color: '#0a84ff', glyph: '🎨' },
+  { title: 'YouTube', detail: 'Video', url: 'https://m.youtube.com/', color: '#ff0033', glyph: '▶' },
+  { title: 'Sketchfab', detail: '3D models', url: 'https://sketchfab.com/', color: '#1caad9', glyph: '🧊' },
+  { title: 'Sign out', detail: 'Of VR', url: null, color: '#636366', glyph: '✕' },
 ];
 
 // ---------------------------------------------------------------- home screen
@@ -21,16 +21,16 @@ const settings = JSON.parse(localStorage.getItem('phonexr') || '{}');
 $('hands').checked = settings.hands !== false;
 $('passthrough').checked = settings.passthrough !== false;
 $('ipd').value = settings.ipd || 64;
-$('ipdText').textContent = $('ipd').value + ' мм';
+$('ipdText').textContent = $('ipd').value + ' mm';
 function save() {
   localStorage.setItem('phonexr', JSON.stringify({ hands: $('hands').checked, passthrough: $('passthrough').checked, ipd: +$('ipd').value }));
 }
 ['hands', 'passthrough'].forEach((id) => $(id).addEventListener('change', save));
-$('ipd').addEventListener('input', () => { $('ipdText').textContent = $('ipd').value + ' мм'; save(); });
+$('ipd').addEventListener('input', () => { $('ipdText').textContent = $('ipd').value + ' mm'; save(); });
 $('games').innerHTML = APPS.filter((a) => a.url).map((a) =>
   `<a class="row" href="${a.url}"><div class="icon" style="background:${a.color}">${a.glyph}</div>` +
   `<div class="text">${a.title}<div class="detail">${a.detail}</div></div><div class="chev">›</div></a>`).join('');
-if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) $('hint').textContent = 'PhoneXR открыт как приложение.';
+if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) $('hint').textContent = 'PhoneXR is open as an app.';
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 // ---------------------------------------------------------------- quaternions
@@ -188,7 +188,7 @@ function drawPanel() {
   c.fillStyle = '#fff'; c.font = '600 64px -apple-system, sans-serif'; c.textAlign = 'left';
   c.fillText('PhoneXR', 90, 110);
   c.fillStyle = '#8e8e93'; c.font = '34px -apple-system, sans-serif';
-  c.fillText(handsReady ? 'Рука — курсор, щипок — открыть' : 'Смотрите на плитку и коснитесь экрана', 400, 108);
+  c.fillText(handsReady ? 'The hand is the cursor, a pinch opens' : 'Look at a tile and tap the screen', 400, 108);
   APPS.forEach((app, i) => {
     const r = tileRect(i), hover = i === hovered;
     c.save();

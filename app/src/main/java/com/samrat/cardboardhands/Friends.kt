@@ -14,7 +14,7 @@ import java.net.URLEncoder
 object Friends {
     data class Person(val id: String, val username: String, val name: String)
 
-    class NotReady : Exception("Друзья ещё не включены на сервере: выполните supabase/phonexr.sql в Supabase")
+    class NotReady : Exception("Friends are not enabled on the server yet: run supabase/phonexr.sql in Supabase")
 
     /** A username is 3–20 of a–z, 0–9, "_" and ".". */
     fun validUsername(value: String) = Regex("^[a-z0-9_.]{3,20}$").matches(value)
@@ -28,14 +28,14 @@ object Friends {
 
     /** Network call: claims [username] for the signed-in user. Returns an error text or null. */
     fun setUsername(context: Context, username: String): String? {
-        val me = Account.current(context) ?: return tr("Войдите в аккаунт")
-        if (!validUsername(username)) return tr("Юзернейм: 3–20 символов, a–z, 0–9, _ и .")
+        val me = Account.current(context) ?: return tr("Sign in to your account")
+        if (!validUsername(username)) return tr("Username: 3–20 characters, a–z, 0–9, _ and .")
         val body = JSONArray().put(JSONObject().put("id", me.id).put("username", username).put("display_name", me.name))
         val (code, answer) = request(context, "POST", "phonexr_profiles", body.toString(), "resolution=merge-duplicates")
         return when {
             code in 200..299 -> null
             answer.contains("PGRST205") -> NotReady().message
-            answer.contains("23505") -> tr("Этот юзернейм уже занят")
+            answer.contains("23505") -> tr("That username is already taken")
             else -> answer.take(200)
         }
     }
@@ -65,14 +65,14 @@ object Friends {
     }
 
     fun add(context: Context, person: Person): String? {
-        val me = Account.current(context) ?: return tr("Войдите в аккаунт")
+        val me = Account.current(context) ?: return tr("Sign in to your account")
         val (code, answer) = request(context, "POST", "phonexr_friends",
             JSONArray().put(JSONObject().put("user_id", me.id).put("friend_id", person.id)).toString(), "resolution=ignore-duplicates")
         return if (code in 200..299) null else answer.take(200)
     }
 
     fun remove(context: Context, person: Person): String? {
-        val me = Account.current(context) ?: return tr("Войдите в аккаунт")
+        val me = Account.current(context) ?: return tr("Sign in to your account")
         val (code, answer) = request(context, "DELETE", "phonexr_friends?user_id=eq.${me.id}&friend_id=eq.${person.id}", null, null)
         return if (code in 200..299) null else answer.take(200)
     }
@@ -95,7 +95,7 @@ object Friends {
     }
 
     private fun request(context: Context, method: String, path: String, body: String?, prefer: String?): Pair<Int, String> {
-        val token = Account.token(context) ?: return 401 to tr("Войдите в аккаунт")
+        val token = Account.token(context) ?: return 401 to tr("Sign in to your account")
         val connection = URL("${GameStore.URL_BASE}/rest/v1/$path").openConnection() as HttpURLConnection
         connection.requestMethod = method
         connection.connectTimeout = 15_000

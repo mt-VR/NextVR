@@ -38,7 +38,7 @@ import zone.ien.hig.theme.CupertinoTheme
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
-/** Native "Обновление ПО" screen for PhoneXR. */
+/** Native "Software Update" screen for PhoneXR. */
 class UpdateActivity : ComponentActivity() {
     private var release by mutableStateOf<Updates.Release?>(null)
     private var checking by mutableStateOf(true)
@@ -63,7 +63,7 @@ class UpdateActivity : ComponentActivity() {
             runOnUiThread {
                 checking = false
                 release = found.getOrNull()
-                error = found.exceptionOrNull()?.let { "Не удалось проверить обновления" }
+                error = found.exceptionOrNull()?.let { "Couldn't check for updates" }
             }
         }
     }
@@ -78,7 +78,7 @@ class UpdateActivity : ComponentActivity() {
             val file = runCatching { Updates.download(this, target) { value -> runOnUiThread { progress = value } } }
             runOnUiThread {
                 progress = null
-                file.onSuccess { Updates.install(this, it) }.onFailure { error = "Обновление не скачалось" }
+                file.onSuccess { Updates.install(this, it) }.onFailure { error = "The update didn't download" }
             }
         }
     }
@@ -86,10 +86,10 @@ class UpdateActivity : ComponentActivity() {
     @OptIn(ExperimentalCupertinoApi::class)
     @Composable
     private fun Screen() {
-        HigPage(title = tr("Обновление ПО"), onBack = ::finish) {
+        HigPage(title = tr("Software Update"), onBack = ::finish) {
             HigSection {
-                HigSwitchRow(tr("Автообновление"), auto) { auto = it; Updates.setAutoUpdate(this@UpdateActivity, it) }
-                HigSwitchRow(tr("Бета‑обновления"), beta) { beta = it; Updates.setBeta(this@UpdateActivity, it); check() }
+                HigSwitchRow(tr("Automatic Updates"), auto) { auto = it; Updates.setAutoUpdate(this@UpdateActivity, it) }
+                HigSwitchRow(tr("Beta Updates"), beta) { beta = it; Updates.setBeta(this@UpdateActivity, it); check() }
             }
             val found = release
             when {
@@ -97,7 +97,7 @@ class UpdateActivity : ComponentActivity() {
                 found != null -> UpdateCard(found)
                 else -> Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     CupertinoText("PhoneXR ${Updates.currentVersion(this@UpdateActivity)}", fontWeight = FontWeight.SemiBold)
-                    CupertinoText(error ?: tr("Установлена последняя версия"), color = CupertinoTheme.colorScheme.secondaryLabel)
+                    CupertinoText(error ?: tr("PhoneXR is up to date"), color = CupertinoTheme.colorScheme.secondaryLabel)
                 }
             }
         }
@@ -132,9 +132,9 @@ class UpdateActivity : ComponentActivity() {
             ) {
                 CupertinoText(
                     when {
-                        value == null -> tr("Обновить сейчас")
-                        value < 0f -> tr("Загрузка…")
-                        else -> "Загрузка ${(value * 100).roundToInt()}%"
+                        value == null -> tr("Update Now")
+                        value < 0f -> tr("Loading…")
+                        else -> "Downloading ${(value * 100).roundToInt()}%"
                     },
                     color = Color.White, fontWeight = FontWeight.SemiBold
                 )

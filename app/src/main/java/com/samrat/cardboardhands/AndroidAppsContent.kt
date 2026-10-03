@@ -29,11 +29,11 @@ import zone.ien.hig.theme.CupertinoTheme
 import kotlin.concurrent.thread
 
 /**
- * "Android‑приложения": every installed phone app, runnable in a VR window (a Shizuku virtual
+ * "Android apps": every installed phone app, runnable in a VR window (a Shizuku virtual
  * display, like Minecraft in the cinema). Touching an icon opens it next to the other windows.
  */
 class AndroidAppsContent(private val context: Context, private val open: (packageName: String, label: String) -> Unit) :
-    ComposeContent(barTitle = tr("Android‑приложения")) {
+    ComposeContent(barTitle = tr("Android apps")) {
     private class App(val packageName: String, val label: String, val icon: Drawable?)
 
     private var apps by mutableStateOf<List<App>?>(null)
@@ -53,7 +53,7 @@ class AndroidAppsContent(private val context: Context, private val open: (packag
     @Composable
     override fun Content() {
         Column(Modifier.fillMaxSize().background(CupertinoTheme.colorScheme.systemGroupedBackground)) {
-            VrTitle(tr("Android‑приложения"), apps?.let { "${it.size} приложений · открываются окнами через Shizuku" } ?: "Загрузка…")
+            VrTitle(tr("Android apps"), apps?.let { "${it.size} apps · they open as windows through Shizuku" } ?: "Loading…")
             val list = apps ?: return@Column HigSpinner()
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(120.dp),

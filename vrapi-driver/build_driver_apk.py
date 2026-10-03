@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Собирает PhoneXR VrApi Driver — пакет com.oculus.systemdriver, который загрузчик libvrapi.so внутри
-игр Gear VR / Quest открывает сам. В нём DriverLoader и собственный VrApi PhoneXR
-(gearvr-shim, цель phonexr_vrapi) с загрузчиком OpenXR: игры VrApi идут без патча.
+Builds the PhoneXR VrApi Driver — the com.oculus.systemdriver package that the libvrapi.so loader inside
+Gear VR / Quest games opens by itself. It holds the DriverLoader and PhoneXR's own VrApi
+(gearvr-shim, the phonexr_vrapi target) with an OpenXR loader: VrApi games run without patching.
 
   python3 vrapi-driver/build_driver_apk.py
-Сначала соберите gearvr-shim (build и build32, цель phonexr_vrapi).
+Build gearvr-shim first (build and build32, the phonexr_vrapi target).
 """
 
 import glob
@@ -27,7 +27,7 @@ def build_tool(name):
         path = os.path.join(folder, version, name)
         if os.path.exists(path):
             return path
-    raise SystemExit(f"Не найден {name}")
+    raise SystemExit(f"{name} not found")
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
     }
     for path in libraries.values():
         if not os.path.exists(path):
-            raise SystemExit(f"Нет {path}")
+            raise SystemExit(f"No {path}")
     with tempfile.TemporaryDirectory() as work:
         base = os.path.join(work, "base.apk")
         subprocess.run([build_tool("aapt2"), "link", "-o", base, "--manifest", os.path.join(HERE, "AndroidManifest.xml"),
@@ -66,7 +66,7 @@ def main():
         subprocess.run([build_tool("apksigner"), "sign", "--ks", keystore, "--ks-pass", "pass:android",
                         "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android",
                         "--out", OUTPUT, aligned], check=True)
-    print("Готово:", OUTPUT, os.path.getsize(OUTPUT) // 1024, "КБ")
+    print("Done:", OUTPUT, os.path.getsize(OUTPUT) // 1024, "KB")
 
 
 if __name__ == "__main__":

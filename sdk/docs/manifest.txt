@@ -1,7 +1,7 @@
-Манифест своей игры
-===================
+The manifest of your own game
+=============================
 
-Чтобы игра сразу работала на PhoneXR и её не пришлось патчить, в AndroidManifest.xml нужно:
+So that the game works on PhoneXR right away and needs no patching, the AndroidManifest.xml needs:
 
   <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
   <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
@@ -16,31 +16,31 @@
       </intent>
   </queries>
 
-Без блока <queries> Android, начиная с targetSdk 30, скрывает брокер, игра не находит
-рантайм и показывает чёрный экран.
+Without the <queries> block, Android hides the broker from targetSdk 30 on, the game does not find
+the runtime and shows a black screen.
 
-Чужой сборке (например, из Quest) всё это дописывает сам PhoneXR при патче игры:
-разрешения OPENXR и OPENXR_SYSTEM, блок <queries> с брокером, INTERNET для потока
-трекинга и категорию IMMERSIVE_HMD на экране запуска. Своей игре пропишите их сразу —
-патчить её тогда не придётся.
+For someone else's build (from Quest, for example), PhoneXR adds all of this itself while patching:
+the OPENXR and OPENXR_SYSTEM permissions, the <queries> block with the broker, INTERNET for the
+tracking stream and the IMMERSIVE_HMD category on the launch screen. In your own game write them
+right away — then there is nothing to patch.
 
-Главная активность должна быть видна как VR-приложение:
+The main activity has to be visible as a VR app:
 
   <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
 
-Фичи гарнитур помечайте необязательными, иначе APK не установится на телефон:
+Mark headset features as optional, otherwise the APK will not install on a phone:
 
   <uses-feature android:name="android.hardware.vr.headtracking" android:required="false" />
 
-Собирайте под arm64-v8a. 32-битные сборки PhoneXR не запускает.
+Build for arm64-v8a. PhoneXR does not launch 32-bit builds.
 
-Управление: PhoneXR выдаёт себя за контроллеры Oculus Touch, так что используйте
-профиль /interaction_profiles/oculus/touch_controller. Стика нет: его значения всегда
-нулевые, кроме жеста «оба кулака». Сырые данные рук — см. docs/protocol.txt.
+Controls: PhoneXR pretends to be Oculus Touch controllers, so use the
+/interaction_profiles/oculus/touch_controller profile. There is no stick: its values are always
+zero, except for the "both fists" gesture. For raw hand data see docs/protocol.txt.
 
-Свой трекинг рук: если игра сама отслеживает руки камерой, объявите это в <application>,
-и PhoneXR при запуске игры не включит свой трекинг, а отдаст ей камеру:
+Your own hand tracking: if the game tracks hands with the camera itself, declare that in <application>
+and PhoneXR will not turn on its own tracking when launching the game but will hand over the camera:
 
   <meta-data android:name="com.phonexr.OWN_HAND_TRACKING" android:value="true" />
 
-Руки в OpenXR (контроллеры Touch) тогда не приходят — игра берёт их из своего трекинга.
+Hands in OpenXR (the Touch controllers) then do not arrive — the game takes them from its own tracking.

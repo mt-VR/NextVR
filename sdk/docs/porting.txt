@@ -1,44 +1,44 @@
-Перенос игры на PhoneXR
-=======================
+Porting a game to PhoneXR
+=========================
 
-1. Проверьте сборку:
+1. Check the build:
 
-     python3 sdk/tools/phonexr_port.py игра.apk --check
+     python3 sdk/tools/phonexr_port.py game.apk --check
 
-   Инструмент скажет, что нужно изменить, и остановится, если игра не подходит.
+   The tool tells you what has to change and stops if the game does not fit.
 
-2. Подготовьте APK:
+2. Prepare the APK:
 
-     python3 sdk/tools/phonexr_port.py игра.apk -o игра-phonexr.apk
+     python3 sdk/tools/phonexr_port.py game.apk -o game-phonexr.apk
 
-   Что он делает:
-     * targetSdk опускается до 29. Начиная с 30 Android скрывает от приложения чужие
-       провайдеры, и игра не находит OpenXR Runtime Broker. Именно из-за этого
-       непропатченная игра показывает чёрный экран.
-     * Снимается обязательность фич гарнитур (oculus.*, android.hardware.vr.*, picovr,
-       wave.feature) — иначе установщик отвечает «приложение несовместимо».
-     * Снимается флаг обязательных дополнительных APK у сборок из Google Play.
-     * libopenxr_loader.so заменяется на сборку PhoneXR (--loader задаёт свой файл).
-     * APK выравнивается под страницы 16 КБ и подписывается (--keystore задаёт свой ключ).
+   What it does:
+     * targetSdk is lowered to 29. From 30 on, Android hides other apps' providers,
+       and the game does not find the OpenXR Runtime Broker. That is exactly why an
+       unpatched game shows a black screen.
+     * Headset features (oculus.*, android.hardware.vr.*, picovr, wave.feature) stop
+       being required — otherwise the installer answers "app not compatible".
+     * The flag requiring extra APKs is cleared on builds from Google Play.
+     * libopenxr_loader.so is replaced with the PhoneXR build (--loader sets your own file).
+     * The APK is aligned to 16 KB pages and signed (--keystore sets your own key).
 
-3. Установите результат и запускайте игру из PhoneXR: он включает трекинг рук и
-   выбирает OpenXR-приложение.
+3. Install the result and launch the game from PhoneXR: it turns on hand tracking and
+   picks the OpenXR app.
 
-Чего инструмент не делает
+What the tool does not do
 -------------------------
-* Не добавляет в манифест новые элементы: правятся только уже существующие значения.
-  Своей игре пропишите <queries> сразу, см. docs/manifest.txt.
-* Не обходит проверки покупки и не подменяет закрытый рантайм Meta. Сборки с
-  libvrapi.so или libOVRPlatformLoader.so отклоняются.
-* Не переделывает управление. Игра должна работать с профилем контроллеров Oculus Touch:
-  PhoneXR выдаёт себя за него. Кнопки приходят с жестов рук или с Joy-Con.
-* Не трогает 32-битные сборки: нужен arm64-v8a.
+* It does not add new elements to the manifest: only existing values are edited.
+  In your own game write <queries> right away, see docs/manifest.txt.
+* It does not bypass purchase checks and does not replace the closed Meta runtime. Builds with
+  libvrapi.so or libOVRPlatformLoader.so are rejected.
+* It does not rework the controls. The game has to work with the Oculus Touch controller profile:
+  PhoneXR pretends to be one. Buttons come from hand gestures or from a Joy-Con.
+* It does not touch 32-bit builds: arm64-v8a is required.
 
-Если после переноса чёрный экран
---------------------------------
+If there is a black screen after porting
+----------------------------------------
   adb logcat | grep -iE "openxr|monado"
 
-  «Failed to find provider info for org.khronos.openxr.runtime_broker» — манифест не
-  пропатчен или игру пересобрали заново.
-  «Could access neither the installable nor system runtime broker» — не установлен
-  OpenXR Runtime Broker либо в нём не выбран Monado.
+  "Failed to find provider info for org.khronos.openxr.runtime_broker" — the manifest is
+  not patched or the game was rebuilt from scratch.
+  "Could access neither the installable nor system runtime broker" — the OpenXR Runtime
+  Broker is not installed, or Monado is not selected in it.

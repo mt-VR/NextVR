@@ -5,37 +5,37 @@ import java.net.DatagramSocket
 import java.net.InetSocketAddress
 
 /**
- * Читает поток PhoneXR: положение рук, жесты и кнопки Joy-Con.
+ * Reads the PhoneXR stream: hand positions, gestures and Joy-Con buttons.
  *
- * Обычный ввод (позы контроллеров, кнопки) игра получает через OpenXR. Этот класс нужен, когда
- * хочется сырые данные: например, показать ладонь или сделать свой жест.
+ * A game gets ordinary input (controller poses, buttons) through OpenXR. This class is for when
+ * you want the raw data: to show a palm, for example, or to build your own gesture.
  *
- * Данные приходят по UDP на 127.0.0.1:42425, пока работает трекинг в PhoneXR.
- * Порт занимает один клиент: если игра не видит данных, значит их уже читает другое приложение.
+ * The data arrives over UDP on 127.0.0.1:42425 while tracking runs in PhoneXR.
+ * One client holds the port: if the game sees no data, another app is already reading it.
  */
 class PhoneXRInput(port: Int = 42425) : AutoCloseable {
     data class Hand(
-        /** Рука видна камере или подключён Joy-Con этой стороны. */
+        /** The hand is visible to the camera or a Joy-Con of that side is connected. */
         val present: Boolean = false,
-        /** Кулак, указательный палец, большой палец. В режиме «только руки» всегда false. */
+        /** Fist, index finger, thumb. Always false in "hands only" mode. */
         val fist: Boolean = false,
         val index: Boolean = false,
         val thumb: Boolean = false,
-        /** Положение ладони в кадре: x и y от 0 до 1, z — близость к камере (1 — ближе всего). */
+        /** The position of the palm in the frame: x and y from 0 to 1, z is the closeness to the camera (1 is the closest). */
         val x: Float = .5f,
         val y: Float = .5f,
         val z: Float = .5f,
-        /** Поворот от Joy-Con, если у него доступен гироскоп. Иначе единичный кватернион. */
+        /** Rotation from the Joy-Con when its gyro is available. Otherwise the identity quaternion. */
         val qx: Float = 0f,
         val qy: Float = 0f,
         val qz: Float = 0f,
         val qw: Float = 1f,
-        /** Набор битов Button: какие кнопки Joy-Con нажаты. */
+        /** A set of Button bits: which Joy-Con buttons are pressed. */
         val buttons: Int = 0,
-        /** Стик Joy-Con, от -1 до 1 (x вправо, y вверх). В PH4 всегда 0. */
+        /** The Joy-Con stick, from -1 to 1 (x to the right, y up). Always 0 in PH4. */
         val stickX: Float = 0f,
         val stickY: Float = 0f,
-        /** Щипок (большой и указательный вместе) и ладонь к лицу. В PH4 всегда false. */
+        /** The pinch (thumb and index together) and the palm to the face. Always false in PH4. */
         val pinch: Boolean = false,
         val palmToFace: Boolean = false,
         /** Continuous bend of each finger: 0 is straight, 1 is fully curled. */
@@ -56,9 +56,9 @@ class PhoneXRInput(port: Int = 42425) : AutoCloseable {
     data class State(
         val left: Hand = Hand(),
         val right: Hand = Hand(),
-        /** Включено ли в настройках отслеживание положения по камере. */
+        /** Whether positional tracking from the camera is enabled in the settings. */
         val sixDof: Boolean = true,
-        /** Режим «только руки»: жесты пальцев ничего не нажимают. */
+        /** "Hands only" mode: finger gestures press nothing. */
         val handsOnly: Boolean = false
     )
 
@@ -69,7 +69,7 @@ class PhoneXRInput(port: Int = 42425) : AutoCloseable {
     }
     private val buffer = ByteArray(512)
 
-    /** Ждёт следующий пакет. Возвращает null, если полсекунды данных не было. */
+    /** Waits for the next packet. Returns null when there was no data for half a second. */
     fun read(): State? {
         val packet = DatagramPacket(buffer, buffer.size)
         return try {
@@ -116,8 +116,8 @@ class PhoneXRInput(port: Int = 42425) : AutoCloseable {
     }
 
     /**
-     * PH5: у каждой руки ещё стик Joy-Con (14 значений на руку), затем флаги, затем щипок и
-     * ладонь к лицу для левой и правой руки.
+     * PH5: each hand also has the Joy-Con stick (14 values per hand), then the flags, then the pinch and
+     * the palm to the face for the left and the right hand.
      */
     private fun parse5(values: List<String>): State {
         fun flag(index: Int) = values.getOrNull(index)?.toIntOrNull() == 1

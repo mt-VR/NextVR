@@ -1,32 +1,32 @@
-Промты для создания приложения под PhoneXR
-==========================================
+Prompts for building an app for PhoneXR
+=======================================
 
 Unity
 -----
-Создай Android VR-проект Unity для PhoneXR, а не для Meta Quest. Используй OpenXR Plugin,
-рендеринг stereo multipass или multiview, Android arm64-v8a и minimum SDK 29. Добавь action map для
-head pose, двух Oculus Touch-совместимых контроллеров, trigger, squeeze, primary, secondary, menu и
-thumbstick. Проект обязан работать в 3DoF и 6DoF: при отсутствии position tracking не перемещай
-камеру, но сохраняй rotation tracking. Добавь необязательный UDP-клиент PhoneXR PH5 на
-127.0.0.1:42425 для pinch и palm_to_face; читай сокет в фоновом потоке, применяй последнее состояние
-в Update, не блокируй главный поток. Подготовь AndroidManifest по sdk/docs/manifest.txt, не добавляй
-Meta entitlement check и обязательные hardware features Quest/Pico. Выдай структуру файлов, полный
-C# код, настройки Unity по пунктам и проверочный сценарий для Cardboard-телефона.
+Create an Android VR Unity project for PhoneXR, not for Meta Quest. Use the OpenXR Plugin,
+stereo multipass or multiview rendering, Android arm64-v8a and minimum SDK 29. Add an action map for
+the head pose, two Oculus Touch-compatible controllers, trigger, squeeze, primary, secondary, menu and
+thumbstick. The project must work in both 3DoF and 6DoF: when there is no position tracking, do not move
+the camera but keep rotation tracking. Add an optional PhoneXR PH5 UDP client on
+127.0.0.1:42425 for pinch and palm_to_face; read the socket on a background thread, apply the last state
+in Update, never block the main thread. Prepare the AndroidManifest following sdk/docs/manifest.txt, do not add
+a Meta entitlement check or required Quest/Pico hardware features. Produce the file structure, the full
+C# code, the Unity settings step by step and a test scenario for a Cardboard phone.
 
 Godot 4
 -------
-Создай проект Godot 4 для PhoneXR под Android arm64-v8a. Используй OpenXRInterface, XROrigin3D,
-XRCamera3D и два XRController3D с action map, совместимым с Oculus Touch. Реализуй безопасный fallback
-между 6DoF и 3DoF. Добавь GDScript-клиент PacketPeerUDP для PH5 на 127.0.0.1:42425: удаляй старые
-датаграммы, разбирай последнюю, публикуй сигналы pinch, palm_to_face и Joy-Con buttons. Добавь Android
-build template и элементы из sdk/docs/manifest.txt. Не используй Pico/Meta proprietary SDK и DRM.
-Выдай все .gd файлы, дерево сцен, Input Map, export settings и пошаговую проверку в PhoneXR.
+Create a Godot 4 project for PhoneXR targeting Android arm64-v8a. Use OpenXRInterface, XROrigin3D,
+XRCamera3D and two XRController3D nodes with an action map compatible with Oculus Touch. Implement a safe
+fallback between 6DoF and 3DoF. Add a GDScript PacketPeerUDP client for PH5 on 127.0.0.1:42425: drop the old
+datagrams, parse the last one, emit signals for pinch, palm_to_face and the Joy-Con buttons. Add the Android
+build template and the elements from sdk/docs/manifest.txt. Do not use the proprietary Pico/Meta SDKs or DRM.
+Produce all the .gd files, the scene tree, the Input Map, the export settings and a step-by-step check in PhoneXR.
 
 Lua
 ---
-Создай минимальный Android VR-слой для Lua-приложения под PhoneXR. Рендеринг и позы получай через
-OpenXR в C/C++, а runtime/phonexr_input.h оберни в Lua API: phonexr.poll() возвращает таблицу left,
-right, flags; каждая рука содержит present, x/y/z, quaternion, buttons, stick, pinch и palm_to_face.
-API не должен блокировать кадр и должен возвращать nil без новых данных. Покажи C binding, Lua-модуль,
-цикл обновления, Android CMake и манифест из sdk/docs/manifest.txt. Поддержи 3DoF и 6DoF, arm64-v8a,
-не добавляй зависимости от закрытых Quest/Pico runtime и проверки покупки.
+Create a minimal Android VR layer for a Lua application on PhoneXR. Get rendering and poses through
+OpenXR in C/C++, and wrap runtime/phonexr_input.h into a Lua API: phonexr.poll() returns a table with left,
+right and flags; each hand holds present, x/y/z, the quaternion, buttons, stick, pinch and palm_to_face.
+The API must not block the frame and must return nil when there is no new data. Show the C binding, the Lua module,
+the update loop, the Android CMake setup and the manifest from sdk/docs/manifest.txt. Support 3DoF and 6DoF, arm64-v8a,
+and add no dependencies on the closed Quest/Pico runtimes or purchase checks.

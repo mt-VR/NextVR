@@ -123,21 +123,21 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.android.tools.build:apksig:8.7.3")
     implementation("com.google.android.material:material:1.12.0")
-    // Нейросеть глубины (MiDaS) для 3D из обычного фото; сама модель скачивается по запросу.
+    // The depth neural network (MiDaS) for 3D out of an ordinary photo; the model itself is downloaded on demand.
     // LiteRT (the new TensorFlow Lite) comes with :tracking; the same Interpreter API runs MiDaS.
-    // ArUco markers on the Joy-Con for camera tracking; Lite goes without it (24 МБ библиотеки).
+    // ArUco markers on the Joy-Con for camera tracking; Lite goes without it (a 24 MB library).
     "fullImplementation"("org.opencv:opencv:4.14.0")
     // Shizuku runs the cinema display service as the shell user (virtual display + input for other apps).
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 
-    // Интерфейс в стиле Apple HIG: https://github.com/ienground/compose-hig
+    // An Apple HIG style interface: https://github.com/ienground/compose-hig
     implementation("zone.ien.hig:hig:1.4.1")
-    // Второй вид интерфейса — Material You (цвета из обоев системы), переключается в настройках.
+    // The second look of the interface — Material You (colors from the system wallpaper), switched in the settings.
     implementation("androidx.compose.material3:material3:1.5.0-alpha24")
     // Material You icons in the VR home (Horizon-style library and dock); R8 keeps only the used ones.
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    // hig отдаёт их только в runtime; экраны используют их напрямую.
+    // hig only exposes them at runtime; the screens use them directly.
     implementation("androidx.compose.foundation:foundation:1.12.0")
     implementation("androidx.compose.ui:ui:1.12.0")
     implementation("io.github.kyant0:backdrop:2.0.1")

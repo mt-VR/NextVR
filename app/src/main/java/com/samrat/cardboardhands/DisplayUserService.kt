@@ -83,7 +83,7 @@ class DisplayUserService(context: Context) : IDisplayService.Stub() {
         val message = process.inputStream.bufferedReader().readText().trim()
         val code = process.waitFor()
         if (code == 0 && message.contains("Success", ignoreCase = true)) null
-        else message.ifBlank { "Android не установил игру (код $code)" }
+        else message.ifBlank { "Android didn't install the game (code $code)" }
     } catch (error: Throwable) {
         error.message ?: error.javaClass.simpleName
     }

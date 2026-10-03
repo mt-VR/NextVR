@@ -4,7 +4,7 @@ enum BridgeError: LocalizedError {
     case message(String)
     var errorDescription: String? {
         if case .message(let text) = self { return text }
-        return "Неизвестная ошибка"
+        return "Unknown error"
     }
 }
 
@@ -21,7 +21,7 @@ final class AndroidBridge: @unchecked Sendable {
                 "/usr/local/bin/adb"
             ].compactMap { $0 }
             guard let path = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-                throw BridgeError.message("ADB не найден. Установите Android Platform Tools.")
+                throw BridgeError.message("ADB not found. Install the Android Platform Tools.")
             }
             return URL(fileURLWithPath: path)
         }
@@ -52,7 +52,7 @@ final class AndroidBridge: @unchecked Sendable {
     func install(apk: URL, serial: String) throws -> String {
         let output = try run(adb, ["-s", serial, "install", "-r", apk.path])
         guard output.contains("Success") else { throw BridgeError.message(output) }
-        return "Готово: \(apk.lastPathComponent) установлен на телефон."
+        return "Done: \(apk.lastPathComponent) is installed on the phone."
     }
 
     func installOpenXR(runtime: URL, game: URL, serial: String) throws -> String {
@@ -61,11 +61,11 @@ final class AndroidBridge: @unchecked Sendable {
             _ = try install(apk: game, serial: serial)
         } catch {
             throw BridgeError.message(
-                "OpenXR Runtime установлен, но игра не установилась. " +
-                "Вероятно, APK требует функции Meta Quest или другую подпись.\n\n\(error.localizedDescription)"
+                "The OpenXR Runtime was installed, but the game was not. " +
+                "The APK probably requires Meta Quest features or a different signature.\n\n\(error.localizedDescription)"
             )
         }
-        return "OpenXR Runtime и \(game.lastPathComponent) установлены. Откройте Monado XR один раз, затем запускайте игру."
+        return "The OpenXR Runtime and \(game.lastPathComponent) are installed. Open Monado XR once, then launch the game."
     }
 
     func buildAndInstall(source: URL, serial: String) throws -> String {
@@ -84,9 +84,9 @@ final class AndroidBridge: @unchecked Sendable {
         if let wrapper = find(named: "gradlew", under: prepared.root) {
             apk = try buildGradle(wrapper: wrapper)
         } else if find(named: "ProjectVersion.txt", under: prepared.root)?.path.contains("ProjectSettings") == true {
-            throw BridgeError.message("Это Unity-проект. Лёгкий режим работает без Unity: сначала экспортируйте проект как Android Gradle или выберите нативный Android/OpenXR-проект.")
+            throw BridgeError.message("This is a Unity project. The light mode works without Unity: export the project as Android Gradle first, or pick a native Android/OpenXR project.")
         } else {
-            throw BridgeError.message("Файл gradlew не найден. Нужен нативный Android/OpenXR Gradle-проект.")
+            throw BridgeError.message("gradlew was not found. A native Android/OpenXR Gradle project is required.")
         }
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.copyItem(at: apk, to: destination)
@@ -105,7 +105,7 @@ final class AndroidBridge: @unchecked Sendable {
         _ = try run(URL(fileURLWithPath: "/bin/chmod"), ["+x", wrapper.path])
         _ = try run(wrapper, ["assembleDebug"], directory: wrapper.deletingLastPathComponent())
         guard let apk = newestApk(under: wrapper.deletingLastPathComponent()) else {
-            throw BridgeError.message("Gradle завершился, но APK не найден.")
+            throw BridgeError.message("Gradle finished, but no APK was found.")
         }
         return apk
     }

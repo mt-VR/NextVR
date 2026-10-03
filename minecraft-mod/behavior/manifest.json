@@ -2,7 +2,7 @@
   "format_version": 2,
   "header": {
     "name": "PhoneXR VR",
-    "description": "VR для Minecraft Bedrock через PhoneXR: взгляд головой на 360°, руки в мире, ломать и ставить блоки руками, ходьба жестом.",
+    "description": "VR for Minecraft Bedrock through PhoneXR: a 360° look with your head, hands in the world, breaking and placing blocks with your hands, walking by gesture.",
     "uuid": "738204bd-0447-4362-a978-4f93397065e5",
     "version": [1, 0, 0],
     "min_engine_version": [1, 21, 0]

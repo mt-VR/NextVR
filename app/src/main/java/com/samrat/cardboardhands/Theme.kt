@@ -96,9 +96,9 @@ private val orangeDark = Color(0xFFFF9544)
  * white glass and ink as the VR home. The older two stay only so saved settings still read.
  */
 enum class UiStyle(val title: String, val detail: String) {
-    CUPERTINO("PhoneXR UI", "Сгруппированные списки и оранжевый акцент PhoneXR"),
-    MATERIAL("Material You", "Как в Android: карточки и цвета из обоев системы"),
-    HORIZON("PhoneXR VR", "Как в VR: белое стекло, тёмные надписи, скруглённые карточки"),
+    CUPERTINO("PhoneXR UI", "Grouped lists and the orange PhoneXR accent"),
+    MATERIAL("Material You", "Like Android: cards and colors from the system wallpaper"),
+    HORIZON("PhoneXR VR", "Like VR: white glass, dark lettering, rounded cards"),
 }
 
 /** The look and light or dark, where every screen can read them and recompose when they change. */
@@ -242,11 +242,11 @@ fun HigPage(
         if (onBack != null) {
             if (material) {
                 TextButton(onClick = onBack, modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
-                    Text("← " + tr("Назад"))
+                    Text("← " + tr("Back"))
                 }
             } else {
                 CupertinoNavigateBackButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 4.dp)) {
-                    CupertinoText(tr("Назад"))
+                    CupertinoText(tr("Back"))
                 }
             }
         } else {

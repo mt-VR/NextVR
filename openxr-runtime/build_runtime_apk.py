@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Готовит PhoneXR Runtime — OpenXR-рантайм (Monado с патчем PhoneXR), который PhoneXR ставит сам.
+Prepares PhoneXR Runtime — the OpenXR runtime (Monado with the PhoneXR patch) that PhoneXR installs itself.
 
-Берёт собранный APK рантайма (openxr-runtime/monado + monado-phonexr.patch) и:
-  * называет его «PhoneXR Runtime» везде (брокер OpenXR, лаунчер, служба), ставит иконку PhoneXR;
-  * встраивает системный брокер OpenXR (broker/RuntimeBroker.java): игры с загрузчиком Khronos —
-    Android XR, Pico, новые Quest — находят PhoneXR Runtime сами, без патча;
-  * встраивает GameLauncher: игры из магазина, которым package visibility прячет рантайм, запускаются
-    через него с правом на URI рантайма — и видят его, тоже без патча;
-  * убирает сборки для x86 и лишние символы из библиотек (≈97 МБ → ≈25 МБ);
-  * подписывает ключом PhoneXR и кладёт в app/src/main/assets/runtime/phonexr-runtime.apk.
+It takes the built runtime APK (openxr-runtime/monado + monado-phonexr.patch) and:
+  * names it "PhoneXR Runtime" everywhere (the OpenXR broker, the launcher, the service) and sets the PhoneXR icon;
+  * embeds the system OpenXR broker (broker/RuntimeBroker.java): games with the Khronos loader —
+    Android XR, Pico, newer Quest — find PhoneXR Runtime by themselves, without patching;
+  * embeds the GameLauncher: store games whose package visibility hides the runtime are launched
+    through it with a grant for the runtime URI — and see it, also without patching;
+  * removes the x86 builds and the extra symbols from the libraries (≈97 MB → ≈25 MB);
+  * signs it with the PhoneXR key and puts it in app/src/main/assets/runtime/phonexr-runtime.apk.
 
-  python3 openxr-runtime/build_runtime_apk.py [--apk путь/к/monado.apk]
+  python3 openxr-runtime/build_runtime_apk.py [--apk path/to/monado.apk]
 """
 
 import argparse
@@ -34,13 +34,13 @@ def build_tool(name):
         path = os.path.join(folder, version, name)
         if os.path.exists(path):
             return path
-    raise SystemExit(f"Не найден {name}")
+    raise SystemExit(f"{name} not found")
 
 
 def strip_tool():
     found = sorted(glob.glob(os.path.join(SDK, "ndk", "*", "toolchains", "llvm", "prebuilt", "*", "bin", "llvm-strip")))
     if not found:
-        raise SystemExit("Не найден llvm-strip из NDK")
+        raise SystemExit("llvm-strip from the NDK was not found")
     return found[-1]
 
 
@@ -157,7 +157,7 @@ def main():
         subprocess.run([build_tool("apksigner"), "sign", "--ks", keystore, "--ks-pass", "pass:android",
                         "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android",
                         "--out", arguments.output, aligned], check=True)
-    print("Готово:", arguments.output, os.path.getsize(arguments.output) // (1 << 20), "МБ")
+    print("Done:", arguments.output, os.path.getsize(arguments.output) // (1 << 20), "MB")
 
 
 if __name__ == "__main__":

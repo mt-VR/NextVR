@@ -10,14 +10,14 @@ import kotlin.concurrent.thread
 object InternalInstaller {
     fun install(activity: Activity, apk: File, finished: (String?) -> Unit) {
         if (VirtualScreen.access() != VirtualScreen.Access.READY) {
-            finished("Для внутренней установки запустите Shizuku и разрешите доступ PhoneXR")
+            finished("Installing inside PhoneXR needs Shizuku running with access allowed")
             return
         }
         val delivered = AtomicBoolean(false)
         lateinit var connection: android.content.ServiceConnection
         connection = VirtualScreen.bind(activity) { service ->
             if (service == null) {
-                if (delivered.compareAndSet(false, true)) finished("Служба Shizuku отключилась")
+                if (delivered.compareAndSet(false, true)) finished("The Shizuku service disconnected")
                 return@bind
             }
             thread(name = "PhoneXR internal installer") {

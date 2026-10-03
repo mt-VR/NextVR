@@ -32,19 +32,19 @@ class HomePanel {
 
     /** Quick settings, opened from the time in the dock (like Quest). */
     enum class Quick(val title: String) {
-        SETTINGS("Настройки"), WIFI("Wi‑Fi"), BLUETOOTH("Bluetooth"), CAR("Режим машины"), DESKTOP("Компьютер"),
-        PASSTHROUGH("Реальный мир"), RECENTER("Выровнять"), DND("Не беспокоить"), PHOTO("Снимок"),
+        SETTINGS("Settings"), WIFI("Wi‑Fi"), BLUETOOTH("Bluetooth"), CAR("Car mode"), DESKTOP("Computer"),
+        PASSTHROUGH("Real world"), RECENTER("Recenter"), DND("Do not disturb"), PHOTO("Snapshot"),
     }
 
     /** The sections on the left of the Library. */
     enum class Tab(val title: String) {
-        ALL("Все"), APPS("Приложения"), GAMES("Игры"), WEB("Веб"), PEOPLE("Люди"), ENVIRONMENTS("Миры")
+        ALL("All"), APPS("Apps"), GAMES("Games"), WEB("Web"), PEOPLE("People"), ENVIRONMENTS("Worlds")
     }
 
-    enum class Sort(val title: String) { RECENT("Недавние"), NAME("По имени") }
+    enum class Sort(val title: String) { RECENT("Recent"), NAME("Name") }
 
     /** The room sliders under the worlds: 0..1 each. */
-    enum class Slider(val title: String) { VOLUME("Громкость"), BRIGHTNESS("Яркость"), RAIN("Дождь"), FOG("Туман") }
+    enum class Slider(val title: String) { VOLUME("Volume"), BRIGHTNESS("Brightness"), RAIN("Rain"), FOG("Fog") }
 
     /** The buttons at the left of the dock. */
     enum class Control { PROFILE, STATUS, NOTIFICATIONS, SEARCH, PASSTHROUGH }

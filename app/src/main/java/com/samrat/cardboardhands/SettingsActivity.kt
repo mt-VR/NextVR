@@ -70,75 +70,75 @@ class SettingsActivity : ComponentActivity() {
 
     @Composable
     private fun Screen() {
-        HigPage(title = "Управление", onBack = ::finish) {
+        HigPage(title = "Controls", onBack = ::finish) {
             HigSection(
-                title = "Отслеживание",
-                footer = "3DoF работает на любом телефоне. 6DoF добавляет перемещение в комнате через ARCore."
+                title = "Tracking",
+                footer = "3DoF works on any phone. 6DoF adds moving around the room through ARCore."
             ) {
-                HigChoice("3DoF", "Поворот головы без перемещения", !state.sixDof) {
+                HigChoice("3DoF", "Head rotation without moving", !state.sixDof) {
                     update(state.copy(sixDof = false))
                 }
-                if (BuildConfig.LITE) HigRow("6DoF", "Только в PhoneXR Full", detailColor = HigColors.secondary)
-                else HigChoice("6DoF", "Поворот и перемещение через ARCore", state.sixDof) {
+                if (BuildConfig.LITE) HigRow("6DoF", "Only in PhoneXR Full", detailColor = HigColors.secondary)
+                else HigChoice("6DoF", "Rotation and movement through ARCore", state.sixDof) {
                     update(state.copy(sixDof = true))
                 }
             }
 
-            HigSection(title = "Руки") {
+            HigSection(title = "Hands") {
                 HigChoice(
-                    "Жесты нажимают",
-                    "Щипок и кулак работают как кнопки контроллера",
+                    "Gestures press",
+                    "A pinch and a fist work as controller buttons",
                     state.handMode == Settings.HandMode.CONTROLLERS
                 ) { update(state.copy(handMode = Settings.HandMode.CONTROLLERS)) }
                 HigChoice(
-                    "Только руки",
-                    "Игра получает руки без нажатий",
+                    "Hands only",
+                    "The game gets hands without presses",
                     state.handMode == Settings.HandMode.HANDS
                 ) { update(state.copy(handMode = Settings.HandMode.HANDS)) }
             }
 
             HigSection(
                 title = "Joy‑Con",
-                footer = if (interceptEnabled) "Joy‑Con отслеживаются по руке, которая их держит: положение и поворот — от руки, " +
-                    "кнопки и стик — с Joy‑Con. Настраивать ничего не нужно."
-                else "Без перехвата кнопки Joy‑Con уходят игре как геймпад, а не как контроллеры VR. " +
-                    "Включите «PhoneXR Joy‑Con» в «Специальных возможностях»."
+                footer = if (interceptEnabled) "Joy‑Con are tracked by the hand holding them: position and rotation come from the hand, " +
+                    "buttons and the stick from the Joy‑Con. Nothing to set up."
+                else "Without interception, Joy‑Con buttons go to the game as a gamepad, not as VR controllers. " +
+                    "Turn on “PhoneXR Joy‑Con” in Accessibility."
             ) {
                 HigRow(
-                    "Перехват кнопок",
-                    if (interceptEnabled) "Включён" else "Выключен",
+                    "Button interception",
+                    if (interceptEnabled) "On" else "Off",
                     detailColor = if (interceptEnabled) HigColors.good else HigColors.bad
                 )
                 if (!interceptEnabled) {
-                    HigLink("Включить перехват") { startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    HigLink("Turn on interception") { startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)) }
                 }
             }
             HigSection(
-                title = "Контроллеры",
-                footer = "PhoneXR принимает любые геймпады: Joy‑Con, DualShock, Xbox и безымянные. " +
-                    "Один геймпад работает за две руки: левый стик и кнопки X/Y/L — левая рука, правый стик и A/B/R — правая."
+                title = "Controllers",
+                footer = "PhoneXR accepts any gamepad: Joy‑Con, DualShock, Xbox and no-name ones. " +
+                    "A single gamepad works as both hands: the left stick and X/Y/L are the left hand, the right stick and A/B/R the right one."
             ) {
                 val found = JoyConButtons.names()
-                if (found.isEmpty()) HigRow("Ничего не подключено", "Подключите геймпад по Bluetooth", detailColor = HigColors.secondary)
-                else found.forEach { name -> HigRow(name, "Подключён", detailColor = HigColors.good) }
+                if (found.isEmpty()) HigRow("Nothing connected", "Pair a gamepad over Bluetooth", detailColor = HigColors.secondary)
+                else found.forEach { name -> HigRow(name, "Connected", detailColor = HigColors.good) }
             }
 
             HigSection(
-                title = "Сейчас",
-                footer = if (!JoyConInputService.sticksSupported) "Стик читается только на Android 14 и новее." else null
+                title = "It's",
+                footer = if (!JoyConInputService.sticksSupported) "The stick is only read on Android 14 and newer." else null
             ) {
-                HigRow("Левый стик", stick(live.left))
-                HigRow("Правый стик", stick(live.right))
-                HigRow("Левая рука", pressed(live.left.buttons))
-                HigRow("Правая рука", pressed(live.right.buttons))
+                HigRow("Left stick", stick(live.left))
+                HigRow("Right stick", stick(live.right))
+                HigRow("Left hand", pressed(live.left.buttons))
+                HigRow("Right hand", pressed(live.right.buttons))
             }
 
             HigSection {
-                HigLink("Назначить нажатием кнопки") {
+                HigLink("Assign by pressing a button") {
                     learning = true
                     JoyConBridge.watch(this@SettingsActivity, watching = true, learning = true)
                 }
-                HigLink("Сбросить раскладку") { update(state.copy(bindings = Settings.defaults().bindings)) }
+                HigLink("Reset the layout") { update(state.copy(bindings = Settings.defaults().bindings)) }
             }
         }
 
@@ -150,11 +150,11 @@ class SettingsActivity : ComponentActivity() {
     @Composable
     private fun gyroStatus(): Pair<String, androidx.compose.ui.graphics.Color> {
         val secondary = HigColors.secondary
-        if (android.os.Build.VERSION.SDK_INT < 31) return "Нужен Android 12 или новее" to HigColors.bad
+        if (android.os.Build.VERSION.SDK_INT < 31) return "Needs Android 12 or newer" to HigColors.bad
         val devices = android.view.InputDevice.getDeviceIds().toList()
             .mapNotNull { id -> android.view.InputDevice.getDevice(id) }
             .filter { device -> JoyConButtons.isJoyCon(device) }
-        if (devices.isEmpty()) return "Joy‑Con не найдены — подключите их по Bluetooth" to secondary
+        if (devices.isEmpty()) return "No Joy‑Con found — pair them over Bluetooth" to secondary
         val withGyro = devices.count { device ->
             device.sensorManager.getSensorList(android.hardware.Sensor.TYPE_ALL).any { sensor ->
                 sensor.type == android.hardware.Sensor.TYPE_GYROSCOPE ||
@@ -162,17 +162,17 @@ class SettingsActivity : ComponentActivity() {
                     sensor.type == android.hardware.Sensor.TYPE_ROTATION_VECTOR
             }
         }
-        return if (withGyro > 0) "Есть у $withGyro из ${devices.size}: поворот руки работает без камеры" to HigColors.good
-        else "Недоступны — поворот руки берётся только с камеры" to HigColors.bad
+        return if (withGyro > 0) "$withGyro of ${devices.size} have one: hand rotation works without the camera" to HigColors.good
+        else "Unavailable — hand rotation only comes from the camera" to HigColors.bad
     }
 
     private fun stick(live: JoyConButtons.Live) =
-        "вперёд ${(live.stickY * 100).roundToInt()}%, вбок ${(live.stickX * 100).roundToInt()}%"
+        "forward ${(live.stickY * 100).roundToInt()}%, sideways ${(live.stickX * 100).roundToInt()}%"
 
     private fun pressed(mask: Int) =
         Settings.Action.entries.filter { it.bit != 0 && mask and it.bit != 0 }
             .joinToString(", ") { it.title }
-            .ifEmpty { "ничего не нажато" }
+            .ifEmpty { "nothing pressed" }
 
     @Composable
     private fun LearningDialog() {
@@ -181,9 +181,9 @@ class SettingsActivity : ComponentActivity() {
             JoyConBridge.watch(this, watching = true, learning = false)
         }
         HigAlert(
-            title = "Нажмите кнопку на Joy‑Con",
-            message = "PhoneXR ждёт нажатия. Дальше выберите, что эта кнопка делает в VR.",
-            actions = listOf(HigAction(tr("Отмена"), HigActionStyle.CANCEL, stop)),
+            title = "Press a button on the Joy‑Con",
+            message = "PhoneXR is waiting for a press. Then choose what that button does in VR.",
+            actions = listOf(HigAction(tr("Cancel"), HigActionStyle.CANCEL, stop)),
             onDismiss = stop
         )
     }
@@ -195,10 +195,10 @@ class SettingsActivity : ComponentActivity() {
                 update(state.copy(bindings = state.bindings + (keyCode to action)))
                 pickedKey = null
             }
-        } + HigAction(tr("Отмена"), HigActionStyle.CANCEL) { pickedKey = null }
+        } + HigAction(tr("Cancel"), HigActionStyle.CANCEL) { pickedKey = null }
         HigAlert(
-            title = "Кнопка ${Settings.keyName(keyCode)}",
-            message = "Что она делает в VR:",
+            title = "Button ${Settings.keyName(keyCode)}",
+            message = "What it does in VR:",
             actions = actions,
             onDismiss = { pickedKey = null }
         )

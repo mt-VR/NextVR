@@ -28,7 +28,7 @@ object Calls {
 
     data class Contact(val id: String, val name: String, val status: String = "")
 
-    /** What we are doing, shown to friends ("В VR", "Смотрит вместе"…). */
+    /** What we are doing, shown to friends ("In VR", "Watching together"…). */
     @Volatile var status: String = ""
         private set
 
@@ -171,7 +171,7 @@ object Calls {
         val user = me ?: return
         val caller = peer ?: return
         realtime?.broadcast(LOBBY, "decline", JSONObject().put("to", caller.id).put("from", user.id).put("room", room))
-        reset("Звонок отклонён")
+        reset("Call declined")
     }
 
     fun hangUp() {
@@ -181,7 +181,7 @@ object Calls {
             State.RINGING -> { decline(); return }
             else -> return
         }
-        reset("Звонок завершён")
+        reset("Call ended")
     }
 
     private fun reset(text: String?) {
@@ -208,9 +208,9 @@ object Calls {
                     realtime?.broadcast(LOBBY, "busy", JSONObject().put("to", payload.optString("from")).put("room", payload.optString("room")))
                 }
                 "accept" -> if (state == State.CALLING && payload.optString("room") == room) enterCall()
-                "decline" -> if (payload.optString("room") == room) reset("${peer?.name ?: "Собеседник"} отклонил звонок")
-                "busy" -> if (payload.optString("room") == room) reset("${peer?.name ?: "Собеседник"} занят")
-                "cancel" -> if (payload.optString("room") == room && state == State.RINGING) reset("Пропущенный звонок")
+                "decline" -> if (payload.optString("room") == room) reset("${peer?.name ?: "The other person"} declined the call")
+                "busy" -> if (payload.optString("room") == room) reset("${peer?.name ?: "The other person"} is busy")
+                "cancel" -> if (payload.optString("room") == room && state == State.RINGING) reset("Missed call")
             }
             return
         }
@@ -238,7 +238,7 @@ object Calls {
                 }
                 payload.optString("a").takeIf { it.isNotEmpty() }?.let { play(Base64.decode(it, Base64.NO_WRAP)) }
             }
-            "bye" -> reset("${peer?.name ?: "Собеседник"} завершил звонок")
+            "bye" -> reset("${peer?.name ?: "The other person"} ended the call")
         }
     }
 

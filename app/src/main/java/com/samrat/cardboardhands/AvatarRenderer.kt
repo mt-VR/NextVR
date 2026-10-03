@@ -363,7 +363,7 @@ class AvatarRenderer : GLSurfaceView.Renderer {
                     egl.eglChooseConfig(display, attributes.toIntArray(), configs, 1, count)
                     return if (count[0] > 0) configs[0] else null
                 }
-                choose(true) ?: choose(false) ?: error("Нет подходящей конфигурации OpenGL")
+                choose(true) ?: choose(false) ?: error("No suitable OpenGL configuration")
             }
         }
 

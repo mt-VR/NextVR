@@ -89,7 +89,7 @@ class AvatarWebActivity : ComponentActivity() {
                 CookieManager.getInstance().getCookie(url)?.let { connection.setRequestProperty("Cookie", it) }
                 connection.inputStream.use { it.readBytes() }
             }.getOrNull()
-            if (bytes == null) runOnUiThread { Toast.makeText(this, tr("Не удалось скачать модель"), Toast.LENGTH_LONG).show() }
+            if (bytes == null) runOnUiThread { Toast.makeText(this, tr("Couldn't download the model"), Toast.LENGTH_LONG).show() }
             else keep(bytes)
         }
     }
@@ -97,7 +97,7 @@ class AvatarWebActivity : ComponentActivity() {
     private fun keep(bytes: ByteArray) {
         val error = AvatarModel.save(this, bytes, source)
         runOnUiThread {
-            Toast.makeText(this, error ?: tr("Аватар сохранён"), Toast.LENGTH_LONG).show()
+            Toast.makeText(this, error ?: tr("Avatar saved"), Toast.LENGTH_LONG).show()
             if (error == null) finish()
         }
     }

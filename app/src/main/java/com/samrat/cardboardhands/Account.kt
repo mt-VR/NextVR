@@ -30,11 +30,11 @@ object Account {
         val (code, answer) = post("/auth/v1/signup", body, null)
         if (code !in 200..299) return error(answer)
         val json = JSONObject(answer)
-        if (!json.has("access_token")) return "Аккаунт создан. Подтвердите почту и войдите."
+        if (!json.has("access_token")) return "Account created. Confirm your e-mail and sign in."
         save(context, json)
         Settings.setUserName(context, name)
         null
-    }.getOrElse { "Нет связи с сервером" }
+    }.getOrElse { "No connection to the server" }
 
     /** Network call: signs in. Returns an error text or null. */
     fun signIn(context: Context, email: String, password: String): String? = runCatching {
@@ -43,7 +43,7 @@ object Account {
         save(context, JSONObject(answer))
         current(context)?.name?.takeIf { it.isNotBlank() }?.let { Settings.setUserName(context, it) }
         null
-    }.getOrElse { "Нет связи с сервером" }
+    }.getOrElse { "No connection to the server" }
 
     fun signOut(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
 
@@ -78,10 +78,10 @@ object Account {
         val message = json?.optString("msg")?.ifBlank { null } ?: json?.optString("error_description")?.ifBlank { null }
             ?: json?.optString("message")?.ifBlank { null } ?: answer
         return when {
-            message.contains("Invalid login", true) -> "Неверная почта или пароль"
-            message.contains("already registered", true) -> "Такая почта уже зарегистрирована"
-            message.contains("Password should", true) -> "Пароль слишком короткий (минимум 6 символов)"
-            message.contains("valid email", true) || message.contains("invalid format", true) -> "Неверная почта"
+            message.contains("Invalid login", true) -> "Wrong e-mail or password"
+            message.contains("already registered", true) -> "That e-mail is already registered"
+            message.contains("Password should", true) -> "The password is too short (6 characters minimum)"
+            message.contains("valid email", true) || message.contains("invalid format", true) -> "Invalid e-mail"
             else -> message
         }
     }

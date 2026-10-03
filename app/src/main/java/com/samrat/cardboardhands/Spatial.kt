@@ -8,16 +8,16 @@ package com.samrat.cardboardhands
 object Spatial {
     /** Where the second eye's picture sits inside the file. */
     enum class Layout(val title: String) {
-        MONO("обычное"),
-        SIDE_BY_SIDE("3D бок о бок"),
-        OVER_UNDER("3D сверху вниз")
+        MONO("ordinary"),
+        SIDE_BY_SIDE("3D side by side"),
+        OVER_UNDER("3D over under")
     }
 
     /** How much of the world the picture covers. */
     enum class Shape(val title: String) {
-        FLAT("плоское"),
-        PANORAMA_180("панорама 180°"),
-        PANORAMA_360("панорама 360°")
+        FLAT("flat"),
+        PANORAMA_180("180° panorama"),
+        PANORAMA_360("360° panorama")
     }
 
     private val sideBySideWords = listOf("sbs", "side-by-side", "side_by_side", "_lr", "-lr", "vr180", "180x180")

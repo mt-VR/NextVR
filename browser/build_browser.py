@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Собирает браузер PhoneXR из Wolvic (https://github.com/Igalia/wolvic, MPL-2.0).
+Builds the PhoneXR browser from Wolvic (https://github.com/Igalia/wolvic, MPL-2.0).
 
-Меняет пакет (ставится рядом с Wolvic), название, иконку, OpenXR loader и подписывает ключом
-PhoneXR. Движок и интерфейс — Wolvic; его лицензия и ссылка на исходники остаются в «О браузере».
+It changes the package (it installs next to Wolvic), the name, the icon and the OpenXR loader, and signs it
+with the PhoneXR key. The engine and the interface are Wolvic's; its license and a link to the sources stay in "About the browser".
 
-  python3 browser/build_browser.py                    # скачает Wolvic (сборка lynx, OpenXR)
+  python3 browser/build_browser.py                    # downloads Wolvic (the lynx build, OpenXR)
   python3 browser/build_browser.py --apk Wolvic.apk
 """
 
@@ -20,7 +20,7 @@ import urllib.request
 
 PACKAGE = "com.samrat.pxrbrowser"
 ORIGINAL = "com.igalia.wolvic"
-NAME = "Браузер"
+NAME = "Browser"
 RELEASE = "https://github.com/Igalia/wolvic/releases/download/v1.9/Wolvic-lynx-arm64-gecko-generic-release.apk"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON_SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
@@ -33,7 +33,7 @@ def build_tool(name):
         path = os.path.join(folder, version, name)
         if os.path.exists(path):
             return path
-    raise SystemExit(f"Не найден {name}")
+    raise SystemExit(f"{name} not found")
 
 
 def patch_manifest(path):
@@ -96,7 +96,7 @@ def main():
         source = arguments.apk
         if not source:
             source = os.path.join(work, "wolvic.apk")
-            print("Скачиваю", RELEASE)
+            print("Downloading", RELEASE)
             urllib.request.urlretrieve(RELEASE, source)
         decoded = os.path.join(work, "decoded")
         subprocess.run(["apktool", "d", "-q", "-s", "-f", source, "-o", decoded], check=True)
@@ -115,7 +115,7 @@ def main():
         subprocess.run([build_tool("apksigner"), "sign", "--ks", keystore, "--ks-pass", "pass:android",
                         "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android",
                         "--out", arguments.output, aligned], check=True)
-    print("Готово:", arguments.output)
+    print("Done:", arguments.output)
 
 
 if __name__ == "__main__":

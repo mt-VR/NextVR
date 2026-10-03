@@ -118,19 +118,19 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun FriendsTab() {
-        HigPage(title = tr("Друзья"), subtitle = tr("Добавляйте друзей по юзернейму и звоните им персоной в VR"), bottomInset = TAB_BAR_ROOM) {
+        HigPage(title = tr("Friends"), subtitle = tr("Add friends by username and call them as your Persona in VR"), bottomInset = TAB_BAR_ROOM) {
             if (Account.current(this@MainActivity) == null) {
-                HigSection(footer = tr("Друзья и звонки работают с аккаунтом PhoneXR.")) {
-                    HigLink(tr("Войти")) { start(AccountActivity::class.java) }
+                HigSection(footer = tr("Friends and calls need a PhoneXR account.")) {
+                    HigLink(tr("Sign in")) { start(AccountActivity::class.java) }
                 }
                 return@HigPage
             }
             friendsStatus?.let { HigSection { HigRow(it) } }
             val profile = friendsProfile
             if (profile == null) {
-                HigSection(title = tr("Ваш юзернейм"), footer = tr("3–20 символов: a–z, 0–9, _ и . По нему вас найдут друзья.")) {
+                HigSection(title = tr("Your username"), footer = tr("3–20 characters: a–z, 0–9, _ and . Friends will find you by it.")) {
                     InputRow("username", friendsUsername) { friendsUsername = it.lowercase().replace(" ", "") }
-                    HigLink(if (friendsLoading) tr("Загрузка…") else tr("Готово"), enabled = !friendsLoading) {
+                    HigLink(if (friendsLoading) tr("Loading…") else tr("Done"), enabled = !friendsLoading) {
                         val name = friendsUsername
                         friendsAction { Friends.setUsername(this@MainActivity, name) }
                     }
@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
                 return@HigPage
             }
             HigSection { HigRow("@${profile.username}", profile.name) }
-            HigSection(title = tr("Найти по юзернейму")) {
+            HigSection(title = tr("Find by username")) {
                 InputRow("@username", friendsQuery) { value ->
                     friendsQuery = value
                     Thread {
@@ -148,21 +148,21 @@ class MainActivity : ComponentActivity() {
                 }
                 friendsFound.forEach { person ->
                     val added = friendsMine.any { it.id == person.id }
-                    HigLink("@${person.username}", value = if (added) "✓" else tr("Добавить"), enabled = !added) {
+                    HigLink("@${person.username}", value = if (added) "✓" else tr("Add"), enabled = !added) {
                         friendsAction { Friends.add(this@MainActivity, person) }
                     }
                 }
             }
-            if (friendsAddedMe.isNotEmpty()) HigSection(title = tr("Добавили вас")) {
+            if (friendsAddedMe.isNotEmpty()) HigSection(title = tr("Added you")) {
                 friendsAddedMe.forEach { person ->
-                    HigLink("@${person.username}", value = tr("Добавить")) { friendsAction { Friends.add(this@MainActivity, person) } }
+                    HigLink("@${person.username}", value = tr("Add")) { friendsAction { Friends.add(this@MainActivity, person) } }
                 }
             }
-            HigSection(title = tr("Мои друзья"), footer = tr("Позвонить можно из приложения «Звонки» в шлеме, когда друг в сети.")) {
-                if (friendsMine.isEmpty()) HigRow(tr("Пока пусто"))
+            HigSection(title = tr("My friends"), footer = tr("You can call from the Calls app in the headset while a friend is online.")) {
+                if (friendsMine.isEmpty()) HigRow(tr("Nothing here yet"))
                 friendsMine.forEach { person ->
                     val online = Calls.online.any { it.id == person.id }
-                    HigLink("@${person.username}", value = if (online) tr("В сети") else tr("Удалить")) {
+                    HigLink("@${person.username}", value = if (online) tr("Online") else tr("Remove")) {
                         if (!online) friendsAction { Friends.remove(this@MainActivity, person) }
                     }
                 }
@@ -203,18 +203,18 @@ class MainActivity : ComponentActivity() {
 
     private val requestCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted && startAfterPermission) startTracking()
-        else if (!granted) status = "Для рук нужен доступ к камере"
+        else if (!granted) status = "Hand tracking needs access to the camera"
         startAfterPermission = false
     }
     private val scanCardboard = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != RESULT_OK) return@registerForActivityResult
         val mm = result.data?.getIntExtra(CardboardQrActivity.EXTRA_IPD_MM, -1) ?: -1
         if (mm !in Settings.MIN_IPD_MM..Settings.MAX_IPD_MM) {
-            error = "Профиль Cardboard не содержит корректное межзрачковое расстояние"
+            error = "The Cardboard profile has no valid interpupillary distance"
         } else {
             ipd = mm
             Settings.setIpdMm(this, mm)
-            status = "Профиль Cardboard применён: $mm мм"
+            status = "Cardboard profile applied: $mm mm"
         }
     }
     /** The VR home needs the camera (passthrough, hands) and the gallery (Spatial Photos). */
@@ -237,8 +237,8 @@ class MainActivity : ComponentActivity() {
     private val chooseAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) Thread {
             val bytes = runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
-            val error = bytes?.let { AvatarModel.save(this, it, AvatarModel.Source.FILE) } ?: tr("Не удалось прочитать файл")
-            runOnUiThread { status = error ?: tr("Аватар сохранён"); resumes++ }
+            val error = bytes?.let { AvatarModel.save(this, it, AvatarModel.Source.FILE) } ?: tr("Couldn't read the file")
+            runOnUiThread { status = error ?: tr("Avatar saved"); resumes++ }
         }.start()
     }
 
@@ -263,7 +263,7 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 modProgress.remove(item.path)
                 file.onSuccess { MinecraftMods.install(this, it)?.let { problem -> error = problem } }
-                    .onFailure { error = "«${item.title}» не скачался" }
+                    .onFailure { error = "“${item.title}” didn't download" }
             }
         }.start()
     }
@@ -276,11 +276,11 @@ class MainActivity : ComponentActivity() {
         val source = pendingPxr.also { pendingPxr = null }
         if (uri != null && source != null) runCatching {
             contentResolver.openOutputStream(uri)?.use { out -> source.inputStream().use { it.copyTo(out) } }
-        }.onFailure { error = "Не удалось сохранить .pxr" }
+        }.onFailure { error = "Couldn't save the .pxr" }
     }
     private val chooseForPxr = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
-        busy = "Сборка .pxr…"
+        busy = "Building the .pxr…"
         Thread {
             runCatching {
                 val payload = PxrPackage.androidPayload(this, uri)
@@ -289,7 +289,7 @@ class MainActivity : ComponentActivity() {
             }.onSuccess { file ->
                 runOnUiThread { busy = null; pendingPxr = file; savePxr.launch(file.name) }
             }.onFailure { failure ->
-                runOnUiThread { busy = null; error = failure.localizedMessage ?: "Не удалось собрать .pxr" }
+                runOnUiThread { busy = null; error = failure.localizedMessage ?: "Couldn't build the .pxr" }
             }
         }.start()
     }
@@ -303,7 +303,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The first thing a new user sees: "Выберите шлем" and the headsets; then "put the phone in the headset"
+     * The first thing a new user sees: "Choose your headset" and the headsets; then "put the phone in the headset"
      * with three seconds counted down, and the VR setup (in the Quest style, with the account)
      * starts by itself.
      */
@@ -320,7 +320,7 @@ class MainActivity : ComponentActivity() {
                 // Which headset: its lenses decide where each eye's picture goes.
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     androidx.compose.material3.Text(
-                        tr("Выберите шлем"), color = colors.onSurface, fontSize = 34.sp,
+                        tr("Choose your headset"), color = colors.onSurface, fontSize = 34.sp,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         modifier = Modifier.padding(top = 12.dp, bottom = 10.dp)
                     )
@@ -343,7 +343,7 @@ class MainActivity : ComponentActivity() {
                                 Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
                                     androidx.compose.material3.Text(tr(headset.name), color = colors.onSurface, fontSize = 18.sp)
                                     androidx.compose.material3.Text(
-                                        tr("Линзы") + ": ${headset.lensesMm} " + tr("мм") + " · ${headset.fovDeg.roundToInt()}°",
+                                        tr("Lenses") + ": ${headset.lensesMm} " + tr("mm") + " · ${headset.fovDeg.roundToInt()}°",
                                         color = colors.onSurfaceVariant, fontSize = 14.sp
                                     )
                                 }
@@ -361,7 +361,7 @@ class MainActivity : ComponentActivity() {
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     androidx.compose.material3.Text(
-                        tr("Вставьте телефон в VR‑шлем"), color = colors.onSurface, fontSize = 30.sp,
+                        tr("Put the phone in the VR headset"), color = colors.onSurface, fontSize = 30.sp,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -398,9 +398,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // First start: everything (setup and the account) happens in VR, after "Вы готовы?".
+        // First start: everything (setup and the account) happens in VR, after "Are you ready?".
         needsSetup = !Settings.setupDone(this)
-        // Not back to "Вы готовы?" here: the permission dialog also ends in onResume, right after
+        // Not back to "Are you ready?" here: the permission dialog also ends in onResume, right after
         // the answer moved on to the countdown. The countdown itself goes back to 0 when VR starts.
         if (needsSetup) return
         // PhoneXR opens only with an account (BE has no friends or calls, so no account either).
@@ -439,11 +439,11 @@ class MainActivity : ComponentActivity() {
         Thread {
             if (!VrApiDriver.ready(this)) {
                 val problem = runCatching { VrApiDriver.installQuietly(this) }.getOrElse { it.localizedMessage }
-                runOnUiThread { resumes++; if (problem == null) status = "Драйвер VrApi установлен: игры Quest и Gear VR работают без патча" }
+                runOnUiThread { resumes++; if (problem == null) status = "VrApi driver installed: Quest and Gear VR games run without patching" }
             }
             if (PhoneXrRuntime.state(this) == PhoneXrRuntime.State.READY) return@Thread
             val problem = runCatching { PhoneXrRuntime.installQuietly(this) }.getOrElse { it.localizedMessage }
-            runOnUiThread { resumes++; if (problem == null) status = "PhoneXR Runtime установлен: OpenXR‑игры работают без патча" }
+            runOnUiThread { resumes++; if (problem == null) status = "PhoneXR Runtime installed: OpenXR games run without patching" }
         }.start()
     }
 
@@ -473,13 +473,13 @@ class MainActivity : ComponentActivity() {
             }
             HigTabBar(
                 tabs = if (BuildConfig.BE) listOf(
-                    HigTab(androidx.compose.material.icons.Icons.Rounded.Home, tr("Меню")),
-                    HigTab(androidx.compose.material.icons.Icons.Rounded.Settings, tr("Настройки"))
+                    HigTab(androidx.compose.material.icons.Icons.Rounded.Home, tr("Menu")),
+                    HigTab(androidx.compose.material.icons.Icons.Rounded.Settings, tr("Settings"))
                 ) else listOf(
-                    HigTab(androidx.compose.material.icons.Icons.Rounded.Home, tr("Меню")),
-                    HigTab(androidx.compose.material.icons.Icons.Rounded.ShoppingBag, tr("Магазин")),
-                    HigTab(androidx.compose.material.icons.Icons.Rounded.People, tr("Друзья")),
-                    HigTab(androidx.compose.material.icons.Icons.Rounded.Settings, tr("Настройки"))
+                    HigTab(androidx.compose.material.icons.Icons.Rounded.Home, tr("Menu")),
+                    HigTab(androidx.compose.material.icons.Icons.Rounded.ShoppingBag, tr("Store")),
+                    HigTab(androidx.compose.material.icons.Icons.Rounded.People, tr("Friends")),
+                    HigTab(androidx.compose.material.icons.Icons.Rounded.Settings, tr("Settings"))
                 ),
                 selected = tab,
                 backdrop = backdrop,
@@ -493,11 +493,11 @@ class MainActivity : ComponentActivity() {
         LanguagePicker()
         update?.let { found ->
             HigAlert(
-                title = "Доступно PhoneXR ${found.version}",
+                title = "PhoneXR ${found.version} is available",
                 message = Updates.formatSize(found.size),
                 actions = listOf(
-                    HigAction(tr("Позже"), HigActionStyle.CANCEL) { update = null },
-                    HigAction(tr("Подробнее")) { update = null; start(UpdateActivity::class.java) }
+                    HigAction(tr("Later"), HigActionStyle.CANCEL) { update = null },
+                    HigAction(tr("Details")) { update = null; start(UpdateActivity::class.java) }
                 ),
                 onDismiss = { update = null }
             )
@@ -505,7 +505,7 @@ class MainActivity : ComponentActivity() {
         ready?.let { ReadyDialog(it) }
         error?.let { message ->
             HigAlert(
-                title = tr("Не получилось"),
+                title = tr("Something went wrong"),
                 message = message,
                 actions = listOf(HigAction("OK") { error = null }),
                 onDismiss = { error = null }
@@ -514,14 +514,14 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The language list: the same one on the first screen and in Settings → Язык. Chosen here, it
+     * The language list: the same one on the first screen and in Settings → Language. Chosen here, it
      * applies to the whole interface at once: the activity is built again in the new language.
      */
     @Composable
     private fun LanguagePicker() {
         if (!languagePicker) return
         HigAlert(
-            title = tr("Язык"),
+            title = tr("Language"),
             message = "PhoneXR",
             actions = L10n.Lang.values().map { lang ->
                 HigAction((if (lang == L10n.current) "✓ " else "") + lang.title) {
@@ -529,7 +529,7 @@ class MainActivity : ComponentActivity() {
                     L10n.set(this@MainActivity, lang)
                     recreate()
                 }
-            } + HigAction(tr("Отмена"), HigActionStyle.CANCEL) { languagePicker = false },
+            } + HigAction(tr("Cancel"), HigActionStyle.CANCEL) { languagePicker = false },
             onDismiss = { languagePicker = false }
         )
     }
@@ -563,59 +563,59 @@ class MainActivity : ComponentActivity() {
     private fun MenuTab() {
         HigPage(
             title = "PhoneXR",
-            subtitle = "VR на телефоне: руки в камере, Joy‑Con вместо контроллеров",
+            subtitle = "VR on your phone: hands in the camera, Joy‑Con instead of controllers",
             bottomInset = TAB_BAR_ROOM
         ) {
             if (BuildConfig.BE) {
-                HigSection(footer = tr("Камера не нужна: наведите точку в центре на кнопку и коснитесь экрана телефона.")) {
-                    HigLink(tr("Войти в VR")) { enterVr.launch(vrPermissions()) }
+                HigSection(footer = tr("No camera needed: aim the dot in the center at a button and tap the phone screen.")) {
+                    HigLink(tr("Enter VR")) { enterVr.launch(vrPermissions()) }
                 }
                 return@HigPage
             }
             if (!sixDof) HigSection(
-                title = "Сейчас работает 3DoF",
-                footer = "Поворот головы и контроллеры работают, но перемещение по комнате, граница, стены, столы и физика комнаты требуют 6DoF."
+                title = "3DoF is active right now",
+                footer = "Head rotation and controllers work, but walking around the room, the boundary, walls, tables and room physics need 6DoF."
             ) {
-                HigLink("Включить 6DoF") {
-                    if (BuildConfig.LITE) error = "6DoF доступен в PhoneXR Full"
+                HigLink("Turn on 6DoF") {
+                    if (BuildConfig.LITE) error = "6DoF is available in PhoneXR Full"
                     else {
                         sixDof = true
                         Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = true))
                     }
                 }
             }
-            HigSection(footer = "VR‑дом в смешанной реальности: из руки идёт луч‑указка, щипок — нажать; кулак у левого или правого края окна — перенести его; Joy‑Con: ZR или A.") {
-                HigLink(tr("Войти в VR")) {
+            HigSection(footer = "The VR home in mixed reality: a pointer ray comes out of your hand, pinch to press; a fist at the left or right edge of a window moves it; Joy‑Con: ZR or A.") {
+                HigLink(tr("Enter VR")) {
                     enterVr.launch(vrPermissions())
                 }
             }
 
             HigSection(
-                title = tr("Игры"),
-                footer = "Нажмите на игру, чтобы включить трекинг и запустить её. " +
-                    "Игры Gear VR и сборки для гарнитур сначала нужно пропатчить: PhoneXR откроет им рантайм " +
-                    "PhoneXR, впишет новый трекинг и оптимизирует их под телефон."
+                title = tr("Games"),
+                footer = "Tap a game to turn on tracking and launch it. " +
+                    "Gear VR games and headset builds have to be patched first: PhoneXR opens the PhoneXR " +
+                    "runtime for them, writes in the new tracking and optimizes them for the phone."
             ) {
                 val list = games
                 when {
-                    list == null -> HigRow("Поиск игр…", trailing = { HigSpinner() })
-                    list.isEmpty() -> HigRow("VR-игры не найдены", "Установите игру из магазина или из файла")
+                    list == null -> HigRow("Looking for games…", trailing = { HigSpinner() })
+                    list.isEmpty() -> HigRow("No VR games found", "Install a game from the store or from a file")
                     else -> list.forEach { game -> GameRow(game) }
                 }
             }
 
             HigSection(
-                title = tr("Установка"),
-                footer = "APK OpenXR-игры, игры Gear VR (64 и 32 бита) или пакет .pxr. " +
-                    "PhoneXR впишет новый трекинг, оптимизирует сборку под телефон, подпишет её и откроет установку."
+                title = tr("Install"),
+                footer = "An OpenXR game APK, Gear VR games (64- and 32-bit) or a .pxr package. " +
+                    "PhoneXR writes in the new tracking, optimizes the build for the phone, signs it and opens the installer."
             ) {
-                HigLink(busy ?: tr("Установить игру из файла"), enabled = busy == null) {
+                HigLink(busy ?: tr("Install a game from a file"), enabled = busy == null) {
                     chooseApk.launch(
                         arrayOf("application/vnd.android.package-archive", "application/zip", "application/octet-stream")
                     )
                 }
-                HigLink(tr("Магазин игр")) { selectTab(1) }
-                HigLink("Собрать .pxr из APK", enabled = busy == null) {
+                HigLink(tr("Game store")) { selectTab(1) }
+                HigLink("Build a .pxr from an APK", enabled = busy == null) {
                     chooseForPxr.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream"))
                 }
             }
@@ -624,20 +624,20 @@ class MainActivity : ComponentActivity() {
 
             HigSection(
                 title = "Daydream",
-                footer = "Игры Daydream ищут Google VR Services. PhoneXR ставит Opendream Services 1.13 — " +
-                    "после этого игры Daydream и Cardboard появляются в списке игр и в VR‑доме."
+                footer = "Daydream games look for Google VR Services. PhoneXR installs Opendream Services 1.13 — " +
+                    "after that Daydream and Cardboard games show up in the game list and in the VR home."
             ) {
                 if (Daydream.servicesInstalled(this@MainActivity)) {
-                    HigRow("VR Services", "Opendream установлен")
+                    HigRow("VR Services", "Opendream installed")
                 } else {
-                    HigLink("Установить Opendream Services") { Daydream.installServices(this@MainActivity) }
+                    HigLink("Install Opendream Services") { Daydream.installServices(this@MainActivity) }
                 }
             }
 
-            HigSection(title = tr("Трекинг"), footer = status) {
-                HigLink(tr("Остановить трекинг")) {
+            HigSection(title = tr("Tracking"), footer = status) {
+                HigLink(tr("Stop tracking")) {
                     stopService(Intent(this@MainActivity, HandTrackingService::class.java))
-                    status = "Трекинг остановлен"
+                    status = "Tracking stopped"
                 }
             }
         }
@@ -649,26 +649,26 @@ class MainActivity : ComponentActivity() {
         val state = if (resumes >= 0) PhoneXrRuntime.state(this) else PhoneXrRuntime.State.MISSING
         HigSection(
             title = "OpenXR",
-            footer = "PhoneXR Runtime — OpenXR на телефоне: игры получают руки, Joy‑Con и голову от PhoneXR. " +
-                "Он сам себе брокер OpenXR, поэтому игры Android XR (Galaxy XR), Pico и новые Quest с загрузчиком Khronos " +
-                "запускаются без патча. Отдельный OpenXR Runtime Broker не нужен — если он стоит, удалите его, иначе он перехватит игры. " +
-                "Старые игры Quest и Gear VR (VrApi) тоже идут без патча — через драйвер VrApi PhoneXR."
+            footer = "PhoneXR Runtime is OpenXR on the phone: games get hands, Joy‑Con and head from PhoneXR. " +
+                "It is its own OpenXR broker, so Android XR (Galaxy XR), Pico and newer Quest games with the Khronos loader " +
+                "run without patching. A separate OpenXR Runtime Broker is not needed — if it is installed, remove it, otherwise it hijacks games. " +
+                "Older Quest and Gear VR games (VrApi) also run unpatched — through the PhoneXR VrApi driver."
         ) {
             when (state) {
-                PhoneXrRuntime.State.READY -> HigRow("PhoneXR Runtime", "Установлен")
-                PhoneXrRuntime.State.OUTDATED -> HigLink("Обновить PhoneXR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
+                PhoneXrRuntime.State.READY -> HigRow("PhoneXR Runtime", "Installed")
+                PhoneXrRuntime.State.OUTDATED -> HigLink("Update PhoneXR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
                 PhoneXrRuntime.State.MISSING -> if (PhoneXrRuntime.bundled(this@MainActivity)) {
-                    HigLink("Установить PhoneXR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
+                    HigLink("Install PhoneXR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
                 } else {
-                    HigRow("PhoneXR Runtime", "Не входит в эту сборку")
+                    HigRow("PhoneXR Runtime", "Not part of this build")
                 }
             }
-            if (VrApiDriver.ready(this@MainActivity)) HigRow("Драйвер VrApi", "Установлен")
-            else if (VrApiDriver.bundled(this@MainActivity)) HigLink("Установить драйвер VrApi", value = "игры Quest и Gear VR без патча") {
+            if (VrApiDriver.ready(this@MainActivity)) HigRow("VrApi driver", "Installed")
+            else if (VrApiDriver.bundled(this@MainActivity)) HigLink("Install the VrApi driver", value = "Quest and Gear VR games without patching") {
                 VrApiDriver.install(this@MainActivity)
             }
             if (PhoneXrRuntime.brokerInstalled(this@MainActivity)) {
-                HigLink("Удалить OpenXR Runtime Broker", value = "не нужен") { uninstall("org.khronos.openxr.runtime_broker") }
+                HigLink("Remove OpenXR Runtime Broker", value = "not needed") { uninstall("org.khronos.openxr.runtime_broker") }
             }
         }
     }
@@ -685,7 +685,7 @@ class MainActivity : ComponentActivity() {
     private fun HigScope.GameRow(game: GameLibrary.Game) {
         HigItem(
             title = game.label,
-            details = listOf(GameLibrary.describe(game) + if (game.checksPurchase) " · проверка покупки Oculus" else ""),
+            details = listOf(GameLibrary.describe(game) + if (game.checksPurchase) " · Oculus purchase check" else ""),
             detailColor = if (game.kind == GameLibrary.Kind.VRAPI_ORIGINAL && !VrApiDriver.ready(this@MainActivity))
                 HigColors.accent else Color.Unspecified,
             icon = { AppIcon(game.packageName) },
@@ -709,23 +709,23 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun StoreTab() {
         HigPage(
-            title = tr("Магазин"),
-            subtitle = "OpenXR, Quest и Pico: PhoneXR сам скачает и подготовит APK.",
+            title = tr("Store"),
+            subtitle = "OpenXR, Quest and Pico: PhoneXR downloads and prepares the APK itself.",
             bottomInset = TAB_BAR_ROOM
         ) {
             HigSection(
-                title = tr("VR‑режимы"),
-                footer = "Обычные Minecraft и Roblox на большом экране в VR: своя комната, поворот головы, " +
-                    "игра двумя руками или Joy‑Con. Нажмите на режим — появится инструкция."
+                title = tr("VR modes"),
+                footer = "Regular Minecraft and Roblox on a big screen in VR: your own room, head rotation, " +
+                    "playing with both hands or a Joy‑Con. Tap a mode to see the instructions."
             ) {
                 VR_MODES.forEach { mode -> VrModeRow(mode) }
             }
             HigSection(
-                title = tr("Приложения PhoneXR"),
-                footer = "Android‑приложения: любые приложения телефона окнами в VR (нужен Shizuku). Появляется на главном экране VR."
+                title = tr("PhoneXR apps"),
+                footer = "Android apps: any phone app as a window in VR (needs Shizuku). Shows up on the VR home screen."
             ) {
                 val added = resumes >= 0 && androidApps
-                HigLink(tr("Android‑приложения"), value = if (BuildConfig.LITE) "Включено" else if (added) tr("Удалить") else tr("Получить")) {
+                HigLink(tr("Android apps"), value = if (BuildConfig.LITE) "On" else if (added) tr("Remove") else tr("Get")) {
                     if (!BuildConfig.LITE) {
                         androidApps = !added
                         AndroidAppsContent.setEnabled(this@MainActivity, !added)
@@ -733,22 +733,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
             HigSection(
-                title = tr("Моды Minecraft"),
-                footer = tr("Дополнения, наборы ресурсов и миры для Minecraft Bedrock (.mcaddon, .mcpack, .mcworld). " +
-                    "Minecraft сам импортирует мод, потом включите его в настройках мира.")
+                title = tr("Minecraft mods"),
+                footer = tr("Add-ons, resource packs and worlds for Minecraft Bedrock (.mcaddon, .mcpack, .mcworld). " +
+                    "Minecraft imports the mod itself, then turn it on in the world settings.")
             ) {
-                HigLink("PhoneXR VR — VR для Minecraft", value = if (resumes >= 0 && MinecraftBridge.modInstalled(this@MainActivity)) "✓" else tr("Установить")) {
+                HigLink("PhoneXR VR — VR for Minecraft", value = if (resumes >= 0 && MinecraftBridge.modInstalled(this@MainActivity)) "✓" else tr("Install")) {
                     MinecraftBridge.installMod(this@MainActivity)?.let { error = it }
                 }
-                HigLink(tr("Установить мод из файла")) { chooseMod.launch(arrayOf("*/*")) }
+                HigLink(tr("Install a mod from a file")) { chooseMod.launch(arrayOf("*/*")) }
                 mods?.forEach { item ->
                     val progress = modProgress[item.path]
-                    HigLink(item.title, value = progress?.let { "$it%" } ?: tr("Установить"), enabled = progress == null) { installMod(item) }
+                    HigLink(item.title, value = progress?.let { "$it%" } ?: tr("Install"), enabled = progress == null) { installMod(item) }
                 }
             }
             val items = storeItems
             HigSection(
-                title = tr("Игры"),
+                title = tr("Games"),
                 footer = when {
                     storeError != null -> storeError
                     items != null && items.isEmpty() -> GameStore.EMPTY_HINT
@@ -756,21 +756,21 @@ class MainActivity : ComponentActivity() {
                 }
             ) {
                 when {
-                    storeLoading && items == null -> HigRow(tr("Загрузка…"), trailing = { HigSpinner() })
-                    items.isNullOrEmpty() -> HigRow(if (storeError != null) "Магазин недоступен" else tr("Пока пусто"))
+                    storeLoading && items == null -> HigRow(tr("Loading…"), trailing = { HigSpinner() })
+                    items.isNullOrEmpty() -> HigRow(if (storeError != null) "The store is unavailable" else tr("Nothing here yet"))
                     else -> items.forEach { item -> StoreRow(item) }
                 }
             }
             if (webApps.isNotEmpty()) {
                 HigSection(
-                    title = tr("Веб‑приложения"),
-                    footer = "Открываются в браузере PhoneXR прямо в VR. Добавленные появляются на главном экране VR."
+                    title = tr("Web apps"),
+                    footer = "They open in the PhoneXR browser right in VR. Added ones show up on the VR home screen."
                 ) {
                     webApps.forEach { app ->
                         val added = app.url in installedWeb
-                        HigLink(app.name, value = if (added) tr("Открыть") else tr("Добавить")) {
+                        HigLink(app.name, value = if (added) tr("Open") else tr("Add")) {
                             if (added) {
-                                if (!WebApps.open(this@MainActivity, app.url)) error = "Установите браузер PhoneXR"
+                                if (!WebApps.open(this@MainActivity, app.url)) error = "Install the PhoneXR browser"
                             } else {
                                 WebApps.add(this@MainActivity, app)
                                 installedWeb = installedWeb + app.url
@@ -780,7 +780,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             HigSection {
-                HigLink(if (storeLoading) tr("Обновление…") else tr("Обновить"), enabled = !storeLoading) { refreshStore() }
+                HigLink(if (storeLoading) tr("Refreshing…") else tr("Refresh"), enabled = !storeLoading) { refreshStore() }
             }
         }
     }
@@ -792,7 +792,7 @@ class MainActivity : ComponentActivity() {
             title = mode.title,
             details = listOf(mode.subtitle),
             icon = { AppIcon(if (installed) mode.packageName else packageName) },
-            trailing = { HigText(if (installed) tr("Играть") else tr("Скачать"), color = HigColors.accent) },
+            trailing = { HigText(if (installed) tr("Play") else tr("Download"), color = HigColors.accent) },
             onClick = { guide = mode }
         )
     }
@@ -803,19 +803,19 @@ class MainActivity : ComponentActivity() {
         val installed = resumes >= 0 && isInstalled(mode.packageName)
         val ready = shizuku == VirtualScreen.Access.READY
         val steps = listOf(
-                        (if (installed) "✓ " else "1. ") + "Установите ${mode.game} из Google Play.",
-                        (if (ready) "✓ " else "2. ") + "Установите и запустите Shizuku (через отладку по Wi‑Fi), разрешите доступ PhoneXR.",
-                        "3. Нажмите «Играть»: игра откроется на большом экране — ${mode.scene}.",
+                        (if (installed) "✓ " else "1. ") + "Install ${mode.game} from Google Play.",
+                        (if (ready) "✓ " else "2. ") + "Install and start Shizuku (over Wi‑Fi debugging), then allow PhoneXR access.",
+                        "3. Tap “Play”: the game opens on a big screen — ${mode.scene}.",
                         if (mode.packageName == MINECRAFT)
-                            "4. Мод PhoneXR VR ставится в Minecraft сам при первом «Играть». В Minecraft: Настройки → Общие → " +
-                                "выключите «Требовать зашифрованные веб‑сокеты»; в мире включите читы и набор параметров поведения «PhoneXR VR». " +
-                                "В мире покажите ладонь к лицу и сведите пальцы — PhoneXR подключит мод. Дальше: голова — взгляд на 360°, " +
-                                "руки видны в мире, кулак — ломать и бить, щипок — поставить блок, «пистолет» из пальцев — идти."
-                        else "4. Управление: щипок любой руки — нажатие по экрану, две руки — два пальца. " +
-                            "Joy‑Con и геймпад работают как в самой игре. Тап по телефону выравнивает вид.",
+                            "4. The PhoneXR VR mod installs itself into Minecraft on the first “Play”. In Minecraft: Settings → General → " +
+                                "turn off “Require encrypted websockets”; in the world turn on cheats and the “PhoneXR VR” behavior pack. " +
+                                "In the world hold your palm towards your face and bring your fingers together — PhoneXR connects the mod. Then: head — a 360° look, " +
+                                "hands are visible in the world, fist — break and hit, pinch — place a block, a finger “gun” — walk."
+                        else "4. Controls: a pinch of either hand taps the screen, two hands — two fingers. " +
+                            "Joy‑Con and gamepads work just like in the game itself. A tap on the phone recenters the view.",
         )
         val next = when {
-            !installed -> HigAction(tr("Скачать")) {
+            !installed -> HigAction(tr("Download")) {
                 guide = null
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${mode.packageName}")))
             }
@@ -825,20 +825,20 @@ class MainActivity : ComponentActivity() {
                 else packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let { startActivity(it) }
                     ?: startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=moe.shizuku.privileged.api")))
             }
-            mode.packageName == MINECRAFT && !MinecraftBridge.modInstalled(this@MainActivity) -> HigAction(tr("Установить мод")) {
+            mode.packageName == MINECRAFT && !MinecraftBridge.modInstalled(this@MainActivity) -> HigAction(tr("Install mod")) {
                 guide = null
-                // First time: Minecraft imports the VR mod, then "Играть" starts VR.
+                // First time: Minecraft imports the VR mod, then "Play" starts VR.
                 MinecraftBridge.installMod(this@MainActivity)?.let { error = it }
             }
-            else -> HigAction(tr("Играть")) {
+            else -> HigAction(tr("Play")) {
                 guide = null
                 openCinema(mode.packageName, mode.sceneId)
             }
         }
         HigAlert(
-            title = "Как включить ${mode.title}",
+            title = "How to turn on ${mode.title}",
             message = steps.joinToString("\n"),
-            actions = listOf(HigAction(tr("Закрыть"), HigActionStyle.CANCEL) { guide = null }, next),
+            actions = listOf(HigAction(tr("Close"), HigActionStyle.CANCEL) { guide = null }, next),
             onDismiss = { guide = null }
         )
     }
@@ -856,9 +856,9 @@ class MainActivity : ComponentActivity() {
             icon = { StoreIcon(item) },
             trailing = {
                 when {
-                    progress == null -> HigText(tr("Загрузить"), color = HigColors.accent)
+                    progress == null -> HigText(tr("Get"), color = HigColors.accent)
                     progress < 0f -> HigSpinner()
-                    progress >= 1f -> HigText("Подготовка…")
+                    progress >= 1f -> HigText("Preparing…")
                     else -> HigText("${(progress * 100).roundToInt()}%")
                 }
             },
@@ -905,7 +905,7 @@ class MainActivity : ComponentActivity() {
                 android.util.Log.e("PhoneXR-Store", "Store listing failed", failure)
                 runOnUiThread {
                     storeLoading = false
-                    storeError = failure.localizedMessage ?: "Магазин недоступен"
+                    storeError = failure.localizedMessage ?: "The store is unavailable"
                 }
             }
         }.start()
@@ -914,7 +914,7 @@ class MainActivity : ComponentActivity() {
     private fun downloadAndInstall(item: GameStore.Item) {
         // Internal installs use the same shell service that runs phone apps in PhoneXR windows.
         if (VirtualScreen.access() != VirtualScreen.Access.READY) {
-            error = "Для внутренней установки запустите Shizuku и разрешите доступ PhoneXR."
+            error = "Installing inside PhoneXR needs Shizuku running with access allowed for PhoneXR."
             return
         }
         downloads[item.path] = 0f
@@ -937,7 +937,7 @@ class MainActivity : ComponentActivity() {
                 android.util.Log.e("PhoneXR-Store", "Download failed: ${item.path}", failure)
                 runOnUiThread {
                     downloads.remove(item.path)
-                    error = "«${item.title}» не скачалась: " +
+                    error = "“${item.title}” didn't download: " +
                         (failure.localizedMessage ?: failure.javaClass.simpleName)
                 }
             }
@@ -945,9 +945,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun formatSize(bytes: Long): String = when {
-        bytes >= 1L shl 30 -> "%.1f ГБ".format(bytes / (1L shl 30).toDouble())
-        bytes >= 1L shl 20 -> "%.0f МБ".format(bytes / (1L shl 20).toDouble())
-        else -> "%.0f КБ".format(bytes / 1024.0)
+        bytes >= 1L shl 30 -> "%.1f GB".format(bytes / (1L shl 30).toDouble())
+        bytes >= 1L shl 20 -> "%.0f MB".format(bytes / (1L shl 20).toDouble())
+        else -> "%.0f KB".format(bytes / 1024.0)
     }
 
     // ---------------------------------------------------------------- Settings
@@ -966,7 +966,7 @@ class MainActivity : ComponentActivity() {
     private val spatialAudio: String
         get() = if (android.os.Build.VERSION.SDK_INT >= 32 &&
             getSystemService(android.media.AudioManager::class.java)?.spatializer?.isAvailable == true
-        ) "Телефон умеет — включён для видео и кино" else "Телефон не поддерживает"
+        ) "Your phone supports it — on for video and cinema" else "Your phone doesn't support it"
     private var depthInstalled by mutableStateOf(false)
     private var depthProgress by mutableStateOf<Float?>(null)
 
@@ -981,7 +981,7 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 depthProgress = null
                 result.onSuccess { depthInstalled = true }
-                    .onFailure { error = "Нейросеть не скачалась: ${it.localizedMessage ?: it.javaClass.simpleName}" }
+                    .onFailure { error = "The neural network didn't download: ${it.localizedMessage ?: it.javaClass.simpleName}" }
             }
         }.start()
     }
@@ -989,119 +989,119 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsTab() {
         val rates = remember { DisplayRate.available(this) }
-        HigPage(title = tr("Настройки"), bottomInset = TAB_BAR_ROOM) {
-            HigSection(title = tr("Управление")) {
-                HigLink(tr("Управление")) { start(SettingsActivity::class.java) }
+        HigPage(title = tr("Settings"), bottomInset = TAB_BAR_ROOM) {
+            HigSection(title = tr("Controls")) {
+                HigLink(tr("Controls")) { start(SettingsActivity::class.java) }
             }
             HigSection(
-                title = "Отслеживание головы",
-                footer = "3DoF отслеживает поворот. 6DoF видит комнату камерой (ARCore): можно ходить, работают граница и стол. " +
-                    "Без ARCore 6DoF даёт наклоны головы и движения корпуса по датчикам."
+                title = "Head tracking",
+                footer = "3DoF tracks rotation. 6DoF sees the room through the camera (ARCore): you can walk and the boundary and the table work. " +
+                    "Without ARCore, 6DoF gives head tilts and body movement from the sensors."
             ) {
-                HigChoice("3DoF", "Поворот головы", !sixDof) {
+                HigChoice("3DoF", "Head rotation", !sixDof) {
                     sixDof = false
                     Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = false))
                 }
-                HigChoice("6DoF", "Поворот и перемещение по комнате", sixDof) {
+                HigChoice("6DoF", "Rotation and walking around the room", sixDof) {
                     sixDof = true
                     Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = true))
                 }
             }
             if (BuildConfig.LITE) HigSection(
-                title = "Версия",
-                footer = "Lite не включает голосового помощника Elix, нейросеть глубины и 6DoF через " +
-                    "ARCore, а камеру рук читает меньшим кадром — так он идёт на недорогих телефонах. " +
-                    "Игры, кинотеатр, Joy‑Con и VR‑дом работают так же."
+                title = "Edition",
+                footer = "Lite leaves out the Elix voice assistant, the depth neural network and 6DoF through " +
+                    "ARCore, and reads the hand camera at a smaller frame — that is how it runs on budget phones. " +
+                    "Games, the cinema, Joy‑Con and the VR home work the same."
             ) {
-                HigRow("PhoneXR Lite", "Облегчённая сборка", detailColor = HigColors.accent)
+                HigRow("PhoneXR Lite", "Lightweight build", detailColor = HigColors.accent)
             }
             HigSection(
-                title = tr("Аватар"),
-                footer = "Сделайте аватар по селфи в Avaturn (нажмите там «Скачать» — PhoneXR заберёт модель сам) " +
-                    "или персонажа в приложении VRoid из Google Play: экспортируйте его в .vrm и загрузите файл сюда."
+                title = tr("Avatar"),
+                footer = "Make an avatar from a selfie in Avaturn (tap “Download” there — PhoneXR picks the model up itself) " +
+                    "or a character in the VRoid app from Google Play: export it as .vrm and load the file here."
             ) {
                 val source = if (resumes >= 0) AvatarModel.source(this@MainActivity) else AvatarModel.Source.STANDARD
-                HigRow(tr("Сейчас"), if (source == AvatarModel.Source.STANDARD) tr("Стандартный") else source.title)
-                HigLink(tr("Создать в Avaturn")) { startActivity(Intent(this@MainActivity, AvatarWebActivity::class.java)) }
-                HigLink(tr("Сделать в VRoid"), value = "Google Play") {
+                HigRow(tr("Current"), if (source == AvatarModel.Source.STANDARD) tr("Standard") else source.title)
+                HigLink(tr("Create in Avaturn")) { startActivity(Intent(this@MainActivity, AvatarWebActivity::class.java)) }
+                HigLink(tr("Make in VRoid"), value = "Google Play") {
                     // VRoid makes the character in its own app; PhoneXR then takes the exported .vrm.
                     AvatarModel.openVroid(this@MainActivity)
-                    status = tr("Сделайте персонажа в VRoid, экспортируйте .vrm и нажмите «Загрузить файл .glb / .vrm»")
+                    status = tr("Make a character in VRoid, export it as .vrm and tap “Load a .glb / .vrm file”")
                 }
-                HigLink(tr("Загрузить файл .glb / .vrm")) { chooseAvatar.launch(arrayOf("*/*")) }
-                if (source != AvatarModel.Source.STANDARD) HigLink(tr("Вернуть стандартный")) { AvatarModel.reset(this@MainActivity); resumes++ }
+                HigLink(tr("Load a .glb / .vrm file")) { chooseAvatar.launch(arrayOf("*/*")) }
+                if (source != AvatarModel.Source.STANDARD) HigLink(tr("Back to standard")) { AvatarModel.reset(this@MainActivity); resumes++ }
             }
             HigSection(
-                title = "Мультидевайс",
-                footer = "Общий буфер: скопировали текст на одном телефоне — вставляете на другом. " +
-                    "Оба должны быть в одной сети Wi‑Fi."
+                title = "Multi-device",
+                footer = "Shared clipboard: copy text on one phone — paste it on the other. " +
+                    "Both must be on the same Wi‑Fi network."
             ) {
-                HigSwitchRow("Общий буфер обмена", clipboard) {
+                HigSwitchRow("Shared clipboard", clipboard) {
                     clipboard = it
                     Settings.setSharedClipboard(this@MainActivity, it)
                     if (it) SharedClipboard.start(this@MainActivity) else SharedClipboard.stop()
                 }
-                HigLink("Отправить буфер на другой телефон") {
+                HigLink("Send the clipboard to the other phone") {
                     val sent = SharedClipboard.send(this@MainActivity)
-                    status = if (sent == null) "Буфер обмена пуст" else "Отправлено: ${sent.take(40)}"
+                    status = if (sent == null) "The clipboard is empty" else "Sent: ${sent.take(40)}"
                 }
             }
             HigSection(
-                title = "Система",
-                footer = "Режим машины: включает 3DoF, вид не уезжает за поворотами машины или поезда, а меню и окна " +
-                    "плавно следуют за взглядом. Гостевой режим держит чужую калибровку и настройки отдельно от ваших."
+                title = "System",
+                footer = "Car mode: turns on 3DoF so the view does not drift with the turns of a car or a train, while menus and windows " +
+                    "follow your gaze smoothly. Guest mode keeps someone else's calibration and settings apart from yours."
             ) {
-                HigSwitchRow(tr("Режим машины"), travel) {
+                HigSwitchRow(tr("Car mode"), travel) {
                     travel = it
                     Settings.setTravelMode(this@MainActivity, it)
                 }
-                HigSwitchRow("Гостевой режим", guest) {
+                HigSwitchRow("Guest mode", guest) {
                     guest = it
                     Settings.setGuestMode(this@MainActivity, it)
                 }
-                HigRow("Объёмный звук", spatialAudio, detailColor = HigColors.secondary)
+                HigRow("Spatial audio", spatialAudio, detailColor = HigColors.secondary)
             }
             HigSection(
-                title = "Плавность трекинга рук",
-                footer = "0 — минимальная задержка, но больше дрожания. 100 — самые плавные руки, но реакция мягче."
+                title = "Hand tracking smoothness",
+                footer = "0 — the lowest latency but more jitter. 100 — the smoothest hands but a softer response."
             ) {
-                HigStepper("Сглаживание", "$trackingSmoothness%") { step ->
+                HigStepper("Smoothing", "$trackingSmoothness%") { step ->
                     trackingSmoothness = (trackingSmoothness + step * 5).coerceIn(0, 100)
                     val current = Settings.load(this@MainActivity)
                     Settings.save(this@MainActivity, current.copy(trackingSmoothness = trackingSmoothness))
                 }
             }
             HigSection(
-                title = "Второй телефон",
-                footer = "Второй телефон становится указкой для кинотеатра: куда наведёте — туда и нажмёт. " +
-                    "Откройте этот экран на нём, оба телефона — в одной сети Wi‑Fi."
+                title = "Second phone",
+                footer = "The second phone becomes a pointer for the cinema: it clicks wherever you aim it. " +
+                    "Open this screen on it, with both phones on the same Wi‑Fi network."
             ) {
-                HigLink("Сделать этот телефон контроллером") { start(ControllerActivity::class.java) }
+                HigLink("Make this phone a controller") { start(ControllerActivity::class.java) }
             }
-            HigSection(title = tr("Магазин"), footer = "Игры берутся из папки «${GameStore.FOLDER}» в Supabase и из файлов .json в корне репозитория PhoneXR на GitHub.") {
-                HigRow(tr("Сервер"), GameStore.URL_BASE.removePrefix("https://"))
+            HigSection(title = tr("Store"), footer = "Games come from the “${GameStore.FOLDER}” folder in Supabase and from the .json files in the root of the PhoneXR repository on GitHub.") {
+                HigRow(tr("Server"), GameStore.URL_BASE.removePrefix("https://"))
             }
             HigSection(
-                title = "Линзы и глаза",
-                footer = "Если в шлеме картинка двоится — сначала подберите межзрачковое расстояние " +
-                    "(как у вас между зрачками), затем сдвиг: он двигает половинки экрана под линзы. " +
-                    "Настройки применяются при следующем входе в VR."
+                title = "Lenses and eyes",
+                footer = "If the picture doubles in the headset, first set the interpupillary distance " +
+                    "(the gap between your pupils), then the offset: it shifts the screen halves under the lenses. " +
+                    "The settings apply the next time you enter VR."
             ) {
-                HigStepper("Межзрачковое расстояние", "$ipd мм") { step ->
+                HigStepper("Interpupillary distance", "$ipd mm") { step ->
                     ipd = (ipd + step).coerceIn(Settings.MIN_IPD_MM, Settings.MAX_IPD_MM)
                     Settings.setIpdMm(this@MainActivity, ipd)
                 }
-                HigLink("Сканировать QR шлема", value = "Google Cardboard") { scanCardboardProfile() }
-                HigStepper("Сдвиг картинок под линзы", "$lensOffset мм") { step ->
+                HigLink("Scan the headset QR", value = "Google Cardboard") { scanCardboardProfile() }
+                HigStepper("Image offset for the lenses", "$lensOffset mm") { step ->
                     lensOffset = (lensOffset + step).coerceIn(-Settings.MAX_LENS_MM, Settings.MAX_LENS_MM)
                     Settings.setLensOffsetMm(this@MainActivity, lensOffset)
                 }
             }
             HigSection(
-                title = "Экран кинотеатра",
-                footer = "Широкий экран — это широкий виртуальный дисплей: игра сама рисует больше, " +
-                    "чем на 16:9. Изогнутый держит края экрана на том же расстоянии, что и середину. " +
-                    "Окно под клавиатуру показывает стол с камеры, пока вы печатаете на настоящей клавиатуре."
+                title = "Cinema screen",
+                footer = "A wide screen is a wide virtual display: the game itself draws more " +
+                    "than 16:9. A curved one keeps the edges of the screen as far away as its middle. " +
+                    "The keyboard window shows the table from the camera while you type on a real keyboard."
             ) {
                 Settings.ScreenShape.entries.forEach { shape ->
                     HigChoice(shape.title, shape.detail, screenShape == shape) {
@@ -1109,42 +1109,42 @@ class MainActivity : ComponentActivity() {
                         Settings.setScreenShape(this@MainActivity, shape)
                     }
                 }
-                HigSwitchRow("Изогнутый экран", curvedScreen) {
+                HigSwitchRow("Curved screen", curvedScreen) {
                     curvedScreen = it
                     Settings.setCurvedScreen(this@MainActivity, it)
                 }
-                HigSwitchRow("Окно под клавиатуру", keyboardWindow) {
+                HigSwitchRow("Keyboard window", keyboardWindow) {
                     keyboardWindow = it
                     Settings.setKeyboardWindow(this@MainActivity, it)
                 }
             }
             if (!BuildConfig.LITE) HigSection(
-                title = "3D‑воспоминания",
-                footer = "Нейросеть глубины смотрит на обычное фото и говорит, что на нём ближе, а что дальше — " +
-                    "из этого PhoneXR делает 3D‑снимок для двух глаз. Она большая, поэтому скачивается отдельно " +
-                    "и лежит в памяти приложения. Видео и панорамы 360° работают без неё."
+                title = "3D memories",
+                footer = "The depth neural network looks at an ordinary photo and tells what is closer and what is farther — " +
+                    "out of that PhoneXR makes a 3D shot for both eyes. It is large, so it is downloaded separately " +
+                    "and kept in the app's storage. Video and 360° panoramas work without it."
             ) {
                 when {
                     depthProgress != null -> HigRow(
-                        "Нейросеть глубины",
-                        "Скачиваю: ${((depthProgress ?: 0f) * 100).roundToInt()}%",
+                        "Depth neural network",
+                        "Downloading: ${((depthProgress ?: 0f) * 100).roundToInt()}%",
                         trailing = { HigSpinner() }
                     )
-                    depthInstalled -> HigRow("Нейросеть глубины", "Готова", detailColor = HigColors.good)
-                    else -> HigLink("Скачать нейросеть глубины", value = "${DepthModel.MEGABYTES} МБ") { downloadDepth() }
+                    depthInstalled -> HigRow("Depth neural network", "Ready", detailColor = HigColors.good)
+                    else -> HigLink("Download the depth neural network", value = "${DepthModel.MEGABYTES} MB") { downloadDepth() }
                 }
-                if (depthInstalled) HigLink("Удалить нейросеть") {
+                if (depthInstalled) HigLink("Remove the neural network") {
                     DepthModel.close()
                     DepthModel.file(this@MainActivity).delete()
                     depthInstalled = false
                 }
             }
             HigSection(
-                title = "Частота обновления",
+                title = "Refresh rate",
                 footer = rates.let { list ->
-                    if (list.isEmpty()) "Телефон не сообщает, какие частоты он умеет."
-                    else "Телефон умеет: " + list.joinToString(", ") { "$it Гц" } +
-                        ". Выше — плавнее движение головы, но батарея садится быстрее."
+                    if (list.isEmpty()) "The phone does not report which rates it supports."
+                    else "The phone supports: " + list.joinToString(", ") { "$it Hz" } +
+                        ". Higher is smoother head motion, but the battery drains faster."
                 }
             ) {
                 Settings.Refresh.entries
@@ -1157,10 +1157,10 @@ class MainActivity : ComponentActivity() {
                     }
             }
             HigSection {
-                HigLink(tr("Язык"), value = L10n.current.title) { languagePicker = true }
-                HigLink(tr("Аккаунт"), value = if (resumes >= 0) Account.current(this@MainActivity)?.name ?: tr("Войти") else null) { start(AccountActivity::class.java) }
-                HigLink(tr("Обновление ПО")) { start(UpdateActivity::class.java) }
-                HigLink(tr("О приложении")) { start(AboutActivity::class.java) }
+                HigLink(tr("Language"), value = L10n.current.title) { languagePicker = true }
+                HigLink(tr("Account"), value = if (resumes >= 0) Account.current(this@MainActivity)?.name ?: tr("Sign in") else null) { start(AccountActivity::class.java) }
+                HigLink(tr("Software Update")) { start(UpdateActivity::class.java) }
+                HigLink(tr("About")) { start(AboutActivity::class.java) }
             }
         }
     }
@@ -1172,18 +1172,18 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun PatchDialog(game: GameLibrary.Game) {
         val about = if (game.kind == GameLibrary.Kind.VRAPI_ORIGINAL)
-            "Это игра ${game.headset.title} на VrApi: без самой гарнитуры и драйвера Oculus она сразу закрывается. " +
-                "PhoneXR заменит в ней libvrapi.so переходником на OpenXR"
-        else "Это сборка ${game.headset.title}: на телефоне она не находит рантайм OpenXR и показывает чёрный экран. " +
-            "PhoneXR откроет ей доступ к рантайму PhoneXR"
+            "This is a ${game.headset.title} game on VrApi: without the headset itself and the Oculus driver it closes right away. " +
+                "PhoneXR will replace libvrapi.so in it with a shim over OpenXR"
+        else "This is a ${game.headset.title} build: on a phone it finds no OpenXR runtime and shows a black screen. " +
+            "PhoneXR will give it access to the PhoneXR runtime"
         HigAlert(
-            title = "Пропатчить «${game.label}»?",
-            message = about + ", впишет новый трекинг и оптимизирует сборку под телефон, " +
-                "а потом подпишет своей подписью. " +
-                "Оригинал придётся удалить (подпись другая), сохранения игры при этом пропадут.",
+            title = "Patch “${game.label}”?",
+            message = about + ", write in the new tracking and optimize the build for the phone, " +
+                "and then sign it with its own signature. " +
+                "The original has to be uninstalled (the signature differs), and the game's saves are lost with it.",
             actions = listOf(
-                HigAction(tr("Отмена"), HigActionStyle.CANCEL) { pendingPatch = null },
-                HigAction("Пропатчить") {
+                HigAction(tr("Cancel"), HigActionStyle.CANCEL) { pendingPatch = null },
+                HigAction("Patch") {
                     pendingPatch = null
                     patch(Uri.fromFile(game.apk), replaces = game)
                 }
@@ -1198,18 +1198,18 @@ class MainActivity : ComponentActivity() {
         val stale = value.replacesPackage?.takeIf { resumes >= 0 && isInstalled(it) }
         // Without the runtime the game starts into a black screen, whatever the patch did.
         val runtime = if (PhoneXrRuntime.state(this) == PhoneXrRuntime.State.READY) "" else
-            "\n\nЧтобы вместо игры не был чёрный экран, установите PhoneXR Runtime в меню и выберите его " +
-                "в OpenXR Runtime Broker."
+            "\n\nSo the game is not a black screen, install PhoneXR Runtime from the menu and select it " +
+                "in the OpenXR Runtime Broker."
         HigAlert(
-            title = value.label?.let { "«$it» готова" }
-                ?: if (value.result.vrApi) "Игра ${value.result.headset.title} готова" else "Сборка готова",
+            title = value.label?.let { "“$it” is ready" }
+                ?: if (value.result.vrApi) "The ${value.result.headset.title} game is ready" else "The build is ready",
             message = value.result.changes.joinToString("\n") { "• $it" } + runtime +
-                if (stale != null) "\n\nУстановлена версия с другой подписью: сначала удалите её, " +
-                    "затем нажмите «Установить». Сохранения игры пропадут." else "",
+                if (stale != null) "\n\nA version with a different signature is installed: remove it first, " +
+                    "then tap “Install”. The game's saves will be lost." else "",
             actions = listOf(
-                HigAction(tr("Позже"), HigActionStyle.CANCEL) { ready = null },
-                if (stale != null) HigAction("Удалить старую", HigActionStyle.DESTRUCTIVE) { uninstall(stale) }
-                else HigAction("Установить") {
+                HigAction(tr("Later"), HigActionStyle.CANCEL) { ready = null },
+                if (stale != null) HigAction("Remove the old one", HigActionStyle.DESTRUCTIVE) { uninstall(stale) }
+                else HigAction("Install") {
                     ready = null
                     install(value.result)
                 }
@@ -1223,15 +1223,15 @@ class MainActivity : ComponentActivity() {
             GameLibrary.Kind.VRAPI_ORIGINAL -> if (VrApiDriver.ready(this)) requestStart(game) else pendingPatch = game
             GameLibrary.Kind.DAYDREAM -> {
                 if (!Daydream.servicesInstalled(this) && Daydream.bundled(this)) {
-                    status = "Сначала установите Opendream Services, затем снова откройте игру"
+                    status = "Install Opendream Services first, then open the game again"
                     Daydream.installServices(this)
                 } else {
                     requestStart(game)
                 }
             }
             GameLibrary.Kind.VRAPI_UNSUPPORTED -> error =
-                "«${game.label}» — игра ${game.headset.title}, которую PhoneXR запустить не может: " +
-                    "у неё нет сборки для ARM (arm64-v8a или armeabi-v7a)."
+                "“${game.label}” is a ${game.headset.title} game PhoneXR cannot launch: " +
+                    "it has no ARM build (arm64-v8a or armeabi-v7a)."
             else -> requestStart(game)
         }
     }
@@ -1252,16 +1252,16 @@ class MainActivity : ComponentActivity() {
         if (gameToStart?.let { GameLibrary.ownsHandTracking(this, it.packageName) } == true) {
             // The game tracks hands itself: PhoneXR declines and leaves the camera to it.
             stopService(Intent(this, HandTrackingService::class.java))
-            status = "Руки отслеживает сама игра"
+            status = "The game tracks hands itself"
         } else {
             ContextCompat.startForegroundService(this, Intent(this, HandTrackingService::class.java))
-            status = "Камера рук включена"
+            status = "Hand camera on"
         }
         val game = gameToStart ?: return
         gameToStart = null
         val intent = GameLibrary.launchIntent(this, game)
         if (intent == null) {
-            error = "У «${game.label}» нет экрана запуска"
+            error = "“${game.label}” has no launch screen"
             return
         }
         startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -1269,10 +1269,10 @@ class MainActivity : ComponentActivity() {
 
     private fun patch(uri: Uri, replaces: GameLibrary.Game?, label: String? = replaces?.label) {
         if (replaces?.hasSplits == true) {
-            error = "«${replaces.label}» установлена из нескольких APK (split). Такую игру установите из исходного файла."
+            error = "“${replaces.label}” is installed from several APKs (split). Install such a game from its original file."
             return
         }
-        busy = "Подготовка…"
+        busy = "Preparing…"
         Thread {
             // With PhoneXR Runtime and the VrApi driver in place, a headset game needs no patch: it is
             // installed as it is, with its own signature. The patch stays for when Android refuses it.
@@ -1302,12 +1302,12 @@ class MainActivity : ComponentActivity() {
             Thread { patchNow(uri, label) }.start()
             return
         }
-        busy = "Установка без изменений…"
+        busy = "Installing unchanged…"
         InternalInstaller.install(this, file) { problem ->
             when {
                 problem == null -> {
                     busy = null
-                    status = "${label ?: replaces?.label ?: "Игра"} установлена без патча"
+                    status = "${label ?: replaces?.label ?: "The game"} installed without patching"
                     refreshGames()
                 }
                 // A phone "has no VR headset" for some Android versions: then the patch makes it optional.
@@ -1350,15 +1350,15 @@ class MainActivity : ComponentActivity() {
     /** Installs the prepared game inside the PhoneXR flow, without opening the APK installer UI. */
     private fun installApk(file: File) {
         signatureConflict(file)?.let { conflict ->
-            error = "Эта игра уже установлена с другой подписью ($conflict). Удалите её и скачайте снова."
+            error = "This game is already installed with a different signature ($conflict). Remove it and download it again."
             return
         }
-        busy = "Установка внутри PhoneXR…"
+        busy = "Installing inside PhoneXR…"
         InternalInstaller.install(this, file) { problem ->
             busy = null
             if (problem != null) error = problem
             else {
-                status = "Игра добавлена в PhoneXR"
+                status = "Game added to PhoneXR"
                 refreshGames()
             }
         }
@@ -1386,9 +1386,9 @@ class MainActivity : ComponentActivity() {
         private const val KEY_TAB = "tab"
         private const val MINECRAFT = "com.mojang.minecraftpe"
         private val VR_MODES = listOf(
-            VrMode("Minecraft VR", "Minecraft", MINECRAFT, "Bedrock в гостиной с камином", "гостиная из Minecraft VR", CinemaActivity.SCENE_ROOM),
-            VrMode("Roblox VR", "Roblox", "com.roblox.client", "Roblox в доме из Brookhaven", "дом из Roblox с камином", CinemaActivity.SCENE_ROBLOX),
-            VrMode("Brawl Stars VR", "Brawl Stars", "com.supercell.brawlstars", "Brawl Stars посреди арены", "360° панорама арены", CinemaActivity.SCENE_BRAWL),
+            VrMode("Minecraft VR", "Minecraft", MINECRAFT, "Bedrock in a living room with a fireplace", "a living room from Minecraft VR", CinemaActivity.SCENE_ROOM),
+            VrMode("Roblox VR", "Roblox", "com.roblox.client", "Roblox in a house from Brookhaven", "a Roblox house with a fireplace", CinemaActivity.SCENE_ROBLOX),
+            VrMode("Brawl Stars VR", "Brawl Stars", "com.supercell.brawlstars", "Brawl Stars in the middle of the arena", "a 360° panorama of the arena", CinemaActivity.SCENE_BRAWL),
         )
         /** Height of the floating tab bar plus its margin. */
         private val TAB_BAR_ROOM = 120.dp

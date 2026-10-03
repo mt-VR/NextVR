@@ -29,15 +29,15 @@ object SpatialPhoto {
      * landed, or throws with a reason a person can read.
      */
     fun create(context: Context, uri: Uri, name: String, onStage: (String) -> Unit = {}): Uri {
-        require(DepthModel.installed(context)) { "Сначала скачайте нейросеть глубины" }
-        onStage("Открываю фото…")
-        val photo = decode(context, uri) ?: throw IllegalStateException("Фото не открылось")
-        onStage("Считаю глубину…")
-        val depth = DepthModel.depth(context, photo) ?: throw IllegalStateException("Нейросеть не ответила")
-        onStage("Собираю 3D…")
+        require(DepthModel.installed(context)) { "Download the depth neural network first" }
+        onStage("Opening the photo…")
+        val photo = decode(context, uri) ?: throw IllegalStateException("The photo didn't open")
+        onStage("Computing depth…")
+        val depth = DepthModel.depth(context, photo) ?: throw IllegalStateException("The neural network didn't answer")
+        onStage("Assembling the 3D…")
         val stereo = sideBySide(photo, depth)
         photo.recycle()
-        onStage("Сохраняю…")
+        onStage("Saving…")
         val saved = save(context, stereo, name)
         stereo.recycle()
         return saved
@@ -170,10 +170,10 @@ object SpatialPhoto {
             }
         }
         val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: throw IllegalStateException("Галерея не дала сохранить файл")
+            ?: throw IllegalStateException("The gallery would not let the file be saved")
         context.contentResolver.openOutputStream(uri)?.use {
             bitmap.compress(Bitmap.CompressFormat.JPEG, 94, it)
-        } ?: throw IllegalStateException("Файл не записался")
+        } ?: throw IllegalStateException("The file was not written")
         return uri
     }
 }
