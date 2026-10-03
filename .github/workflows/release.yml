@@ -142,7 +142,13 @@ jobs:
             fi
             # Ровно то, что просили: релиз обычный, а не предварительный. Если он уже
             # существовал предрелизом (или флаг где-то потерялся) — снимаем его здесь.
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+            # Обновлять релиз можно только по id: у /releases/tags/<тег> есть лишь GET.
+            RELEASE_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')
+            if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+              echo "::error::релиз latest не найден, публикация не удалась"
+              exit 1
+            fi
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
               -F prerelease=false >/dev/null
             # И тег latest — на собранный коммит, чтобы страница релиза показывала этот код.
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
