@@ -1,6 +1,6 @@
 PXRCraft is QuestCraft ported to phones with PhoneXR.
 
-QuestCraft: https://github.com/QuestCraftPlusPlus
+QuestCraft: https://github.com/QuestCraftPlusPlus/QuestCraft
 The launcher (Unity): https://github.com/QuestCraftPlusPlus/QCXR-XR-Wrapper — LGPL-3.0
 Pojlib (running Minecraft): https://github.com/QuestCraftPlusPlus/Pojlib — LGPL-3.0
 Vivecraft, LWJGL, OpenJDK and the other components are under their own licenses, see the QuestCraft repositories.
