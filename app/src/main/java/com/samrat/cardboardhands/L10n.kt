@@ -339,6 +339,15 @@ object L10n {
         "On" to arrayOf("Включён", "Ligado", "Ligado"),
         "Off" to arrayOf("Выключен", "Desligado", "Desligado"),
         "Stream from the computer" to arrayOf("Стрим с компьютера", "Transmissão do computador", "Transmissão do computador"),
+        // Titles of the quick-settings tiles and of the room sliders: they are passed to tr()
+        // from the enums in HomePanel.kt rather than written out at the call site.
+        "Real world" to arrayOf("Реальный мир", "Mundo real", "Mundo real"),
+        "Do not disturb" to arrayOf("Не беспокоить", "Não perturbe", "Não perturbe"),
+        "Snapshot" to arrayOf("Снимок", "Captura", "Captura"),
+        "Volume" to arrayOf("Громкость", "Volume", "Volume"),
+        "Brightness" to arrayOf("Яркость", "Brilho", "Brilho"),
+        "Rain" to arrayOf("Дождь", "Chuva", "Chuva"),
+        "Fog" to arrayOf("Туман", "Névoa", "Nevoeiro"),
         // Account, friends and calls
         "Sign in to your account" to arrayOf("Войдите в аккаунт", "Entre na sua conta", "Inicie sessão na sua conta"),
         "Your username" to arrayOf("Ваш юзернейм", "Seu nome de usuário", "O seu nome de utilizador"),
