@@ -21,9 +21,29 @@ Building
 
 The native build needs the NDK and CMake (CMake is fetched by the Android Gradle plugin when it is
 missing) and, the first time, the network: Eigen 3.3.9 and Ceres 1.14.0 are cloned into
-`vins/build` and compiled there. Point them somewhere else for an offline build:
+`vins/.cxx` and compiled there. Point them somewhere else for an offline build:
 
     ./gradlew -Pvins.cmakeArgs="-DVINS_EIGEN_DIR=/opt/eigen -DVINS_CERES_DIR=/opt/ceres" …
+
+Four things this build is particular about, each of them learned from the build rather than assumed:
+
+  - OpenCV's C++ side comes from the Maven AAR through Prefab (`buildFeatures.prefab` in
+    build.gradle.kts). That AAR has one Prefab module, `opencv_java4`, holding every header and the
+    whole library — so the CMake target is `OpenCV::opencv_java4` and the SDK-style `OpenCV_LIBS`
+    does not exist. An SDK checkout still works: `-DVINS_OPENCV_DIR=<sdk>/native/jni`.
+  - The STL is `c++_shared`, which is not AGP's default for a module with native code. OpenCV's
+    library is built that way and AGP refuses a static STL beside it (CXX1212).
+  - Both then package `libc++_shared.so`, so the app merges them with a `pickFirsts` rule; the
+    module's copy wins (a project dependency merges before an external one), and that is the right
+    direction: a newer C++ runtime serves a library built against an older one, not the reverse.
+  - Ceres 1.14 hands out its include directory only from its *installed* package, and its public
+    headers `#include <glog/logging.h>` even when built with MINIGLOG=ON. CMakeLists.txt passes both
+    to the consumers explicitly; without that, `camodocal`'s headers do not compile.
+
+Eigen is asked for as `eigen3/Eigen/...` by upstream (the Debian path), so `shim/eigen3/` forwards
+those names; `shim/vins_gnu.h` supplies `strdupa`, which bionic has no equivalent of; and
+`shim/opencv_highgui_no_window.cpp` defines away the two highgui calls upstream's tracker makes,
+since OpenCV for Android has no highgui and a phone has no window for it.
 
 When the module is switched off, `VinsCore.available` is false, the VINS-Mono row in every settings
 screen reads "The VINS-Mono core is not in this build", and the phone keeps ARCore or its 3DoF view.
@@ -50,8 +70,10 @@ Limits found while putting it in
      so nothing corrects the drift of a long walk: return to where you started after a few minutes and
      "there" is a few centimetres away. Recentering (a tap) restarts the window where the head is.
   3. Intrinsics are estimated, not measured. Android does publish a camera's focal length and sensor
-     size, and NextVR derives a pinhole model from them (and the lens distortion profile where the
-     platform has one) — but the crop CameraX chooses is not always the one the characteristics
+     size, and NextVR derives a pinhole model from them. No distortion is applied at all: the lens
+     profile in CameraCharacteristics is not readable by an ordinary app, so the four coefficients in
+     the config are zeros (upstream's own mobile ports calibrate them per device, which NextVR cannot
+     do for a thousand phones). The crop CameraX chooses is not always the one the characteristics
      describe, so the optical centre is taken as the middle of the frame. A mis-set focal length is
      mostly a wrong *scale*: the room is a bit bigger or smaller than it is. The file it comes from is
      `files/vins/vins_config.yaml`, rewritten from the frame size and the characteristics at every
