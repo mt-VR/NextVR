@@ -51,17 +51,7 @@ jobs:
             yes | sdkmanager --licenses >/dev/null 2>&1 || true
           fi
       - name: Tests for app, sdk and OrangeHanding
-        run: |
-          set -o pipefail
-          ./gradlew test --no-daemon --stacktrace --console=plain 2>&1 | tee "$RUNNER_TEMP/gradle-test.log"
-      - name: Kotlin compile diagnostics
-        if: failure()
-        run: |
-          if [ -f "$RUNNER_TEMP/gradle-test.log" ]; then
-            grep -E '^(e: |w: )' "$RUNNER_TEMP/gradle-test.log" | while IFS= read -r line; do
-              echo "::error title=Kotlin compile diagnostic::$line"
-            done || true
-          fi
+        run: ./gradlew test --no-daemon --stacktrace
       - name: Reports, if the tests failed
         if: failure()
         uses: actions/upload-artifact@v4
