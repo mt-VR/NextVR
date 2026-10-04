@@ -73,14 +73,17 @@ class SettingsActivity : ComponentActivity() {
         HigPage(title = "Controls", onBack = ::finish) {
             HigSection(
                 title = "Tracking",
-                footer = "3DoF works on any phone. 6DoF adds moving around the room through ARCore."
+                footer = "3DoF works on any phone. 6DoF adds moving around the room: through ARCore where the " +
+                    "phone has it, and through VINS-Mono (the camera and the IMU, no ARCore) where it does not."
             ) {
-                HigChoice("3DoF", "Head rotation without moving", !state.sixDof) {
-                    update(state.copy(sixDof = false))
-                }
-                if (BuildConfig.LITE) HigRow("6DoF", "Only in NextVR Full", detailColor = HigColors.secondary)
-                else HigChoice("6DoF", "Rotation and movement through ARCore", state.sixDof) {
-                    update(state.copy(sixDof = true))
+                Settings.SixDofMode.entries.forEach { mode ->
+                    val reason = SixDofSupport.unavailableReason(this, mode)
+                    if (reason == null) {
+                        HigChoice(mode.title, mode.description, mode == state.sixDofMode) { update(state.copy(sixDofMode = mode)) }
+                    } else {
+                        // Greyed out, with the reason: nothing here hides a mode the phone cannot do.
+                        HigRow(mode.title, reason, detailColor = HigColors.secondary)
+                    }
                 }
             }
 

@@ -1,0 +1,279 @@
+package com.samrat.cardboardhands
+
+import android.app.Activity
+import android.content.Context
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import java.nio.ByteBuffer
+import java.nio.FloatBuffer
+import kotlin.math.atan2
+
+/**
+ * Where the headset is in the room, whoever worked it out.
+ *
+ * The home asks for [copyPosition] (and, for the hands, a camera frame from [update]) and never
+ * learns which backend answered: ARCore through Google Play Services for AR ([ArTracker]),
+ * VINS-Mono through the camera and the IMU ([VinsTracker]), or nothing at all. Rotation always comes from the
+ * [HeadTracker]; a 6DoF tracker only adds the position, in the head tracker's own world, so windows
+ * stay put while the user walks around them.
+ *
+ * Exactly one tracker runs at a time: [VrHomeActivity] closes the previous one before starting the
+ * next, and the two camera users (ARCore, and VINS-Mono through CameraX) never hold the camera at
+ * once — see [ownsCamera].
+ */
+interface SixDof {
+
+    /** True while the room is followed and the position can be trusted. */
+    val tracking: Boolean
+
+    /** One sentence for the settings screen: what is tracking, and what it is waiting for. */
+    fun statusText(): String
+
+    /** Head position in the head tracker's world, metres, relative to where tracking started. */
+    fun copyPosition(out: FloatArray)
+
+    /**
+     * One step of the tracker, on the GL thread. [sensorHead] is the head tracker's rotation, used
+     * to turn this tracker's world into the head's. Returns a CPU camera frame for the hands when
+     * [wantImage] and one is ready — a thunk, so the slow colour conversion happens off the GL thread.
+     */
+    fun update(sensorHead: FloatArray, wantImage: Boolean): (() -> ArTracker.CameraFrame?)? = null
+
+    /** The camera's projection for one eye's viewport, so virtual things line up with passthrough. */
+    val projection: FloatArray? get() = null
+
+    /** Texture coordinates of the passthrough quad (per eye), when this tracker draws the camera. */
+    val passthroughUv: FloatBuffer? get() = null
+
+    /** What the room scan found in the home's world: floor, table, walls, drawn as a grid. */
+    val surfaces: List<RoomScan.Surface> get() = emptyList()
+
+    /** Plane counts for the room-scan screen. */
+    val horizontalPlanes: Int get() = 0
+    val verticalPlanes: Int get() = 0
+
+    /** True when a room scan (planes, a table) is what this backend can see at all. */
+    val supportsRoomScan: Boolean get() = false
+
+    /**
+     * The frame size a tracker that borrows the camera would like: the size its calibration was
+     * written for. Null leaves the home's usual passthrough resolution alone.
+     */
+    val wantedFrame: Pair<Int, Int>? get() = null
+
+    /**
+     * True when opening the camera is this tracker's job. ARCore takes the camera for itself and
+     * hands back both passthrough and the frames for the hands; VINS-Mono reads the frames CameraX
+     * already provides, so the home keeps its usual 3DoF camera and only adds the position.
+     */
+    val ownsCamera: Boolean get() = false
+
+    /** The screen came back: the sensors and the camera may have been taken away and given back. */
+    fun resume(): Boolean = true
+
+    /** The screen went away: stop taking the sensors and the camera, stay ready to [resume]. */
+    fun pause() = Unit
+
+    /** Makes the current spot the centre of the room again (with the head tracker's recenter). */
+    fun recenter() = Unit
+
+    /** Releases everything the tracker holds; the tracker is not used afterwards. */
+    fun close() = Unit
+
+    /** GL setup for a tracker that draws the camera itself: the external texture and the eye size. */
+    fun attachTexture(texture: Int) = Unit
+
+    fun setDisplay(rotation: Int, eyeWidth: Int, height: Int) = Unit
+}
+
+/**
+ * A 6DoF tracker that wants the raw camera frames instead of opening the camera itself: the home's
+ * CameraX analysis stream hands over the grayscale plane of each frame before it is recycled.
+ * VINS-Mono uses this to see the room without owning the camera.
+ */
+interface SixDofCameraFeed {
+    /**
+     * One frame's Y plane, as the sensor reads it (unrotated), on the analysis thread. The tracker
+     * copies what it needs and returns; [timestampNs] is CameraX's own stamp for the exposure.
+     */
+    fun onGrayFrame(gray: ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int, timestampNs: Long)
+}
+
+/**
+ * Which 6DoF backends this phone can run. Kept apart from the trackers themselves so the settings
+ * screens (the phone's and the VR one) and the home all agree on what is selectable, without ever
+ * starting a tracker to find out.
+ */
+object SixDofSupport {
+
+    /** What the mode selector answers for one of the three modes. */
+    enum class Availability { READY, CHECKING, MISSING }
+
+    /** ARCore; the install prompt is only raised where the caller really starts a session. */
+    fun arCore(context: Context, requestInstall: Boolean = false): Availability {
+        if (BuildConfig.LITE) return Availability.MISSING
+        return when (ArTracker.availability(context, requestInstall)) {
+            ArTracker.Availability.READY -> Availability.READY
+            ArTracker.Availability.CHECKING -> Availability.CHECKING
+            ArTracker.Availability.MISSING -> Availability.MISSING
+        }
+    }
+
+    /**
+     * VINS-Mono: the camera and both halves of an IMU, and the native core built into this APK.
+     * ARCore plays no part in it — that is the whole point of the mode, so a phone without Google
+     * Play Services for AR (Huawei, stripped ROMs, the Lite editions' usual hardware) still walks.
+     */
+    fun vinsMono(context: Context): Availability {
+        if (!VinsTracker.available) return Availability.MISSING
+        if (BuildConfig.BE) return Availability.MISSING
+        if (!hasImu(context)) return Availability.MISSING
+        return Availability.READY
+    }
+
+    /** Accelerometer + gyroscope + a camera: what a visual-inertial tracker needs. */
+    fun hasImu(context: Context): Boolean {
+        val sensors = context.getSystemService(SensorManager::class.java) ?: return false
+        val gyro = sensors.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+            ?: sensors.getDefaultSensor(Sensor.TYPE_GYROSCOPE_UNCALIBRATED)
+        // The raw accelerometer, not the linear one: gravity is what turns the estimator's
+        // arbitrary scale into metres.
+        val accel = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            ?: sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED)
+        return gyro != null && accel != null
+    }
+
+    /** A camera at all: without one neither backend can see the room. */
+    fun hasCamera(context: Context) = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) ||
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA)
+
+    /**
+     * The best 6DoF this phone has, used as the default before the user ever chose: ARCore where it
+     * is installed, VINS-Mono where the camera and IMU are there to carry it, nothing where neither is.
+     */
+    fun bestMode(context: Context): Settings.SixDofMode = when {
+        arCore(context) == Availability.READY -> Settings.SixDofMode.ARCORE
+        vinsMono(context) == Availability.READY -> Settings.SixDofMode.VINS_MONO
+        else -> Settings.SixDofMode.NONE
+    }
+
+    fun availability(context: Context, mode: Settings.SixDofMode): Availability = when (mode) {
+        Settings.SixDofMode.NONE -> Availability.READY
+        Settings.SixDofMode.ARCORE -> arCore(context)
+        Settings.SixDofMode.VINS_MONO -> vinsMono(context)
+    }
+
+    /** Why a mode cannot be picked, in one line for the settings screen; null when it can. */
+    fun unavailableReason(context: Context, mode: Settings.SixDofMode): String? = when (mode) {
+        Settings.SixDofMode.NONE -> null
+        Settings.SixDofMode.ARCORE -> when {
+            BuildConfig.LITE -> "Only in NextVR Full"
+            availability(context, mode) == Availability.CHECKING -> "Checking Google Play Services for AR…"
+            else -> "No Google Play Services for AR on this phone"
+        }
+
+        Settings.SixDofMode.VINS_MONO -> when {
+            BuildConfig.LITE -> "Only in NextVR Full"
+            BuildConfig.BE -> "This edition has no camera"
+            !VinsTracker.available -> "The VINS-Mono core is not in this build"
+            !hasImu(context) -> "Needs a gyroscope and an accelerometer"
+            !hasCamera(context) -> "Needs a camera"
+            else -> null
+        }
+    }
+
+    /**
+     * Starts the tracker for [mode], or returns null when it cannot start (then the home stays 3DoF
+     * with its neck model, exactly as before). Only ever one tracker at a time.
+     */
+    fun create(activity: Activity, mode: Settings.SixDofMode): SixDof? = when (mode) {
+        Settings.SixDofMode.NONE -> null
+        Settings.SixDofMode.ARCORE -> if (BuildConfig.LITE) null else ArTracker.create(activity)
+        Settings.SixDofMode.VINS_MONO -> VinsTracker.create(activity)
+    }
+}
+
+/**
+ * The part every 6DoF backend needs and none of them should re-invent: turning "where the camera is
+ * in *my* world" into "where the head is in the head tracker's world".
+ *
+ * Both worlds hang from gravity and differ only by the heading each one started with, so the yaw is
+ * followed slowly (a relocalisation must not spin the room), the spot where tracking began becomes the
+ * centre of the room, a jump of half a metre in one frame is taken as the tracker correcting itself
+ * rather than the user walking, and the rest is smoothed with the same One Euro filter the hands use:
+ * calm while the head rests, quick when it moves.
+ *
+ * [update] wants the camera-to-world transform in the head tracker's own convention (y up, straight
+ * ahead along -z); ARCore's `displayOrientedPose` is already that way, and VINS-Mono's z-up world is
+ * turned before it gets here.
+ */
+class SixDofAligner {
+    /** Head position in the head tracker's world, metres, relative to where tracking started. */
+    val position = FloatArray(3)
+    /** Where tracking began, in the tracker's world; null until the first tracked frame. */
+    var origin: FloatArray? = null
+        private set
+    /** The heading of the tracker's world, measured in the head's; NaN before the first fix. */
+    var alignYaw = Float.NaN
+        private set
+    private val smooth = Array(3) { HandGestures.OneEuro(minCutoff = 1.0f, beta = 2.5f, deadZone = .003f) }
+    private val lastRaw = FloatArray(3)
+    private var hasLast = false
+
+    /** Makes the current spot the centre of the room again (with the head tracker's recenter). */
+    fun reset() {
+        origin = null
+        alignYaw = Float.NaN
+        hasLast = false
+        smooth.forEach { it.reset() }
+        position.fill(0f)
+    }
+
+    /**
+     * One step. [cameraToWorld] is the tracker's camera pose in the head's convention, [sensorHead]
+     * the head tracker's rotation, and [timestampNs] the frame's time (for the filter's rate).
+     */
+    fun update(cameraToWorld: FloatArray, sensorHead: FloatArray, timestampNs: Long) {
+        // Both worlds have gravity along y; only the heading differs. Follow it slowly.
+        val yawTracker = atan2(cameraToWorld[8], cameraToWorld[10])
+        val yawSensor = atan2(sensorHead[8], sensorHead[10])
+        val delta = wrap(yawSensor - yawTracker)
+        alignYaw = if (alignYaw.isNaN()) delta else alignYaw + wrap(delta - alignYaw) * .05f
+        val start = origin ?: floatArrayOf(cameraToWorld[12], cameraToWorld[13], cameraToWorld[14]).also { origin = it }
+        // A tracker that snaps to a corrected map moves the origin with it, so the room does not lurch.
+        if (hasLast) {
+            val jx = cameraToWorld[12] - lastRaw[0]
+            val jy = cameraToWorld[13] - lastRaw[1]
+            val jz = cameraToWorld[14] - lastRaw[2]
+            if (jx * jx + jy * jy + jz * jz > .25f) { start[0] += jx; start[1] += jy; start[2] += jz }
+        }
+        lastRaw[0] = cameraToWorld[12]; lastRaw[1] = cameraToWorld[13]; lastRaw[2] = cameraToWorld[14]
+        hasLast = true
+        val dx = cameraToWorld[12] - start[0]
+        val dy = cameraToWorld[13] - start[1]
+        val dz = cameraToWorld[14] - start[2]
+        val c = kotlin.math.cos(alignYaw)
+        val s = kotlin.math.sin(alignYaw)
+        synchronized(position) {
+            position[0] = smooth[0].filter(c * dx + s * dz, timestampNs)
+            position[1] = smooth[1].filter(dy, timestampNs)
+            position[2] = smooth[2].filter(-s * dx + c * dz, timestampNs)
+        }
+    }
+
+    /** A point of the tracker's world (a scanned wall, say) in the head's world, metres. */
+    fun transformPoint(x: Float, y: Float, z: Float): FloatArray {
+        val start = origin ?: return floatArrayOf(x, y, z)
+        val c = kotlin.math.cos(alignYaw); val s = kotlin.math.sin(alignYaw)
+        val dx = x - start[0]; val dy = y - start[1]; val dz = z - start[2]
+        return floatArrayOf(c * dx + s * dz, dy, -s * dx + c * dz)
+    }
+
+    private fun wrap(angle: Float): Float {
+        var a = angle
+        while (a > Math.PI) a -= (2 * Math.PI).toFloat()
+        while (a < -Math.PI) a += (2 * Math.PI).toFloat()
+        return a
+    }
+}

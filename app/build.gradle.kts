@@ -115,6 +115,10 @@ dependencies {
 
     // OrangeHanding: YOLO11 + MediaPipe (hands and body), brings tasks-vision and LiteRT along.
     implementation(project(":orangehanding"))
+    // VINS-Mono's estimator, for the 6DoF mode that works without ARCore. Only the Full edition takes
+    // it: its front end is OpenCV on every frame, which is what Lite leaves out by design, and BE has
+    // no camera to track with.
+    "fullImplementation"(project(":vins"))
     // Speech vs. other sounds for the face's mouth (YAMNet audio classifier).
     implementation("com.google.mediapipe:tasks-audio:0.10.35")
     // 6DoF in the VR home: ARCore tracks where the headset is in the room.
