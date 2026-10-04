@@ -3,6 +3,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// The version is pinned: every build names itself 2.0.1, and builds are told apart by the
+// commit they were built from, shown next to the version — in the app ("2.0.1 (abc1234)")
+// and in the release list. The commit is read at build time; without git the suffix is
+// dropped and the plain 2.0.1 remains.
+val commitSuffix = runCatching {
+    val sha = providers.exec {
+        commandLine("git", "rev-parse", "--short", "HEAD")
+    }.standardOutput.asText.get().trim()
+    if (sha.isEmpty()) "" else " ($sha)"
+}.getOrDefault("")
+
 android {
     namespace = "com.samrat.cardboardhands"
     compileSdk = 37
@@ -11,11 +22,11 @@ android {
         applicationId = "com.samrat.cardboardhands"
         minSdk = 29
         targetSdk = 35
-        // Bumped and committed back by .github/workflows/release.yml on every merge to main: the
-        // run that publishes the release is the run that writes these numbers, so the version in
-        // the APKs is the version that was built. Do not edit them by hand.
+        // Pinned: the release workflow never bumps these. The commit suffix in each flavor's
+        // versionNameSuffix is what distinguishes one build from the next; the workflow reads
+        // this literal line, so keep the "x.y.z" shape.
         versionCode = 15
-        versionName = "2.0.2"
+        versionName = "2.0.1"
         // PhoneXR itself runs 64-bit; this keeps OpenCV and MediaPipe for other ABIs out of the APK.
         ndk { abiFilters += listOf("arm64-v8a") }
     }
@@ -49,6 +60,7 @@ android {
     productFlavors {
         create("full") {
             dimension = "edition"
+            versionNameSuffix = commitSuffix
             buildConfigField("boolean", "LITE", "false")
             buildConfigField("boolean", "BE", "false")
             resValue("string", "app_label", "NextVR")
@@ -56,7 +68,7 @@ android {
         create("lite") {
             dimension = "edition"
             applicationIdSuffix = ".lite"
-            versionNameSuffix = "-lite"
+            versionNameSuffix = "$commitSuffix-lite"
             buildConfigField("boolean", "LITE", "true")
             buildConfigField("boolean", "BE", "false")
             resValue("string", "app_label", "NextVR Lite")
@@ -66,7 +78,7 @@ android {
         create("be") {
             dimension = "edition"
             applicationIdSuffix = ".be"
-            versionNameSuffix = "-be"
+            versionNameSuffix = "$commitSuffix-be"
             buildConfigField("boolean", "LITE", "true")
             buildConfigField("boolean", "BE", "true")
             resValue("string", "app_label", "NextVR BE")
