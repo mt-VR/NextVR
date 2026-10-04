@@ -13,7 +13,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  issues: write
 
 jobs:
   diag:
@@ -66,20 +67,41 @@ jobs:
           echo '### Tail' >> diag-out/errors.md
           tail -80 "$LOG" >> diag-out/errors.md
           head -c 60000 diag-out/errors.md >> "$S"
-      - name: Push the log to ci-diag
+      - name: Post the report to the pull request
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
-          cd "$RUNNER_TEMP"
-          rm -rf push && mkdir push && cd push
-          git init -q .
-          cp "$GITHUB_WORKSPACE"/diag-out/*.md "$GITHUB_WORKSPACE"/diag-out/gradle.log . 2>/dev/null
-          git config user.name "ci-diag"
-          git config user.email "ci-diag@localhost"
-          git add -A
-          git commit -qm "diag log for $GITHUB_RUN_ID"
-          git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-              HEAD:refs/heads/ci-diag --force 2>&1 | sed "s#${GITHUB_TOKEN}#REDACTED#g"
-          echo "PUSH_EXIT=$?"
+          cd "$GITHUB_WORKSPACE"
+          python3 -c '
+          import json, os, urllib.request
+          tok = os.environ["GH_TOKEN"]; repo = os.environ["GITHUB_REPOSITORY"]; num = os.environ.get("PR_NUMBER") or "8"
+          def read(path, limit):
+              try:
+                  return open(path, encoding="utf-8", errors="replace").read()[:limit]
+              except OSError:
+                  return "(missing)"
+          body = "\n".join(["<!-- ci-diag -->", "", read("diag-out/toolchain.md", 3000), "", "### Errors", "",
+                            read("diag-out/errors.md", 42000), "", "<details><summary>start of the raw log</summary>", "",
+                            "```", read("diag-out/gradle.log", 9000), "```", "", "</details>"])
+          api = "https://api.github.com/repos/" + repo
+          def req(method, path, payload=None):
+              data = json.dumps(payload).encode() if payload is not None else None
+              r = urllib.request.Request(api + path, data=data, method=method, headers={
+                  "authorization": "Bearer " + tok, "accept": "application/vnd.github+json",
+                  "user-agent": "ci-diag", "content-type": "application/json"})
+              try:
+                  with urllib.request.urlopen(r, timeout=60) as f:
+                      return json.loads(f.read().decode() or "{}")
+              except Exception as e:
+                  print("API " + method + " " + path + " -> " + str(e))
+                  return []
+          existing = None
+          for c in req("GET", "/issues/" + num + "/comments?per_page=100"):
+              if "<!-- ci-diag -->" in (c.get("body") or ""):
+                  existing = c["id"]
+          req("PATCH" if existing else "POST", "/issues/comments/%s" % existing if existing else "/issues/" + num + "/comments", {"body": body})
+          print("posted %d chars" % len(body))'
       - name: Fail, so the run is marked red
         run: exit 1
