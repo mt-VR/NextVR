@@ -31,6 +31,7 @@ set(FETCHCONTENT_QUIET FALSE)
 set(VINS_EIGEN_DIR "" CACHE PATH "An Eigen checkout to use instead of fetching one")
 if (VINS_EIGEN_DIR)
     set(EIGEN3_INCLUDE_DIR "${VINS_EIGEN_DIR}" CACHE PATH "Eigen includes" FORCE)
+    message(STATUS "VINS-Mono: Eigen from VINS_EIGEN_DIR")
 else()
     FetchContent_Declare(eigen
         GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
@@ -42,6 +43,11 @@ else()
     endif()
     set(EIGEN3_INCLUDE_DIR "${eigen_SOURCE_DIR}" CACHE PATH "Eigen includes" FORCE)
 endif()
+# Ceres' FindEigen looks for EIGEN_INCLUDE_DIR — singular, and without the 3 — and would otherwise go
+# hunting through the system for an Eigen that is not there. Hand it the same checkout, and tell it
+# not to prefer an installed/exported configuration over what it is given.
+set(EIGEN_INCLUDE_DIR "${EIGEN3_INCLUDE_DIR}" CACHE PATH "Eigen includes, as Ceres asks for them" FORCE)
+set(EIGEN_PREFER_EXPORTED_EIGEN_CMAKE_CONFIGURATION FALSE CACHE BOOL "Use the include dir above" FORCE)
 message(STATUS "VINS-Mono: Eigen at ${EIGEN3_INCLUDE_DIR}")
 
 set(VINS_CERES_DIR "" CACHE PATH "A Ceres Solver checkout to use instead of building one")
