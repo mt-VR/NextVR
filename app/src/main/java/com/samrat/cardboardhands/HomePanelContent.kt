@@ -696,7 +696,7 @@ class HomePanelContent(private val panel: HomePanel) :
 
             // The reference separates the dock's groups with a hairline that fades at both ends.
             val dividerBrush = Brush.verticalGradient(
-                listOf(Color(NextDesign.divider.copy(alpha = 0f)), Color(NextDesign.divider), Color(NextDesign.divider.copy(alpha = 0f)))
+                listOf(NextDesign.dividerColor.copy(alpha = 0f), NextDesign.dividerColor, NextDesign.dividerColor.copy(alpha = 0f))
             )
             for (divider in HomePanel.DIVIDERS) At(x(divider), cy, 2f * s / 1.5f, 38f * s) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(dividerBrush))
