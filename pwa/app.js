@@ -1,6 +1,6 @@
-// PhoneXR for iPhone: a Cardboard VR home as a web app (PWA).
+// NextVR for iPhone: a Cardboard VR home as a web app (PWA).
 // Two eyes with Cardboard lens warp, head rotation from the gyroscope, the camera around you,
-// a floating panel of apps, and hands (MediaPipe) — a cursor and a pinch to click, like PhoneXR on Android.
+// a floating panel of apps, and hands (MediaPipe) — a cursor and a pinch to click, like NextVR on Android.
 'use strict';
 
 const APPS = [
@@ -30,7 +30,7 @@ $('ipd').addEventListener('input', () => { $('ipdText').textContent = $('ipd').v
 $('games').innerHTML = APPS.filter((a) => a.url).map((a) =>
   `<a class="row" href="${a.url}"><div class="icon" style="background:${a.color}">${a.glyph}</div>` +
   `<div class="text">${a.title}<div class="detail">${a.detail}</div></div><div class="chev">›</div></a>`).join('');
-if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) $('hint').textContent = 'PhoneXR is open as an app.';
+if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) $('hint').textContent = 'NextVR is open as an app.';
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 // ---------------------------------------------------------------- quaternions
@@ -103,7 +103,7 @@ function program(vs, fs) {
 const TEX_VS = 'attribute vec3 aPos; attribute vec2 aUv; uniform mat4 uMvp; varying vec2 vUv; void main(){ vUv=aUv; gl_Position=uMvp*vec4(aPos,1.0);}';
 const TEX_FS = 'precision mediump float; uniform sampler2D uTex; uniform float uAlpha; varying vec2 vUv; void main(){ vec4 c=texture2D(uTex,vUv); gl_FragColor=vec4(c.rgb,c.a*uAlpha);}';
 const COLOR_FS = 'precision mediump float; uniform vec4 uColor; varying vec2 vUv; void main(){ gl_FragColor=uColor; }';
-// Cardboard lenses: the same gentle barrel warp as PhoneXR on Android, each eye a rectangle.
+// Cardboard lenses: the same gentle barrel warp as NextVR on Android, each eye a rectangle.
 const WARP_FS = `precision highp float; uniform sampler2D uTex; varying vec2 vUv;
   vec2 bend(vec2 e, float k){ vec2 p=(e-0.5)*2.0; float r2=dot(p,p); p*=1.0+k*r2+0.06*r2*r2; return p*0.5+0.5; }
   void main(){ float right=step(0.5,vUv.x); vec2 e=vec2(vUv.x*2.0-right,vUv.y);
@@ -186,7 +186,7 @@ function drawPanel() {
   c.fillStyle = 'rgba(28,28,30,0.82)';
   c.beginPath(); c.roundRect(0, 0, 1400, 900, 70); c.fill();
   c.fillStyle = '#fff'; c.font = '600 64px -apple-system, sans-serif'; c.textAlign = 'left';
-  c.fillText('PhoneXR', 90, 110);
+  c.fillText('NextVR', 90, 110);
   c.fillStyle = '#8e8e93'; c.font = '34px -apple-system, sans-serif';
   c.fillText(handsReady ? 'The hand is the cursor, a pinch opens' : 'Look at a tile and tap the screen', 400, 108);
   APPS.forEach((app, i) => {

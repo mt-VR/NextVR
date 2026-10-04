@@ -29,7 +29,7 @@ final class VrRemote: ObservableObject {
     @Published var apps: [RemoteApp] = []
     @Published var selected: String?
     @Published var frame: NSImage?
-    @Published var status = "Connect the phone over USB and open VR in PhoneXR."
+    @Published var status = "Connect the phone over USB and open VR in NextVR."
     @Published var connected = false
     private var polling: Task<Void, Never>?
     private let base = URL(string: "http://127.0.0.1:\(VrRemote.port)")!
@@ -87,7 +87,7 @@ final class VrRemote: ObservableObject {
             if selected == nil || !windows.contains(where: { $0.id == selected }) { selected = windows.first { !$0.minimized }?.id ?? windows.first?.id }
         } catch {
             connected = false
-            status = "No connection to VR. Open “Enter VR” in PhoneXR on the phone."
+            status = "No connection to VR. Open “Enter VR” in NextVR on the phone."
         }
     }
 

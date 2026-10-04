@@ -99,7 +99,7 @@ fun SpaceEasterEgg(onClose: () -> Unit) {
                 modifier = Modifier.graphicsLayer { alpha = .85f + .15f * glow }
             )
             BasicText(
-                "PhoneXR",
+                "NextVR",
                 style = TextStyle(color = Color(0xCCFFFFFF), fontSize = 30.sp, fontWeight = FontWeight.Medium, letterSpacing = 6.sp)
             )
         }

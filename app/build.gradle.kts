@@ -37,7 +37,7 @@ android {
             dimension = "edition"
             buildConfigField("boolean", "LITE", "false")
             buildConfigField("boolean", "BE", "false")
-            resValue("string", "app_label", "PhoneXR")
+            resValue("string", "app_label", "NextVR")
         }
         create("lite") {
             dimension = "edition"
@@ -45,7 +45,7 @@ android {
             versionNameSuffix = "-lite"
             buildConfigField("boolean", "LITE", "true")
             buildConfigField("boolean", "BE", "false")
-            resValue("string", "app_label", "PhoneXR Lite")
+            resValue("string", "app_label", "NextVR Lite")
         }
         // BE: no camera at all. A dot in the middle of the view aims, a tap on the screen clicks,
         // the room is black; no game patching, no friends — VR for watching and browsing.
@@ -55,7 +55,7 @@ android {
             versionNameSuffix = "-be"
             buildConfigField("boolean", "LITE", "true")
             buildConfigField("boolean", "BE", "true")
-            resValue("string", "app_label", "PhoneXR BE")
+            resValue("string", "app_label", "NextVR BE")
         }
     }
 

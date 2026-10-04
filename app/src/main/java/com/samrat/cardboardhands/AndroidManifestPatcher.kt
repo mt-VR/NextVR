@@ -40,13 +40,13 @@ object AndroidManifestPatcher {
     private const val BROKER_AUTHORITIES =
         "org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker"
 
-    /** Permissions an OpenXR game needs to reach the PhoneXR runtime and PhoneXR's own tracking. */
+    /** Permissions an OpenXR game needs to reach the NextVR runtime and NextVR's own tracking. */
     private val PERMISSIONS = listOf(
         "org.khronos.openxr.permission.OPENXR",
         "org.khronos.openxr.permission.OPENXR_SYSTEM",
         // The tracking stream (PH5) arrives over a local UDP socket, and a socket needs INTERNET.
         "android.permission.INTERNET",
-        // A patched game carries the PhoneXR signature, so it may start hand tracking itself.
+        // A patched game carries the NextVR signature, so it may start hand tracking itself.
         "com.samrat.cardboardhands.permission.START_HAND_TRACKING",
     )
 
@@ -217,14 +217,14 @@ object AndroidManifestPatcher {
             val queries = queriesAddition(namespace, nameAttribute)
             if (queries.isNotEmpty()) {
                 insert(queriesEnd() ?: (manifest + 1), queries)
-                changes += "access to the OpenXR Runtime Broker was added — the game finds the PhoneXR runtime"
+                changes += "access to the OpenXR Runtime Broker was added — the game finds the NextVR runtime"
             }
 
             val filters = launcherFiltersWithoutVrCategory()
             if (filters.isNotEmpty()) {
                 val category = stringIndex(IMMERSIVE_HMD)
                 filters.forEach { at -> insert(at, element("category", Attribute(namespace, nameAttribute, category))) }
-                changes += "the game is marked as VR — PhoneXR launches it itself"
+                changes += "the game is marked as VR — NextVR launches it itself"
             }
 
             if (inserts.isEmpty()) return
@@ -249,11 +249,11 @@ object AndroidManifestPatcher {
             return target
         }
 
-        /** Either the game already queries the broker, or an earlier PhoneXR patch added the block. */
+        /** Either the game already queries the broker, or an earlier NextVR patch added the block. */
         private fun queriesBroker(): Boolean = nodes.any { node ->
             if (node !is Node.Original || type(node) != CHUNK_START_ELEMENT) return@any false
             when (name(node)) {
-                // Either broker: PhoneXR Runtime answers as the system broker itself.
+                // Either broker: NextVR Runtime answers as the system broker itself.
                 "provider" -> attributeValue(node, "authorities")?.contains("runtime_broker") == true
                 "package" -> attributeValue(node, "name") == PhoneXrRuntime.PACKAGE
                 else -> false

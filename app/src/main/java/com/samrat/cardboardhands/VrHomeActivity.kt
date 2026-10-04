@@ -315,7 +315,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         tracker.start()
         sensorSixDof?.let { it.reset(); it.start() }
         if (BuildConfig.BE) Unit
-        else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) toast("Allow PhoneXR to use the camera")
+        else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) toast("Allow NextVR to use the camera")
         else if (ar == null) {
             bindCamera()
             if (Settings.load(this).sixDof && !Settings.travelMode(this)) startArLater()
@@ -456,7 +456,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
     private val storeHost = object : StoreContent.Host {
         override fun openCinema(packageName: String, scene: String) = runOnUiThread {
-            if (VirtualScreen.access() != VirtualScreen.Access.READY) return@runOnUiThread toast("Start Shizuku and allow PhoneXR access")
+            if (VirtualScreen.access() != VirtualScreen.Access.READY) return@runOnUiThread toast("Start Shizuku and allow NextVR access")
             startActivity(Intent(this@VrHomeActivity, CinemaActivity::class.java)
                 .putExtra(CinemaActivity.EXTRA_PACKAGE, packageName).putExtra(CinemaActivity.EXTRA_SCENE, scene))
         }
@@ -469,7 +469,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
         override fun install(file: java.io.File) = runOnUiThread {
             if (VirtualScreen.access() != VirtualScreen.Access.READY)
-                return@runOnUiThread toast("Installing inside PhoneXR needs Shizuku running with access allowed")
+                return@runOnUiThread toast("Installing inside NextVR needs Shizuku running with access allowed")
             thread(name = "PhoneXR store prepare") {
                 val apk = runCatching {
                     if (file.extension.equals("pxr", true)) PxrPackage.androidApk(this@VrHomeActivity, android.net.Uri.fromFile(file))
@@ -479,7 +479,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     InternalInstaller.install(this@VrHomeActivity, apk) { problem ->
                         if (problem != null) toast(problem)
                         else {
-                            toast("Game added to PhoneXR")
+                            toast("Game added to NextVR")
                             loadApps()
                         }
                     }
@@ -656,7 +656,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             id == ID_ANDROID -> openWindow("android", tr("Android apps"), ID_ANDROID) {
                 AndroidAppsContent(this) { name, label ->
                     runOnUiThread {
-                        if (VirtualScreen.access() != VirtualScreen.Access.READY) toast("Start Shizuku and allow PhoneXR access")
+                        if (VirtualScreen.access() != VirtualScreen.Access.READY) toast("Start Shizuku and allow NextVR access")
                         else openWindow("app:$name", label, ID_ANDROID) { ShizukuAppContent(this, name) { toast(it) } }
                     }
                 }
@@ -767,7 +767,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
     /** A page asked for an immersive WebXR session: the WebView has none, so the PhoneXR browser (OpenXR) takes over. */
     private fun openWebXr(url: String) = runOnUiThread {
-        if (WebApps.browserPackage(this) == null) return@runOnUiThread toast("WebXR needs the “PhoneXR Browser” from the site or the store")
+        if (WebApps.browserPackage(this) == null) return@runOnUiThread toast("WebXR needs the “NextVR Browser” from the site or the store")
         cameraProvider?.unbindAll()
         ContextCompat.startForegroundService(this, Intent(this, HandTrackingService::class.java))
         if (!WebApps.open(this, url)) toast("Couldn't open WebXR")
@@ -839,7 +839,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             val y = (.5f - shape.pinchY) * 2f * viewScaleY + size * .18f
             buttons += PalmButton(hand.left, x, y, size * .2f)
             busy += hand.left
-            val pinched = shape.pinchGap < .3f
+            val pinched = shape.pinchGap < HandGestures.PINCH_CLOSE_GAP
             val before = palmPinched[hand.left] == true
             palmPinched[hand.left] = pinched
             if (pinched && !before) runOnUiThread {
@@ -1075,7 +1075,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         // The pointing hand: the one already pinching keeps the ray, else a pinching one, else the nearest.
         val pointing = seen.filter { it.left != grabLeft }
         val chosen = pointing.firstOrNull { it.left == activeLeft && pinch.pinching }
-            ?: pointing.firstOrNull { it.shape.pinchGap < .3f }
+            ?: pointing.firstOrNull { it.shape.pinchGap < HandGestures.PINCH_CLOSE_GAP }
             ?: pointing.maxByOrNull { it.shape.palmWidth }
         if (chosen != null && chosen.left != activeLeft) {
             if (activeLeft != null) { filterX.reset(); filterY.reset() }
@@ -1334,11 +1334,11 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             val p = org.json.JSONArray()
             points.forEach { p.put(Math.round(it * 10000) / 10000.0) }
             json.put(org.json.JSONObject().put("left", hand.left).put("p", p)
-                .put("pinch", hand.shape.pinchGap < .3f).put("grab", hand.shape.fist))
+                .put("pinch", hand.shape.pinchGap < HandGestures.PINCH_CLOSE_GAP).put("grab", hand.shape.fist))
         }
         window.content.hands(org.json.JSONObject().put("hands", json).toString())
         // A pinch is WebXR "select".
-        val hand = seen.firstOrNull { it.shape.pinchGap < .3f }?.shape ?: seen.maxByOrNull { it.shape.palmWidth }?.shape
+        val hand = seen.firstOrNull { it.shape.pinchGap < HandGestures.PINCH_CLOSE_GAP }?.shape ?: seen.maxByOrNull { it.shape.palmWidth }?.shape
         val was = pinch.pinching
         val pinching = hand != null && pinch.update(hand)
         if (hand == null) pinch.reset()

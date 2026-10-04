@@ -58,7 +58,7 @@ abstract class ComposeContent(
         main.post {
             val manager = context.getSystemService(DisplayManager::class.java)
             // 320 dpi: text and controls read like an iPad at arm's length.
-            val created = manager.createVirtualDisplay("PhoneXR ${barTitle ?: "window"}", pixelWidth, pixelHeight, 320, surface, 0)
+            val created = manager.createVirtualDisplay("NextVR ${barTitle ?: "window"}", pixelWidth, pixelHeight, 320, surface, 0)
             display = created
             val shown = Presentation(context, created.display)
             val view = ComposeView(shown.context).apply {

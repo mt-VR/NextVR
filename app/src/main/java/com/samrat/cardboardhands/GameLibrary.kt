@@ -7,14 +7,14 @@ import android.content.pm.PackageManager
 import java.io.File
 import java.util.zip.ZipFile
 
-/** Installed VR games PhoneXR can start, found by what their APK carries. */
+/** Installed VR games NextVR can start, found by what their APK carries. */
 object GameLibrary {
     enum class Kind {
-        /** OpenXR game that finds the PhoneXR runtime, starts as is. */
+        /** OpenXR game that finds the NextVR runtime, starts as is. */
         OPENXR,
         /** OpenXR game built for a headset: on a phone it finds no runtime and shows a black screen. */
         OPENXR_ORIGINAL,
-        /** VrApi game (Quest or Gear VR) with the PhoneXR adapter in place of libvrapi.so. */
+        /** VrApi game (Quest or Gear VR) with the NextVR adapter in place of libvrapi.so. */
         VRAPI_READY,
         /** VrApi game as it came from the store: needs patching before it runs. */
         VRAPI_ORIGINAL,
@@ -102,7 +102,7 @@ object GameLibrary {
 
     /**
      * Reads the installed manifest: a build made for a headset asks for no OpenXR permission and
-     * keeps package visibility on, so it never finds the runtime. PhoneXR offers to patch those.
+     * keeps package visibility on, so it never finds the runtime. NextVR offers to patch those.
      */
     private fun findsRuntime(info: ApplicationInfo) = runCatching {
         ZipFile(info.sourceDir).use { zip ->
@@ -163,7 +163,7 @@ object GameLibrary {
 
     /**
      * The game tracks hands with the camera itself (<meta-data android:name="com.phonexr.OWN_HAND_TRACKING"
-     * android:value="true" /> in its manifest): PhoneXR gives the camera up instead of starting its own tracking.
+     * android:value="true" /> in its manifest): NextVR gives the camera up instead of starting its own tracking.
      */
     const val OWN_HAND_TRACKING = "com.phonexr.OWN_HAND_TRACKING"
 
@@ -173,9 +173,9 @@ object GameLibrary {
 
     fun launchIntent(context: Context, game: Game): Intent? {
         val direct = directLaunchIntent(context, game) ?: return null
-        // A headset OpenXR build that cannot see the runtime: PhoneXR Runtime starts it unpatched,
+        // A headset OpenXR build that cannot see the runtime: NextVR Runtime starts it unpatched,
         // granting it a URI of its own, which makes the runtime visible to the game.
-        // A VrApi game from the store: through the runtime and PhoneXR's VrApi driver, which its own
+        // A VrApi game from the store: through the runtime and NextVR's VrApi driver, which its own
         // libvrapi.so loader then finds.
         val vrApi = game.kind == Kind.VRAPI_ORIGINAL && VrApiDriver.ready(context)
         if (game.kind == Kind.OPENXR_ORIGINAL || vrApi) {
@@ -199,12 +199,12 @@ object GameLibrary {
                 }
             }
 
-    /** The line under the game's name in the list: what it is and what PhoneXR has to do with it. */
+    /** The line under the game's name in the list: what it is and what NextVR has to do with it. */
     fun describe(game: Game) = when (game.kind) {
         Kind.OPENXR -> "OpenXR"
-        Kind.OPENXR_ORIGINAL -> "${game.headset.title} · OpenXR · unpatched, through PhoneXR Runtime"
-        Kind.VRAPI_READY -> "${game.headset.title} · through the PhoneXR shim"
-        Kind.VRAPI_ORIGINAL -> "${game.headset.title} · VrApi · unpatched, through the PhoneXR driver"
+        Kind.OPENXR_ORIGINAL -> "${game.headset.title} · OpenXR · unpatched, through NextVR Runtime"
+        Kind.VRAPI_READY -> "${game.headset.title} · through the NextVR shim"
+        Kind.VRAPI_ORIGINAL -> "${game.headset.title} · VrApi · unpatched, through the NextVR driver"
         Kind.VRAPI_UNSUPPORTED -> "${game.headset.title} · not supported"
         Kind.DAYDREAM -> "Daydream / Cardboard"
     }

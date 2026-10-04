@@ -6,11 +6,11 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
-/** Installs a prepared game through PhoneXR's Shizuku service without opening Android's APK UI. */
+/** Installs a prepared game through NextVR's Shizuku service without opening Android's APK UI. */
 object InternalInstaller {
     fun install(activity: Activity, apk: File, finished: (String?) -> Unit) {
         if (VirtualScreen.access() != VirtualScreen.Access.READY) {
-            finished("Installing inside PhoneXR needs Shizuku running with access allowed")
+            finished("Installing inside NextVR needs Shizuku running with access allowed")
             return
         }
         val delivered = AtomicBoolean(false)

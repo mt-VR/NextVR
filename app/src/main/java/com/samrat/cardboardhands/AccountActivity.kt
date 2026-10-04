@@ -35,7 +35,7 @@ import zone.ien.hig.theme.CupertinoTheme
 import kotlin.concurrent.thread
 
 /**
- * PhoneXR account (Supabase): sign in, create an account, sign out. PhoneXR asks for it on start
+ * NextVR account (Supabase): sign in, create an account, sign out. NextVR asks for it on start
  * ([EXTRA_REQUIRED]): until the user is signed in there is no way past this screen.
  */
 class AccountActivity : ComponentActivity() {
@@ -52,7 +52,7 @@ class AccountActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         L10n.init(this)
-        // Without an account, back leaves PhoneXR instead of slipping past the sign-in.
+        // Without an account, back leaves NextVR instead of slipping past the sign-in.
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (required && Account.current(this@AccountActivity) == null) finishAffinity() else finish()
@@ -75,7 +75,7 @@ class AccountActivity : ComponentActivity() {
                 busy = false
                 error = result
                 user = Account.current(this)
-                // Signed in on the start screen: straight on into PhoneXR.
+                // Signed in on the start screen: straight on into NextVR.
                 if (required && user != null) finish()
             }
         }
@@ -84,8 +84,8 @@ class AccountActivity : ComponentActivity() {
     @Composable
     private fun Screen() {
         HigPage(
-            title = if (required) "PhoneXR" else tr("Account"),
-            subtitle = if (required) "Signing in to PhoneXR needs an account: friends, calls, the store and the settings travel with you to any phone." else null,
+            title = if (required) "NextVR" else tr("Account"),
+            subtitle = if (required) "Signing in to NextVR needs an account: friends, calls, the store and the settings travel with you to any phone." else null,
             onBack = if (required) null else ::finish
         ) {
             val current = user
@@ -104,7 +104,7 @@ class AccountActivity : ComponentActivity() {
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 CupertinoText(
-                    if (creating) "Create a PhoneXR account" else "Sign in to your PhoneXR account",
+                    if (creating) "Create a NextVR account" else "Sign in to your NextVR account",
                     fontSize = 22.sp, fontWeight = FontWeight.SemiBold
                 )
                 if (creating) Field("Name", name, false) { name = it }
@@ -150,7 +150,7 @@ class AccountActivity : ComponentActivity() {
     }
 
     companion object {
-        /** Started by PhoneXR on launch: the user must sign in to go on. */
+        /** Started by NextVR on launch: the user must sign in to go on. */
         const val EXTRA_REQUIRED = "required"
     }
 }

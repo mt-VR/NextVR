@@ -17,9 +17,9 @@ class KeyboardPanel {
     private val canvas = Canvas(bitmap)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val keys = ArrayList<Pair<RectF, String>>()
-    private var russian = true
+    private var language = L10n.current
+    private var languageLocked = false
     private var shift = false
-
     private var symbols = false
 
     /** What a touch at 0..1 panel coordinates types: a character, or "backspace", "enter", "hide". */
@@ -27,7 +27,7 @@ class KeyboardPanel {
         val key = keys.firstOrNull { it.first.contains(u * WIDTH, v * HEIGHT) }?.second ?: return null
         return when (key) {
             SHIFT -> { shift = !shift; null }
-            LANGUAGE -> { russian = !russian; symbols = false; null }
+            LANGUAGE -> { if (!languageLocked) cycleLanguage(); symbols = false; null }
             SYMBOLS -> { symbols = !symbols; null }
             SPACE -> " "
             BACKSPACE, ENTER, HIDE -> key
@@ -35,8 +35,18 @@ class KeyboardPanel {
         }
     }
 
-    /** Latin letters (e-mail, passwords) or Russian. */
-    fun setRussian(value: Boolean) { russian = value }
+    /** Set the active input layout; text fields that require Latin input can lock the language key. */
+    fun setLanguage(value: L10n.Lang, lock: Boolean = false) {
+        language = value
+        languageLocked = lock
+        shift = false
+        symbols = false
+    }
+
+    private fun cycleLanguage() {
+        val languages = L10n.Lang.entries
+        language = languages[(languages.indexOf(language) + 1) % languages.size]
+    }
 
     fun hovered(u: Float, v: Float): String? = keys.firstOrNull { it.first.contains(u * WIDTH, v * HEIGHT) }?.second
 
@@ -54,11 +64,7 @@ class KeyboardPanel {
         canvas.drawRoundRect(shape, PANEL_R, PANEL_R, paint)
         paint.style = Paint.Style.FILL
         paint.strokeWidth = 0f
-        val rows = when {
-            symbols -> SYMBOL_ROWS
-            russian -> RUSSIAN
-            else -> ENGLISH
-        }
+        val rows = if (symbols) language.keyboard.symbols else language.keyboard.letters
         val pad = 28f
         val gap = 12f
         val rowH = (HEIGHT - 2 * pad - 3 * gap) / 4
@@ -91,9 +97,9 @@ class KeyboardPanel {
         x = pad
         val y = top(3)
         key(RectF(x, y, x + unit * 1.6f, y + rowH), SYMBOLS, if (symbols) "ABC" else "!123", hover); x += unit * 1.6f + gap
-        key(RectF(x, y, x + unit, y + rowH), LANGUAGE, "🌐", hover); x += unit + gap
+        key(RectF(x, y, x + unit, y + rowH), LANGUAGE, if (languageLocked) language.badge else "🌐", hover); x += unit + gap
         val spaceEnd = WIDTH - pad - 3 * (unit + gap)
-        key(RectF(x, y, spaceEnd, y + rowH), SPACE, if (russian) "пробел" else "space", hover); x = spaceEnd + gap
+        key(RectF(x, y, spaceEnd, y + rowH), SPACE, "${language.keyboard.spaceLabel} · ${language.badge}", hover); x = spaceEnd + gap
         key(RectF(x, y, x + unit, y + rowH), ",", ",", hover); x += unit + gap
         key(RectF(x, y, x + unit, y + rowH), ".", ".", hover); x += unit + gap
         key(RectF(x, y, WIDTH - pad, y + rowH), HIDE, "⌨", hover)
@@ -148,8 +154,5 @@ class KeyboardPanel {
         const val BACKSPACE = "backspace"
         const val ENTER = "enter"
         const val HIDE = "hide"
-        private val RUSSIAN = listOf("йцукенгшщзх", "фывапролджэ", "ячсмитьбю")
-        private val ENGLISH = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm@")
-        private val SYMBOL_ROWS = listOf("1234567890-", "@#_&+()/*\"", "!?:;'%=")
     }
 }

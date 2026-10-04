@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     const fs::path root = executable_dir(argc ? argv[0] : "PhoneXR-SteamVR");
     const fs::path driver = root / "steamvr" / "phonexr";
     if (!fs::exists(driver / "driver.vrdrivermanifest")) {
-        std::cerr << "PhoneXR SteamVR driver is missing next to the launcher.\n";
+        std::cerr << "NextVR SteamVR driver is missing next to the launcher.\n";
         return 2;
     }
 #ifdef _WIN32
@@ -34,16 +34,16 @@ int main(int argc, char **argv) {
     fs::path vrpathreg = fs::path(program_files ? program_files : "C:\\Program Files (x86)") /
         "Steam/steamapps/common/SteamVR/bin/win64/vrpathreg.exe";
     if (!fs::exists(vrpathreg)) {
-        MessageBoxA(nullptr, "Install SteamVR in Steam first.", "PhoneXR Share", MB_OK | MB_ICONERROR);
+        MessageBoxA(nullptr, "Install SteamVR in Steam first.", "NextVR Share", MB_OK | MB_ICONERROR);
         return 3;
     }
     const std::string command = "\"" + vrpathreg.string() + "\" adddriver \"" + driver.string() + "\"";
     if (std::system(command.c_str()) != 0) {
-        MessageBoxA(nullptr, "SteamVR could not register the PhoneXR driver.", "PhoneXR Share", MB_OK | MB_ICONERROR);
+        MessageBoxA(nullptr, "SteamVR could not register the NextVR driver.", "NextVR Share", MB_OK | MB_ICONERROR);
         return 4;
     }
     ShellExecuteA(nullptr, "open", "steam://rungameid/250820", nullptr, nullptr, SW_SHOWNORMAL);
-    MessageBoxA(nullptr, "PhoneXR driver registered. SteamVR is starting.", "PhoneXR Share", MB_OK | MB_ICONINFORMATION);
+    MessageBoxA(nullptr, "NextVR driver registered. SteamVR is starting.", "NextVR Share", MB_OK | MB_ICONINFORMATION);
 #else
     const std::string find = "command -v vrpathreg >/dev/null 2>&1";
     if (std::system(find.c_str()) != 0) {
@@ -52,11 +52,11 @@ int main(int argc, char **argv) {
     }
     const std::string register_driver = "vrpathreg adddriver \"" + driver.string() + "\"";
     if (std::system(register_driver.c_str()) != 0) {
-        std::cerr << "SteamVR could not register the PhoneXR driver.\n";
+        std::cerr << "SteamVR could not register the NextVR driver.\n";
         return 4;
     }
     std::system("steam steam://rungameid/250820 >/dev/null 2>&1 &");
-    std::cout << "PhoneXR driver registered. SteamVR is starting.\n";
+    std::cout << "NextVR driver registered. SteamVR is starting.\n";
 #endif
     return 0;
 }

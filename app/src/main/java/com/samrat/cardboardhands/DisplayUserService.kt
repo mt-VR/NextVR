@@ -45,7 +45,7 @@ class DisplayUserService(context: Context) : IDisplayService.Stub() {
                     FLAG_TOUCH_FEEDBACK_DISABLED
             }
             if (Build.VERSION.SDK_INT >= 34) flags = flags or FLAG_OWN_FOCUS
-            display = manager.createVirtualDisplay("PhoneXR Cinema", width, height, dpi, surface, flags)
+            display = manager.createVirtualDisplay("NextVR Cinema", width, height, dpi, surface, flags)
             display?.display?.displayId ?: -1
         } catch (error: Throwable) {
             Log.e(TAG, "Virtual display failed", error)

@@ -80,7 +80,7 @@ class SettingsContent(
         ABOUT(tr("About headset"), tr("Device, version, account"), Icons.Rounded.Info),
         CONNECTIVITY("Wi‑Fi and Bluetooth", tr("Network, controllers, keyboard"), Icons.Rounded.Wifi),
         HANDS(tr("Hands and touch"), tr("Hand tracking, pinch"), Icons.Rounded.PanTool),
-        UPDATE(tr("Software Update"), tr("PhoneXR version"), Icons.Rounded.SystemUpdate),
+        UPDATE(tr("Software Update"), tr("NextVR version"), Icons.Rounded.SystemUpdate),
         AVATAR(tr("Avatar"), tr("Avaturn or VRoid Hub"), Icons.Rounded.Face),
         ROOM(tr("Room scan"), tr("Grid, table, 6DoF"), Icons.Rounded.ViewInAr),
     }
@@ -218,15 +218,15 @@ class SettingsContent(
             ?.let { it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) * 100 / it.getIntExtra(BatteryManager.EXTRA_SCALE, 100) }
         val version = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
         val runtime = when (PhoneXrRuntime.state(context)) {
-            PhoneXrRuntime.State.READY -> "PhoneXR Runtime"
-            PhoneXrRuntime.State.OUTDATED -> "PhoneXR Runtime (update available)"
+            PhoneXrRuntime.State.READY -> "NextVR Runtime"
+            PhoneXrRuntime.State.OUTDATED -> "NextVR Runtime (update available)"
             PhoneXrRuntime.State.MISSING -> "not installed"
         }
         HigSection {
             HigRow("Device", "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}")
             HigRow("Android", Build.VERSION.RELEASE)
             // Five taps in a row on the version: the easter egg.
-            HigLink("PhoneXR", value = version ?: "—") {
+            HigLink("NextVR", value = version ?: "—") {
                 if (taps.tap()) { host.easterEgg(); status = null }
                 else if (taps.left in 1..3) status = "${taps.left} more…"
             }
@@ -278,11 +278,11 @@ class SettingsContent(
             when {
                 checking -> HigRow("Checking for updates…", trailing = { HigSpinner() })
                 found == null -> {
-                    HigRow("PhoneXR ${Updates.currentVersion(context)}", if (checked) "The software is up to date" else null)
+                    HigRow("NextVR ${Updates.currentVersion(context)}", if (checked) "The software is up to date" else null)
                     HigLink("Check again") { checkUpdate() }
                 }
                 else -> {
-                    HigRow("PhoneXR ${found.version}", Updates.formatSize(found.size))
+                    HigRow("NextVR ${found.version}", Updates.formatSize(found.size))
                     val progress = downloadProgress
                     HigLink(
                         when {
@@ -311,7 +311,7 @@ class SettingsContent(
         val source = remember(page) { AvatarModel.source(context) }
         HigSection(
             footer = "Make an avatar from a selfie in Avaturn or pick a character on VRoid Hub — the window opens right here. " +
-                "Tap “Download” or “Export” there: PhoneXR picks the model up itself and the avatar comes alive with your tracking. " +
+                "Tap “Download” or “Export” there: NextVR picks the model up itself and the avatar comes alive with your tracking. " +
                 "Avaturn avatars — avaturn.me, VRoid — hub.vroid.com (the author of each model sets its terms)."
         ) {
             HigRow(tr("Current"), if (source == AvatarModel.Source.STANDARD) tr("Standard") else source.title)
@@ -325,13 +325,13 @@ class SettingsContent(
     private fun Room() {
         if (host.trackingText().startsWith("3DoF")) {
             HigSection {
-                HigRow("6DoF needed", "Scanning the floor, walls and tables only works in 6DoF. Turn on 6DoF in the PhoneXR settings and install Google Play Services for AR.",
+                HigRow("6DoF needed", "Scanning the floor, walls and tables only works in 6DoF. Turn on 6DoF in the NextVR settings and install Google Play Services for AR.",
                     detailColor = NextDesign.warnColor)
             }
             return
         }
         HigSection(
-            footer = "Slowly look over the floor, the walls and the surfaces from every side. PhoneXR shows the horizontal and vertical planes it finds."
+            footer = "Slowly look over the floor, the walls and the surfaces from every side. NextVR shows the horizontal and vertical planes it finds."
         ) {
             HigRow(host.roomText())
             HigLink(tr("Start a new scan")) { host.startRoomScan() }

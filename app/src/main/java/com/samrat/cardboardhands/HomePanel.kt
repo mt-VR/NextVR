@@ -20,7 +20,7 @@ class HomePanel {
         val mode: Mode, val tab: Tab, val library: Boolean, val page: Int, val pages: Int,
         val entries: List<Entry>, val pinned: List<Entry>, val recent: List<Entry>,
         val hovered: Target?, val pressed: Boolean, val dark: Boolean, val sort: Sort,
-        val searching: Boolean, val query: String, val symbols: Boolean, val russian: Boolean,
+        val searching: Boolean, val query: String, val symbols: Boolean, val language: L10n.Lang,
         val suggestions: List<Entry>, val alerts: Int, val passthrough: Boolean,
         val sliders: FloatArray, val showSliders: Boolean, val dnd: Boolean, val car: Boolean,
     )
@@ -109,7 +109,7 @@ class HomePanel {
         private set
     private var query = ""
     private var symbols = false
-    private var russian = true
+    private var keyboardLanguage = L10n.current
 
     fun setTab(value: Tab) { tab = value; page = 0 }
     fun setHome(entries: List<Entry>) { home = entries; page = page.coerceAtMost(pages(current()) - 1) }
@@ -192,6 +192,7 @@ class HomePanel {
         searching = true
         query = ""
         symbols = false
+        keyboardLanguage = L10n.current
         if (mode == Mode.HOME && compact || mode == Mode.MENU) mode = Mode.LIBRARY
     }
 
@@ -203,7 +204,11 @@ class HomePanel {
             KEY_BACKSPACE -> query = query.dropLast(1)
             KEY_ENTER -> return matches().firstOrNull()
             KEY_HIDE -> closeSearch()
-            KEY_LANGUAGE -> { russian = !russian; symbols = false }
+            KEY_LANGUAGE -> {
+                val languages = L10n.Lang.entries
+                keyboardLanguage = languages[(languages.indexOf(keyboardLanguage) + 1) % languages.size]
+                symbols = false
+            }
             KEY_SYMBOLS -> symbols = !symbols
             KEY_SPACE -> if (query.isNotEmpty()) query += " "
             else -> if (query.length < 40) query += key
@@ -225,7 +230,7 @@ class HomePanel {
         layout(shown, pages)
         snapshot = Snapshot(
             mode, tab, library(), page, pages, shown, pinned(), recent(), hovered, pressed, dark, sort,
-            searching, query, symbols, russian, list.take(3), alerts, passthrough,
+            searching, query, symbols, keyboardLanguage, list.take(3), alerts, passthrough,
             sliders.copyOf(), showSliders(), dnd, car,
         )
     }
@@ -290,7 +295,7 @@ class HomePanel {
      * the first row, a dark enter key, and language, space and hide at the bottom.
      */
     fun keyboard(): List<Key> {
-        val rows = if (symbols) SYMBOL_ROWS else if (russian) RUSSIAN else ENGLISH
+        val rows = if (symbols) keyboardLanguage.keyboard.symbols else keyboardLanguage.keyboard.letters
         val keys = ArrayList<Key>()
         val left = KEYBOARD.left + 16f * KB
         val right = KEYBOARD.right - 16f * KB
@@ -316,7 +321,7 @@ class HomePanel {
         val unit = 56f * KB
         keys += Key(KEY_SYMBOLS, if (symbols) "abc" else "?123", RectF(left, top, left + unit * 1.5f - gap, top + keyH))
         keys += Key(KEY_LANGUAGE, "", RectF(left + unit * 1.5f, top, left + unit * 2.5f - gap, top + keyH))
-        keys += Key(KEY_SPACE, "", RectF(left + unit * 2.5f, top, right - unit * 2f - gap, top + keyH))
+        keys += Key(KEY_SPACE, "${keyboardLanguage.keyboard.spaceLabel} · ${keyboardLanguage.badge}", RectF(left + unit * 2.5f, top, right - unit * 2f - gap, top + keyH))
         keys += Key(".", ".", RectF(right - unit * 2f, top, right - unit - gap, top + keyH))
         keys += Key(KEY_HIDE, "", RectF(right - unit + gap, top, right, top + keyH))
         return keys
@@ -431,8 +436,5 @@ class HomePanel {
         const val KEY_LANGUAGE = "#lang"
         const val KEY_SYMBOLS = "#symbols"
         const val KEY_SPACE = "#space"
-        private val ENGLISH = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
-        private val RUSSIAN = listOf("йцукенгшщзх", "фывапролджэ", "ячсмитьбю")
-        private val SYMBOL_ROWS = listOf("1234567890", "@#&_-+()/", "*'\":;!?")
     }
 }

@@ -7,6 +7,10 @@ import kotlin.math.sqrt
 
 /** Quest-style hand gestures from MediaPipe landmarks, and a filter that keeps tracking calm. */
 object HandGestures {
+    /** Small ease-increase for the click threshold; the fist guard and gesture model are unchanged. */
+    const val PINCH_CLOSE_GAP = .32f
+    const val PINCH_OPEN_GAP = .50f
+
     data class Shape(
         /** Thumb and index tips together: click. */
         val pinch: Boolean,
@@ -201,7 +205,10 @@ object HandGestures {
      * A pinch that starts when the fingers really touch and ends only once they clearly open, so a
      * click does not flicker on and off when the fingers hover near each other.
      */
-    class PinchLatch(private val close: Float = .30f, private val open: Float = .48f) {
+    class PinchLatch(
+        private val close: Float = PINCH_CLOSE_GAP,
+        private val open: Float = PINCH_OPEN_GAP,
+    ) {
         var pinching = false
             private set
 

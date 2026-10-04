@@ -107,7 +107,7 @@ class HomePanelContent(private val panel: HomePanel) :
     /**
      * The Next VR colours ([NextDesign]): dark glass with a hairline, white 7% tiles, ink for the
      * text and the periwinkle accent for whatever is selected, on or under the pointer. The light
-     * pair is kept for a light room; PhoneXR itself is dark only.
+     * pair is kept for a light room; NextVR itself is dark only.
      */
     private class Look(dark: Boolean) {
         val top = if (dark) Color(NextDesign.glassTopVeil) else Color(0xF7FFFFFF)
@@ -257,7 +257,7 @@ class HomePanelContent(private val panel: HomePanel) :
      */
     @Composable
     private fun Library(state: HomePanel.Snapshot, look: Look) {
-        // Windows arrive with a short fade in the reference; the library is PhoneXR's biggest one.
+        // Windows arrive with a short fade in the reference; the library is NextVR's biggest one.
         val appear = remember { Animatable(0f) }
         LaunchedEffect(Unit) { appear.animateTo(1f, tween(NextDesign.Motion.windowMs)) }
         Box(
@@ -279,8 +279,8 @@ class HomePanelContent(private val panel: HomePanel) :
             if (state.entries.isEmpty() && !state.searching) {
                 val empty = when {
                     state.mode == HomePanel.Mode.STORE -> tr("Loading the store…")
-                    state.tab == HomePanel.Tab.PEOPLE -> tr("Your friends will be here — sign in in the PhoneXR app")
-                    state.tab == HomePanel.Tab.GAMES -> tr("VR games prepared in the PhoneXR app will be here")
+                    state.tab == HomePanel.Tab.PEOPLE -> tr("Your friends will be here — sign in in the NextVR app")
+                    state.tab == HomePanel.Tab.GAMES -> tr("VR games prepared in the NextVR app will be here")
                     state.tab == HomePanel.Tab.WEB -> tr("Add web apps from the store")
                     else -> ""
                 }
@@ -486,7 +486,7 @@ class HomePanelContent(private val panel: HomePanel) :
                         HomePanel.KEY_ENTER -> Glyph(Icons.AutoMirrored.Rounded.ArrowForward, ink, 44f)
                         HomePanel.KEY_LANGUAGE -> Glyph(Icons.Rounded.Language, ink, 40f)
                         HomePanel.KEY_HIDE -> Glyph(Icons.Rounded.KeyboardHide, ink, 40f)
-                        HomePanel.KEY_SPACE -> Text(if (state.russian) "Русский" else "English", look.soft, 28f)
+                        HomePanel.KEY_SPACE -> Text(key.label, look.soft, 24f)
                         else -> Text(key.label, ink, if (key.label.length > 1) 30f else 40f, weight = FontWeight.Medium)
                     }
                 }

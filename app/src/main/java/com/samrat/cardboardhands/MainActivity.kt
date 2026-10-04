@@ -1,5 +1,6 @@
 package com.samrat.cardboardhands
 
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.ShoppingBag
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -120,7 +122,7 @@ class MainActivity : ComponentActivity() {
     private fun FriendsTab() {
         HigPage(title = tr("Friends"), subtitle = tr("Add friends by username and call them as your Persona in VR"), bottomInset = TAB_BAR_ROOM) {
             if (Account.current(this@MainActivity) == null) {
-                HigSection(footer = tr("Friends and calls need a PhoneXR account.")) {
+                HigSection(footer = tr("Friends and calls need a NextVR account.")) {
                     HigLink(tr("Sign in")) { start(AccountActivity::class.java) }
                 }
                 return@HigPage
@@ -229,9 +231,9 @@ class MainActivity : ComponentActivity() {
         else if (android.os.Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.CAMERA, Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.RECORD_AUDIO)
         else arrayOf(Manifest.permission.CAMERA, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO)
 
-    /** First start: 0 choosing the headset, 1 asking for permissions, 2 "put the phone in the headset". */
+    /** First start: 0 viewer setup, 1 asking for permissions, 2 "put the phone in the headset". */
     private var readyStep by mutableIntStateOf(0)
-    /** The setup in VR has not been done yet: the phone only asks whether the user is ready. */
+    /** The in-VR first-run setup has not been completed yet. */
     private var needsSetup by mutableStateOf(false)
     /** An avatar model (.glb / .vrm) from the phone's files. */
     private val chooseAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -285,7 +287,7 @@ class MainActivity : ComponentActivity() {
             runCatching {
                 val payload = PxrPackage.androidPayload(this, uri)
                 val prepared = ApkPatcher.patch(this, payload).apk
-                PxrPackage.packAndroid(this, prepared, "PhoneXR-app")
+                PxrPackage.packAndroid(this, prepared, "NextVR-app")
             }.onSuccess { file ->
                 runOnUiThread { busy = null; pendingPxr = file; savePxr.launch(file.name) }
             }.onFailure { failure ->
@@ -302,91 +304,180 @@ class MainActivity : ComponentActivity() {
         setContent { PhoneXRTheme { Root() } }
     }
 
-    /**
-     * The first thing a new user sees: "Choose your headset" and the headsets; then "put the phone in the headset"
-     * with three seconds counted down, and the VR setup (in the Quest style, with the account)
-     * starts by itself.
-     */
+    /** First-run Cardboard viewer setup; the gear opens the existing Google profile QR scanner. */
     @Composable
     private fun Ready() {
         val colors = androidx.compose.material3.MaterialTheme.colorScheme
         Box(
             Modifier.fillMaxSize().background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(listOf(colors.surfaceContainerLowest, colors.surface))
-            ).systemBarsPadding().padding(28.dp),
-            contentAlignment = Alignment.Center
+            ).systemBarsPadding().padding(28.dp)
         ) {
-            if (readyStep < 2) {
-                // Which headset: its lenses decide where each eye's picture goes.
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    androidx.compose.material3.Text(
-                        tr("Choose your headset"), color = colors.onSurface, fontSize = 34.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 10.dp)
-                    )
-                    androidx.compose.foundation.lazy.LazyColumn(
-                        Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+            Column(Modifier.fillMaxSize()) {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().height(56.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(onClick = { finish() }) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Rounded.Close,
+                            contentDescription = tr("Close"), tint = colors.onSurface
+                        )
+                    }
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    androidx.compose.material3.Surface(
+                        onClick = { languagePicker = true },
+                        shape = RoundedCornerShape(50),
+                        color = colors.surfaceContainerHigh
                     ) {
-                        items(Headsets.ALL.size) { i ->
-                            val headset = Headsets.ALL[i]
-                            androidx.compose.material3.Surface(
-                                onClick = {
-                                    Headsets.choose(this@MainActivity, headset)
-                                    readyStep = 1
-                                    enterVr.launch(vrPermissions())
-                                },
-                                shape = RoundedCornerShape(18.dp),
-                                color = colors.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                                    androidx.compose.material3.Text(tr(headset.name), color = colors.onSurface, fontSize = 18.sp)
-                                    androidx.compose.material3.Text(
-                                        tr("Lenses") + ": ${headset.lensesMm} " + tr("mm") + " · ${headset.fovDeg.roundToInt()}°",
-                                        color = colors.onSurfaceVariant, fontSize = 14.sp
-                                    )
-                                }
-                            }
+                        androidx.compose.foundation.layout.Row(
+                            Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Rounded.Language, null,
+                                tint = colors.onSurface, modifier = Modifier.size(19.dp)
+                            )
+                            androidx.compose.material3.Text(
+                                L10n.current.title,
+                                color = colors.onSurface,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 150.dp)
+                            )
+                        }
+                    }
+                    if (readyStep < 2) {
+                        androidx.compose.material3.IconButton(onClick = { scanCardboardProfile() }) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Rounded.Settings,
+                                contentDescription = tr("Scan viewer profile QR"), tint = colors.onSurface
+                            )
                         }
                     }
                 }
-            } else {
-                var left by remember { mutableIntStateOf(3) }
-                LaunchedEffect(Unit) {
-                    // While the language list is open the countdown waits.
-                    while (left > 0) { kotlinx.coroutines.delay(1000); if (!languagePicker) left-- }
-                    readyStep = 0
-                    startActivity(Intent(this@MainActivity, VrHomeActivity::class.java))
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    androidx.compose.material3.Text(
-                        tr("Put the phone in the VR headset"), color = colors.onSurface, fontSize = 30.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    androidx.compose.material3.Text(if (left > 0) "$left" else "", color = colors.onSurfaceVariant, fontSize = 64.sp)
+
+                if (readyStep < 2) {
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CardboardViewerGraphic(Modifier.size(width = 264.dp, height = 184.dp))
+                        androidx.compose.foundation.layout.Spacer(Modifier.height(24.dp))
+                        androidx.compose.material3.Text(
+                            Headsets.current(this@MainActivity).name, color = colors.onSurface, fontSize = 30.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        )
+                        androidx.compose.material3.Text(
+                            tr("Your VR viewer"), color = colors.onSurfaceVariant, fontSize = 17.sp,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                        androidx.compose.material3.Text(
+                            tr("Scan the QR code on your viewer to set the lens spacing."),
+                            color = colors.onSurfaceVariant, fontSize = 15.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+                        )
+                        androidx.compose.material3.Surface(
+                            shape = RoundedCornerShape(50), color = colors.surfaceContainerHigh
+                        ) {
+                            androidx.compose.foundation.layout.Row(
+                                Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    androidx.compose.material.icons.Icons.Rounded.Settings, null,
+                                    tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp)
+                                )
+                                androidx.compose.material3.Text(tr("Lens spacing"), color = colors.onSurfaceVariant, fontSize = 15.sp)
+                                androidx.compose.material3.Text("$ipd ${tr("mm")}", color = colors.onSurface, fontSize = 15.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            readyStep = 1
+                            enterVr.launch(vrPermissions())
+                        },
+                        modifier = Modifier.fillMaxWidth().height(58.dp),
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        androidx.compose.material3.Text(tr("Continue"), fontSize = 17.sp)
+                    }
+                } else {
+                    var left by remember { mutableIntStateOf(3) }
+                    LaunchedEffect(Unit) {
+                        // While the language list is open the countdown waits.
+                        while (left > 0) { kotlinx.coroutines.delay(1000); if (!languagePicker) left-- }
+                        readyStep = 0
+                        startActivity(Intent(this@MainActivity, VrHomeActivity::class.java))
+                    }
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        androidx.compose.material3.Text(
+                            tr("Put the phone in the VR headset"), color = colors.onSurface, fontSize = 30.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        androidx.compose.material3.Text(
+                            if (left > 0) "$left" else "", color = colors.onSurfaceVariant, fontSize = 64.sp
+                        )
+                    }
                 }
             }
-            // The language is chosen right here, on the first screen: before this the interface
-            // was only in Russian and the picker in Settings is not reachable until setup is over.
-            androidx.compose.material3.Surface(
-                onClick = { languagePicker = true },
-                shape = RoundedCornerShape(50),
-                color = colors.surfaceContainerHigh,
-                modifier = Modifier.align(Alignment.TopEnd)
-            ) {
-                androidx.compose.foundation.layout.Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    androidx.compose.material3.Icon(
-                        androidx.compose.material.icons.Icons.Rounded.Language, null,
-                        tint = colors.onSurface, modifier = Modifier.size(20.dp)
+        }
+    }
+
+    @Composable
+    private fun CardboardViewerGraphic(modifier: Modifier = Modifier) {
+        Box(
+            modifier.clip(RoundedCornerShape(34.dp)).background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(Color(0xFF343447), Color(0xFF514267), Color(0xFF29394C))
+                )
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 25.dp)) {
+                val body = androidx.compose.ui.geometry.Offset(size.width * .05f, size.height * .16f)
+                val bodySize = androidx.compose.ui.geometry.Size(size.width * .90f, size.height * .68f)
+                drawRoundRect(
+                    color = Color(0xFFC58B55), topLeft = body, size = bodySize,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * .18f)
+                )
+                val face = androidx.compose.ui.geometry.Offset(size.width * .11f, size.height * .23f)
+                val faceSize = androidx.compose.ui.geometry.Size(size.width * .78f, size.height * .53f)
+                drawRoundRect(
+                    color = Color(0xFF272932), topLeft = face, size = faceSize,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * .15f)
+                )
+                val lensY = size.height * .495f
+                val radius = size.height * .18f
+                listOf(size.width * .34f, size.width * .66f).forEach { lensX ->
+                    drawCircle(Color(0xFF171922), radius, androidx.compose.ui.geometry.Offset(lensX, lensY))
+                    drawCircle(
+                        Color(0xFF8795C3), radius * .88f, androidx.compose.ui.geometry.Offset(lensX, lensY),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = size.height * .035f)
                     )
-                    androidx.compose.material3.Text(L10n.current.title, color = colors.onSurface, fontSize = 16.sp)
+                    drawCircle(
+                        Color(0xFF4E597D), radius * .66f, androidx.compose.ui.geometry.Offset(lensX, lensY),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = size.height * .018f)
+                    )
                 }
+                drawRoundRect(
+                    color = Color(0xFF252630),
+                    topLeft = androidx.compose.ui.geometry.Offset(size.width * .46f, size.height * .69f),
+                    size = androidx.compose.ui.geometry.Size(size.width * .08f, size.height * .09f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * .04f)
+                )
             }
         }
     }
@@ -398,12 +489,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // First start: everything (setup and the account) happens in VR, after "Are you ready?".
+        // First-run room and account setup happens in VR; the viewer screen precedes it.
         needsSetup = !Settings.setupDone(this)
-        // Not back to "Are you ready?" here: the permission dialog also ends in onResume, right after
-        // the answer moved on to the countdown. The countdown itself goes back to 0 when VR starts.
+        ipd = Settings.ipdMm(this)
+        // The permission result can also trigger onResume; keep showing the countdown until VR starts.
         if (needsSetup) return
-        // PhoneXR opens only with an account (BE has no friends or calls, so no account either).
+        // NextVR opens only with an account (BE has no friends or calls, so no account either).
         if (!BuildConfig.BE && Account.current(this) == null) {
             startActivity(Intent(this, AccountActivity::class.java).putExtra(AccountActivity.EXTRA_REQUIRED, true))
             return
@@ -416,7 +507,6 @@ class MainActivity : ComponentActivity() {
         refresh = Settings.refresh(this)
         keyboardWindow = Settings.keyboardWindow(this)
         depthInstalled = DepthModel.installed(this)
-        ipd = Settings.ipdMm(this)
         lensOffset = Settings.lensOffsetMm(this)
         sixDof = Settings.load(this).sixDof
         trackingSmoothness = Settings.load(this).trackingSmoothness
@@ -432,7 +522,7 @@ class MainActivity : ComponentActivity() {
 
     private var runtimeChecked = false
 
-    /** Once per start: PhoneXR's own OpenXR runtime is installed or updated quietly, if it can be. */
+    /** Once per start: NextVR's own OpenXR runtime is installed or updated quietly, if it can be. */
     private fun keepRuntimeInstalled() {
         if (runtimeChecked || BuildConfig.LITE) return
         runtimeChecked = true
@@ -443,7 +533,7 @@ class MainActivity : ComponentActivity() {
             }
             if (PhoneXrRuntime.state(this) == PhoneXrRuntime.State.READY) return@Thread
             val problem = runCatching { PhoneXrRuntime.installQuietly(this) }.getOrElse { it.localizedMessage }
-            runOnUiThread { resumes++; if (problem == null) status = "PhoneXR Runtime installed: OpenXR games run without patching" }
+            runOnUiThread { resumes++; if (problem == null) status = "NextVR Runtime installed: OpenXR games run without patching" }
         }.start()
     }
 
@@ -493,7 +583,7 @@ class MainActivity : ComponentActivity() {
         LanguagePicker()
         update?.let { found ->
             HigAlert(
-                title = "PhoneXR ${found.version} is available",
+                title = "NextVR ${found.version} is available",
                 message = Updates.formatSize(found.size),
                 actions = listOf(
                     HigAction(tr("Later"), HigActionStyle.CANCEL) { update = null },
@@ -522,8 +612,8 @@ class MainActivity : ComponentActivity() {
         if (!languagePicker) return
         HigAlert(
             title = tr("Language"),
-            message = "PhoneXR",
-            actions = L10n.Lang.values().map { lang ->
+            message = "NextVR",
+            actions = L10n.Lang.entries.map { lang ->
                 HigAction((if (lang == L10n.current) "✓ " else "") + lang.title) {
                     languagePicker = false
                     L10n.set(this@MainActivity, lang)
@@ -562,7 +652,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MenuTab() {
         HigPage(
-            title = "PhoneXR",
+            title = "NextVR",
             subtitle = "VR on your phone: hands in the camera, Joy‑Con instead of controllers",
             bottomInset = TAB_BAR_ROOM
         ) {
@@ -577,7 +667,7 @@ class MainActivity : ComponentActivity() {
                 footer = "Head rotation and controllers work, but walking around the room, the boundary, walls, tables and room physics need 6DoF."
             ) {
                 HigLink("Turn on 6DoF") {
-                    if (BuildConfig.LITE) error = "6DoF is available in PhoneXR Full"
+                    if (BuildConfig.LITE) error = "6DoF is available in NextVR Full"
                     else {
                         sixDof = true
                         Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = true))
@@ -593,7 +683,7 @@ class MainActivity : ComponentActivity() {
             HigSection(
                 title = tr("Games"),
                 footer = "Tap a game to turn on tracking and launch it. " +
-                    "Gear VR games and headset builds have to be patched first: PhoneXR opens the PhoneXR " +
+                    "Gear VR games and headset builds have to be patched first: NextVR opens the NextVR " +
                     "runtime for them, writes in the new tracking and optimizes them for the phone."
             ) {
                 val list = games
@@ -607,7 +697,7 @@ class MainActivity : ComponentActivity() {
             HigSection(
                 title = tr("Install"),
                 footer = "An OpenXR game APK, Gear VR games (64- and 32-bit) or a .pxr package. " +
-                    "PhoneXR writes in the new tracking, optimizes the build for the phone, signs it and opens the installer."
+                    "NextVR writes in the new tracking, optimizes the build for the phone, signs it and opens the installer."
             ) {
                 HigLink(busy ?: tr("Install a game from a file"), enabled = busy == null) {
                     chooseApk.launch(
@@ -624,7 +714,7 @@ class MainActivity : ComponentActivity() {
 
             HigSection(
                 title = "Daydream",
-                footer = "Daydream games look for Google VR Services. PhoneXR installs Opendream Services 1.13 — " +
+                footer = "Daydream games look for Google VR Services. NextVR installs Opendream Services 1.13 — " +
                     "after that Daydream and Cardboard games show up in the game list and in the VR home."
             ) {
                 if (Daydream.servicesInstalled(this@MainActivity)) {
@@ -643,24 +733,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** PhoneXR Runtime for OpenXR games: install or update it, then pick it in the OpenXR broker. */
+    /** NextVR Runtime for OpenXR games: install or update it, then pick it in the OpenXR broker. */
     @Composable
     private fun RuntimeSection() {
         val state = if (resumes >= 0) PhoneXrRuntime.state(this) else PhoneXrRuntime.State.MISSING
         HigSection(
             title = "OpenXR",
-            footer = "PhoneXR Runtime is OpenXR on the phone: games get hands, Joy‑Con and head from PhoneXR. " +
+            footer = "NextVR Runtime is OpenXR on the phone: games get hands, Joy‑Con and head from NextVR. " +
                 "It is its own OpenXR broker, so Android XR (Galaxy XR), Pico and newer Quest games with the Khronos loader " +
                 "run without patching. A separate OpenXR Runtime Broker is not needed — if it is installed, remove it, otherwise it hijacks games. " +
-                "Older Quest and Gear VR games (VrApi) also run unpatched — through the PhoneXR VrApi driver."
+                "Older Quest and Gear VR games (VrApi) also run unpatched — through the NextVR VrApi driver."
         ) {
             when (state) {
-                PhoneXrRuntime.State.READY -> HigRow("PhoneXR Runtime", "Installed")
-                PhoneXrRuntime.State.OUTDATED -> HigLink("Update PhoneXR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
+                PhoneXrRuntime.State.READY -> HigRow("NextVR Runtime", "Installed")
+                PhoneXrRuntime.State.OUTDATED -> HigLink("Update NextVR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
                 PhoneXrRuntime.State.MISSING -> if (PhoneXrRuntime.bundled(this@MainActivity)) {
-                    HigLink("Install PhoneXR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
+                    HigLink("Install NextVR Runtime") { PhoneXrRuntime.install(this@MainActivity) }
                 } else {
-                    HigRow("PhoneXR Runtime", "Not part of this build")
+                    HigRow("NextVR Runtime", "Not part of this build")
                 }
             }
             if (VrApiDriver.ready(this@MainActivity)) HigRow("VrApi driver", "Installed")
@@ -710,7 +800,7 @@ class MainActivity : ComponentActivity() {
     private fun StoreTab() {
         HigPage(
             title = tr("Store"),
-            subtitle = "OpenXR, Quest and Pico: PhoneXR downloads and prepares the APK itself.",
+            subtitle = "OpenXR, Quest and Pico: NextVR downloads and prepares the APK itself.",
             bottomInset = TAB_BAR_ROOM
         ) {
             HigSection(
@@ -721,7 +811,7 @@ class MainActivity : ComponentActivity() {
                 VR_MODES.forEach { mode -> VrModeRow(mode) }
             }
             HigSection(
-                title = tr("PhoneXR apps"),
+                title = tr("NextVR apps"),
                 footer = "Android apps: any phone app as a window in VR (needs Shizuku). Shows up on the VR home screen."
             ) {
                 val added = resumes >= 0 && androidApps
@@ -737,7 +827,7 @@ class MainActivity : ComponentActivity() {
                 footer = tr("Add-ons, resource packs and worlds for Minecraft Bedrock (.mcaddon, .mcpack, .mcworld). " +
                     "Minecraft imports the mod itself, then turn it on in the world settings.")
             ) {
-                HigLink("PhoneXR VR — VR for Minecraft", value = if (resumes >= 0 && MinecraftBridge.modInstalled(this@MainActivity)) "✓" else tr("Install")) {
+                HigLink("NextVR VR — VR for Minecraft", value = if (resumes >= 0 && MinecraftBridge.modInstalled(this@MainActivity)) "✓" else tr("Install")) {
                     MinecraftBridge.installMod(this@MainActivity)?.let { error = it }
                 }
                 HigLink(tr("Install a mod from a file")) { chooseMod.launch(arrayOf("*/*")) }
@@ -764,13 +854,13 @@ class MainActivity : ComponentActivity() {
             if (webApps.isNotEmpty()) {
                 HigSection(
                     title = tr("Web apps"),
-                    footer = "They open in the PhoneXR browser right in VR. Added ones show up on the VR home screen."
+                    footer = "They open in the NextVR browser right in VR. Added ones show up on the VR home screen."
                 ) {
                     webApps.forEach { app ->
                         val added = app.url in installedWeb
                         HigLink(app.name, value = if (added) tr("Open") else tr("Add")) {
                             if (added) {
-                                if (!WebApps.open(this@MainActivity, app.url)) error = "Install the PhoneXR browser"
+                                if (!WebApps.open(this@MainActivity, app.url)) error = "Install the NextVR browser"
                             } else {
                                 WebApps.add(this@MainActivity, app)
                                 installedWeb = installedWeb + app.url
@@ -797,19 +887,19 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /** How to switch a VR mode on: the game from Google Play, Shizuku, then play from PhoneXR. */
+    /** How to switch a VR mode on: the game from Google Play, Shizuku, then play from NextVR. */
     @Composable
     private fun GuideDialog(mode: VrMode) {
         val installed = resumes >= 0 && isInstalled(mode.packageName)
         val ready = shizuku == VirtualScreen.Access.READY
         val steps = listOf(
                         (if (installed) "✓ " else "1. ") + "Install ${mode.game} from Google Play.",
-                        (if (ready) "✓ " else "2. ") + "Install and start Shizuku (over Wi‑Fi debugging), then allow PhoneXR access.",
+                        (if (ready) "✓ " else "2. ") + "Install and start Shizuku (over Wi‑Fi debugging), then allow NextVR access.",
                         "3. Tap “Play”: the game opens on a big screen — ${mode.scene}.",
                         if (mode.packageName == MINECRAFT)
-                            "4. The PhoneXR VR mod installs itself into Minecraft on the first “Play”. In Minecraft: Settings → General → " +
-                                "turn off “Require encrypted websockets”; in the world turn on cheats and the “PhoneXR VR” behavior pack. " +
-                                "In the world hold your palm towards your face and bring your fingers together — PhoneXR connects the mod. Then: head — a 360° look, " +
+                            "4. The NextVR VR mod installs itself into Minecraft on the first “Play”. In Minecraft: Settings → General → " +
+                                "turn off “Require encrypted websockets”; in the world turn on cheats and the “NextVR VR” behavior pack. " +
+                                "In the world hold your palm towards your face and bring your fingers together — NextVR connects the mod. Then: head — a 360° look, " +
                                 "hands are visible in the world, fist — break and hit, pinch — place a block, a finger “gun” — walk."
                         else "4. Controls: a pinch of either hand taps the screen, two hands — two fingers. " +
                             "Joy‑Con and gamepads work just like in the game itself. A tap on the phone recenters the view.",
@@ -912,9 +1002,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun downloadAndInstall(item: GameStore.Item) {
-        // Internal installs use the same shell service that runs phone apps in PhoneXR windows.
+        // Internal installs use the same shell service that runs phone apps in NextVR windows.
         if (VirtualScreen.access() != VirtualScreen.Access.READY) {
-            error = "Installing inside PhoneXR needs Shizuku running with access allowed for PhoneXR."
+            error = "Installing inside NextVR needs Shizuku running with access allowed for NextVR."
             return
         }
         downloads[item.path] = 0f
@@ -925,7 +1015,7 @@ class MainActivity : ComponentActivity() {
                 val file = GameStore.download(item, File(filesDir, "store")) { value ->
                     runOnUiThread { downloads[item.path] = value }
                 }
-                // Quest, Pico and generic OpenXR APKs are prepared automatically inside PhoneXR.
+                // Quest, Pico and generic OpenXR APKs are prepared automatically inside NextVR.
                 // A .pxr already carries a prepared payload and only needs unpacking.
                 val apk = if (item.extension == "pxr") PxrPackage.androidApk(this, Uri.fromFile(file))
                 else ApkPatcher.patch(this, Uri.fromFile(file)).apk
@@ -1013,18 +1103,18 @@ class MainActivity : ComponentActivity() {
                     "ARCore, and reads the hand camera at a smaller frame — that is how it runs on budget phones. " +
                     "Games, the cinema, Joy‑Con and the VR home work the same."
             ) {
-                HigRow("PhoneXR Lite", "Lightweight build", detailColor = HigColors.accent)
+                HigRow("NextVR Lite", "Lightweight build", detailColor = HigColors.accent)
             }
             HigSection(
                 title = tr("Avatar"),
-                footer = "Make an avatar from a selfie in Avaturn (tap “Download” there — PhoneXR picks the model up itself) " +
+                footer = "Make an avatar from a selfie in Avaturn (tap “Download” there — NextVR picks the model up itself) " +
                     "or a character in the VRoid app from Google Play: export it as .vrm and load the file here."
             ) {
                 val source = if (resumes >= 0) AvatarModel.source(this@MainActivity) else AvatarModel.Source.STANDARD
                 HigRow(tr("Current"), if (source == AvatarModel.Source.STANDARD) tr("Standard") else source.title)
                 HigLink(tr("Create in Avaturn")) { startActivity(Intent(this@MainActivity, AvatarWebActivity::class.java)) }
                 HigLink(tr("Make in VRoid"), value = "Google Play") {
-                    // VRoid makes the character in its own app; PhoneXR then takes the exported .vrm.
+                    // VRoid makes the character in its own app; NextVR then takes the exported .vrm.
                     AvatarModel.openVroid(this@MainActivity)
                     status = tr("Make a character in VRoid, export it as .vrm and tap “Load a .glb / .vrm file”")
                 }
@@ -1078,7 +1168,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 HigLink("Make this phone a controller") { start(ControllerActivity::class.java) }
             }
-            HigSection(title = tr("Store"), footer = "Games come from the “${GameStore.FOLDER}” folder in Supabase and from the .json files in the root of the PhoneXR repository on GitHub.") {
+            HigSection(title = tr("Store"), footer = "Games come from the “${GameStore.FOLDER}” folder in Supabase and from the .json files in the root of the NextVR repository on GitHub.") {
                 HigRow(tr("Server"), GameStore.URL_BASE.removePrefix("https://"))
             }
             HigSection(
@@ -1121,7 +1211,7 @@ class MainActivity : ComponentActivity() {
             if (!BuildConfig.LITE) HigSection(
                 title = "3D memories",
                 footer = "The depth neural network looks at an ordinary photo and tells what is closer and what is farther — " +
-                    "out of that PhoneXR makes a 3D shot for both eyes. It is large, so it is downloaded separately " +
+                    "out of that NextVR makes a 3D shot for both eyes. It is large, so it is downloaded separately " +
                     "and kept in the app's storage. Video and 360° panoramas work without it."
             ) {
                 when {
@@ -1173,9 +1263,9 @@ class MainActivity : ComponentActivity() {
     private fun PatchDialog(game: GameLibrary.Game) {
         val about = if (game.kind == GameLibrary.Kind.VRAPI_ORIGINAL)
             "This is a ${game.headset.title} game on VrApi: without the headset itself and the Oculus driver it closes right away. " +
-                "PhoneXR will replace libvrapi.so in it with a shim over OpenXR"
+                "NextVR will replace libvrapi.so in it with a shim over OpenXR"
         else "This is a ${game.headset.title} build: on a phone it finds no OpenXR runtime and shows a black screen. " +
-            "PhoneXR will give it access to the PhoneXR runtime"
+            "NextVR will give it access to the NextVR runtime"
         HigAlert(
             title = "Patch “${game.label}”?",
             message = about + ", write in the new tracking and optimize the build for the phone, " +
@@ -1198,7 +1288,7 @@ class MainActivity : ComponentActivity() {
         val stale = value.replacesPackage?.takeIf { resumes >= 0 && isInstalled(it) }
         // Without the runtime the game starts into a black screen, whatever the patch did.
         val runtime = if (PhoneXrRuntime.state(this) == PhoneXrRuntime.State.READY) "" else
-            "\n\nSo the game is not a black screen, install PhoneXR Runtime from the menu and select it " +
+            "\n\nSo the game is not a black screen, install NextVR Runtime from the menu and select it " +
                 "in the OpenXR Runtime Broker."
         HigAlert(
             title = value.label?.let { "“$it” is ready" }
@@ -1230,7 +1320,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             GameLibrary.Kind.VRAPI_UNSUPPORTED -> error =
-                "“${game.label}” is a ${game.headset.title} game PhoneXR cannot launch: " +
+                "“${game.label}” is a ${game.headset.title} game NextVR cannot launch: " +
                     "it has no ARM build (arm64-v8a or armeabi-v7a)."
             else -> requestStart(game)
         }
@@ -1250,7 +1340,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startTracking() {
         if (gameToStart?.let { GameLibrary.ownsHandTracking(this, it.packageName) } == true) {
-            // The game tracks hands itself: PhoneXR declines and leaves the camera to it.
+            // The game tracks hands itself: NextVR declines and leaves the camera to it.
             stopService(Intent(this, HandTrackingService::class.java))
             status = "The game tracks hands itself"
         } else {
@@ -1274,7 +1364,7 @@ class MainActivity : ComponentActivity() {
         }
         busy = "Preparing…"
         Thread {
-            // With PhoneXR Runtime and the VrApi driver in place, a headset game needs no patch: it is
+            // With NextVR Runtime and the VrApi driver in place, a headset game needs no patch: it is
             // installed as it is, with its own signature. The patch stays for when Android refuses it.
             val original = if (VrApiDriver.ready(this) && PhoneXrRuntime.state(this) == PhoneXrRuntime.State.READY)
                 runCatching { unchangedGame(PxrPackage.androidPayload(this, uri)) }.getOrNull() else null
@@ -1298,7 +1388,7 @@ class MainActivity : ComponentActivity() {
 
     private fun installUnchanged(file: File, uri: Uri, replaces: GameLibrary.Game?, label: String?) {
         if (signatureConflict(file) != null) {
-            // Installed before in a patched build (PhoneXR's signature): keep going the patched way.
+            // Installed before in a patched build (NextVR's signature): keep going the patched way.
             Thread { patchNow(uri, label) }.start()
             return
         }
@@ -1347,18 +1437,18 @@ class MainActivity : ComponentActivity() {
         return archive.packageName.takeIf { signers(archive) != signers(installed) }
     }
 
-    /** Installs the prepared game inside the PhoneXR flow, without opening the APK installer UI. */
+    /** Installs the prepared game inside the NextVR flow, without opening the APK installer UI. */
     private fun installApk(file: File) {
         signatureConflict(file)?.let { conflict ->
             error = "This game is already installed with a different signature ($conflict). Remove it and download it again."
             return
         }
-        busy = "Installing inside PhoneXR…"
+        busy = "Installing inside NextVR…"
         InternalInstaller.install(this, file) { problem ->
             busy = null
             if (problem != null) error = problem
             else {
-                status = "Game added to PhoneXR"
+                status = "Game added to NextVR"
                 refreshGames()
             }
         }

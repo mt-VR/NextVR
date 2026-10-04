@@ -117,7 +117,7 @@ object ApkPatcher {
                         else if (name.startsWith("lib/") && name.endsWith(".so")) otherLibs = true
                         if (name.startsWith("lib/") && fileName in ENTITLEMENT && !checksPurchase) {
                             checksPurchase = true
-                            changes += "the game has an Oculus purchase check ($fileName). PhoneXR leaves it alone: " +
+                            changes += "the game has an Oculus purchase check ($fileName). NextVR leaves it alone: " +
                                 "if the game really requires it, it will not start"
                         }
 
@@ -158,15 +158,15 @@ object ApkPatcher {
                             }
                             abi != null && name == "lib/${abi.folder}/$LOADER" -> {
                                 loaderIn += abi
-                                changes += "the OpenXR loader (${abi.title}) was replaced with the PhoneXR build"
-                                requireNotNull(asset(abi.loaderAsset)) { "PhoneXR has no OpenXR loader for ${abi.title}" }
+                                changes += "the OpenXR loader (${abi.title}) was replaced with the NextVR build"
+                                requireNotNull(asset(abi.loaderAsset)) { "NextVR has no OpenXR loader for ${abi.title}" }
                             }
                             abi != null && name == "lib/${abi.folder}/$VRAPI" -> {
                                 vrapiIn += abi
                                 vrApi = true
                                 changes += "libvrapi.so (${abi.title}) was replaced with a Gear VR → OpenXR shim"
                                 requireNotNull(asset(abi.vrapiAsset)) {
-                                    "This is a Gear VR game (${abi.title}) and this PhoneXR build has no shim for it"
+                                    "This is a Gear VR game (${abi.title}) and this NextVR build has no shim for it"
                                 }
                             }
                             else -> null
@@ -203,12 +203,12 @@ object ApkPatcher {
                     }
                     // A Gear VR game ships without OpenXR; the adapter loads it from the game's lib folder.
                     for (abi in vrapiIn - loaderIn) {
-                        val loader = requireNotNull(asset(abi.loaderAsset)) { "PhoneXR has no OpenXR loader for ${abi.title}" }
+                        val loader = requireNotNull(asset(abi.loaderAsset)) { "NextVR has no OpenXR loader for ${abi.title}" }
                         val name = "lib/${abi.folder}/$LOADER"
                         zip.putNextEntry(storedEntry(name, loader, counting.count))
                         zip.write(loader)
                         zip.closeEntry()
-                        changes += "the PhoneXR OpenXR loader (${abi.title}) was added"
+                        changes += "the NextVR OpenXR loader (${abi.title}) was added"
                     }
                 }
                 if (fridaCallsDisabled > 0) {
@@ -223,7 +223,7 @@ object ApkPatcher {
         require(abis.isNotEmpty() || !otherLibs) {
             "The APK has no ARM libraries (arm64-v8a or armeabi-v7a) — such a build will not run on a phone"
         }
-        if (Abi.ARM64 !in abis && abis.isNotEmpty()) changes += "32-bit game: PhoneXR will run it in 32-bit mode"
+        if (Abi.ARM64 !in abis && abis.isNotEmpty()) changes += "32-bit game: NextVR will run it in 32-bit mode"
         if (saved > 0) changes += "optimization: libraries for other processors were removed (−${size(saved)})"
         if (unpackedLibs) changes += "optimization: the libraries sit in the APK uncompressed — the game starts faster"
         sign(::asset, unsigned, output)
@@ -281,7 +281,7 @@ object ApkPatcher {
 
     private fun sign(asset: (String) -> ByteArray?, input: File, output: File) {
         val store = KeyStore.getInstance("PKCS12")
-        val key64 = requireNotNull(asset("phonexr-signing.p12")) { "The PhoneXR build has no signing key" }
+        val key64 = requireNotNull(asset("phonexr-signing.p12")) { "The NextVR build has no signing key" }
         key64.inputStream().use { store.load(it, "android".toCharArray()) }
         val key = store.getKey("androiddebugkey", "android".toCharArray()) as java.security.PrivateKey
         val certificate = store.getCertificate("androiddebugkey") as X509Certificate

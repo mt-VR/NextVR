@@ -144,8 +144,8 @@ public:
         id_ = id;
         const auto props = vr::VRProperties()->TrackedDeviceToPropertyContainer(id);
         vr::VRProperties()->SetStringProperty(props, vr::Prop_TrackingSystemName_String, "phonexr");
-        vr::VRProperties()->SetStringProperty(props, vr::Prop_ManufacturerName_String, "PhoneXR");
-        vr::VRProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, kind_ == DeviceKind::Head ? "PhoneXR Cardboard" : "PhoneXR Hand");
+        vr::VRProperties()->SetStringProperty(props, vr::Prop_ManufacturerName_String, "NextVR");
+        vr::VRProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, kind_ == DeviceKind::Head ? "NextVR Cardboard" : "NextVR Hand");
         if (kind_ == DeviceKind::Head) {
             vr::VRProperties()->SetFloatProperty(props, vr::Prop_UserIpdMeters_Float, .064f);
             vr::VRProperties()->SetFloatProperty(props, vr::Prop_DisplayFrequency_Float, 60.f);

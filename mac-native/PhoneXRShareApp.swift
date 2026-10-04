@@ -2,9 +2,9 @@ import SwiftUI
 import AppKit
 
 #if PHONEXR_LITE
-private let productName = "PhoneXR Lite Share"
+private let productName = "NextVR Lite Share"
 #else
-private let productName = "PhoneXR Share"
+private let productName = "NextVR Share"
 #endif
 
 @main
@@ -24,7 +24,7 @@ struct ShareView: View {
             List(selection: $model.page) {
                 Label("Screen sharing", systemImage: "display.and.arrow.down").tag(SharePage.screen)
                 Label("VR control", systemImage: "hand.point.up.left").tag(SharePage.remote)
-                Label("PhoneXR for Android", systemImage: "visionpro").tag(SharePage.android)
+                Label("NextVR for Android", systemImage: "visionpro").tag(SharePage.android)
             }.navigationTitle(productName)
         } detail: {
             switch model.page {
@@ -40,7 +40,7 @@ struct ShareView: View {
     }
 
     private var screenPage: some View {
-        page("Screen sharing", "Show the Mac screen in a spatial PhoneXR window.") {
+        page("Screen sharing", "Show the Mac screen in a spatial NextVR window.") {
             GroupBox {
                 VStack(alignment: .leading, spacing: 16) {
                     Label(stream.status, systemImage: stream.running ? "dot.radiowaves.left.and.right" : "display")
@@ -62,14 +62,14 @@ struct ShareView: View {
     private var remotePage: some View {
         page("VR control", "The VR home windows on the Mac screen: the browser, apps and games — with a mouse and a keyboard.") {
             if model.devices.isEmpty {
-                Text("First connect the phone over USB on the “PhoneXR for Android” page.").foregroundStyle(.secondary)
+                Text("First connect the phone over USB on the “NextVR for Android” page.").foregroundStyle(.secondary)
             }
             VrRemoteView()
         }
     }
 
     private var androidPage: some View {
-        page("PhoneXR for Android", "The latest APK is already inside the app.") {
+        page("NextVR for Android", "The latest APK is already inside the app.") {
             GroupBox("Connected phone") {
                 VStack(alignment: .leading, spacing: 14) {
                     Picker("Device", selection: $model.selectedSerial) {
@@ -78,7 +78,7 @@ struct ShareView: View {
                     }
                     HStack {
                         Button("Refresh the list") { model.refresh() }
-                        Button("Install the new PhoneXR") { model.install() }
+                        Button("Install the new NextVR") { model.install() }
                             .buttonStyle(.borderedProminent).disabled(!model.canInstall)
                     }
                     Text(model.status).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
@@ -124,7 +124,7 @@ final class ShareModel: ObservableObject {
                 switch result {
                 case .success(let found):
                     self.devices = found; if self.selectedSerial == nil { self.selectedSerial = found.first?.serial }
-                    self.status = found.isEmpty ? "No Android device found." : "Phone found. PhoneXR can be installed."
+                    self.status = found.isEmpty ? "No Android device found." : "Phone found. NextVR can be installed."
                 case .failure(let error): self.status = error.localizedDescription
                 }
             }
@@ -132,9 +132,9 @@ final class ShareModel: ObservableObject {
     }
     func install() {
         guard let serial = selectedSerial, let apk = Bundle.main.url(forResource: "PhoneXR", withExtension: "apk") else {
-            status = "The bundled PhoneXR.apk was not found."; return
+            status = "The bundled NextVR installer was not found."; return
         }
-        busy = true; status = "Installing PhoneXR…"; let bridge = bridge
+        busy = true; status = "Installing NextVR…"; let bridge = bridge
         Task.detached {
             let result = Result { try bridge.install(apk: apk, serial: serial) }
             await MainActor.run { self.busy = false; self.status = result.fold({ $0 }, { $0.localizedDescription }) }

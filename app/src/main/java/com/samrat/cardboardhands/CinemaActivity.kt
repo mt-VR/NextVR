@@ -422,7 +422,7 @@ class CinemaActivity : Activity(), LifecycleOwner {
             }
             Thread.sleep(150)
             press(KeyEvent.KEYCODE_ENTER)
-            toast("Connecting the PhoneXR VR mod…")
+            toast("Connecting the NextVR mod…")
         }
     }
 
