@@ -123,8 +123,7 @@ if (NOT VINS_OPENCV_LIBS)
     if (VINS_OPENCV_LIBS)
         list(REMOVE_DUPLICATES VINS_OPENCV_LIBS)
     else()
-        # What a hand-rolled or offline build needs to know: where it looked and what it found.
-        file(GLOB_RECURSE _vins_cv_found "${CMAKE_BINARY_DIR}/../*prefab*" NAMES_REGEX ".*Config\.cmake$")
+        # What a hand-rolled or offline build needs to know: what it was told, and where it looked.
         message(FATAL_ERROR
             "VINS-Mono found no OpenCV to link against.\n"
             "  find_package(OpenCV) said: ${OpenCV_FOUND} (OpenCV_LIBS: ${OpenCV_LIBS})\n"
@@ -135,6 +134,24 @@ if (NOT VINS_OPENCV_LIBS)
     endif()
 endif()
 message(STATUS "VINS-Mono: linking ${VINS_OPENCV_LIBS}")
+
+# Ceres 1.14 only publishes its include directories through its installed CeresConfig.cmake, which a
+# build as a subdirectory never sees; and one of its own headers is generated into the build tree.
+# So the paths are named here rather than inherited from the target.
+set(VINS_CERES_INCLUDES "")
+if (VINS_CERES_DIR)
+    list(APPEND VINS_CERES_INCLUDES "${VINS_CERES_DIR}/include")
+else()
+    list(APPEND VINS_CERES_INCLUDES
+        "${ceres_SOURCE_DIR}/include"
+        "${ceres_BINARY_DIR}/include"
+        "${ceres_BINARY_DIR}/config")
+endif()
+if (NOT TARGET ceres)
+    message(FATAL_ERROR "VINS-Mono: there is no 'ceres' target to link against. The Ceres fetch failed, "
+        "or VINS_CERES_DIR points somewhere without a CMake project.")
+endif()
+message(STATUS "VINS-Mono: Ceres headers from ${VINS_CERES_INCLUDES}")
 
 # ---------------------------------------------------------------- VINS-Mono itself
 set(VINS_UPSTREAM ${CMAKE_CURRENT_SOURCE_DIR}/upstream)
@@ -184,6 +201,7 @@ target_include_directories(vins_jni PRIVATE
     ${VINS_UPSTREAM}/vins_estimator/src
     ${VINS_UPSTREAM}/camera_model/include
     ${EIGEN3_INCLUDE_DIR}
+    ${VINS_CERES_INCLUDES}
     ${VINS_OPENCV_INCLUDES})
 
 target_link_libraries(vins_jni PRIVATE
