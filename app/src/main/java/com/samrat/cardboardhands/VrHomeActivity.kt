@@ -127,10 +127,16 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     private var panelContent: HomePanelContent? = null
     /** The app launcher can be hidden from the two-button palm menu without closing app windows. */
     @Volatile private var panelVisible = true
-    /** 6DoF with ARCore; null means rotation only (no ARCore, or 6DoF off in settings). */
-    @Volatile private var ar: ArTracker? = null
+    /**
+     * The 6DoF tracker the home asks for its head position: ARCore, VINS-Mono or nothing
+     * ([Settings.SixDofMode]). Never two at once, and the home never learns which one it is talking
+     * to (see [SixDof]). Null means rotation only.
+     */
+    @Volatile private var six: SixDof? = null
+    /** The mode [six] was started for, so a change in the settings can be noticed and applied. */
+    @Volatile private var sixMode = Settings.SixDofMode.NONE
     private var renderer: Renderer? = null
-    /** Head position in the world (metres), from ARCore; stays zero in 3DoF. */
+    /** Head position in the world (metres), from the 6DoF tracker; stays zero in 3DoF. */
     private val headPosition = FloatArray(3)
     /** How the last hand-tracking frame lies on the eye's view (ARCore frames): left, top, width, height. */
     @Volatile private var arFrameMap: FloatArray? = null
@@ -285,15 +291,13 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         if (!Settings.setupDone(this)) onboarding = Onboarding(this, onboardingHost)
         // BE has no camera to show the room: a black space around the windows.
         if (BuildConfig.BE) setEnvironment("black")
-        // 6DoF: ARCore follows the room through the camera (walking, the room scan, the table);
-        // where ARCore is missing (Huawei, Lite) a neck model stands in: the eyes swing around the
-        // neck as the head turns and tilts. Integrating the accelerometer drifted away within seconds.
-        // Car mode is always 3DoF: in a moving car the room itself moves.
-        val sixDof = Settings.load(this).sixDof && !Settings.travelMode(this)
-        if (!BuildConfig.LITE && sixDof && ArTracker.availability(this) == ArTracker.Availability.READY) {
-            ar = ArTracker.create(this)
-        }
-        neckModel = sixDof
+        // 6DoF: the chosen tracker follows the room through the camera (walking, the room scan, the
+        // table); where nothing runs (None, a phone with neither ARCore nor the VINS-Mono core, a car
+        // that moves the room itself) a neck model stands in: the eyes swing around the neck as the
+        // head turns and tilts. Integrating the accelerometer drifted away within seconds.
+        sixMode = Settings.sixDofMode(this)
+        six = startSixDof(sixMode)
+        neckModel = sixMode != Settings.SixDofMode.NONE && !Settings.travelMode(this)
         remote.start()
         if (!BuildConfig.BE) trackingExecutor.execute {
             handTracker = runCatching { HandTracker(this, useGpu = true, onResult = ::onHands) }
@@ -306,8 +310,11 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         DisplayRate.apply(this)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         stopService(Intent(this, HandTrackingService::class.java))
-        // ARCore owns the camera in 6DoF; if it cannot start, CameraX gives 3DoF passthrough.
-        if (ar?.resume() == false) { ar?.close(); ar = null; toast("6DoF unavailable: running 3DoF") }
+        // ARCore owns the camera in 6DoF; if it cannot have it back, the home carries on without 6DoF.
+        if (six?.resume() == false) { six?.let { it.pause(); it.close() }; six = null; toast("6DoF unavailable: running 3DoF") }
+        // The mode may have been changed in the phone's own app while the home was in the background.
+        val wanted = Settings.sixDofMode(this)
+        if (wanted != sixMode) applySixDofMode(wanted, announce = false)
         surfaceView.onResume()
         carMode = Settings.travelMode(this)
         tracker.travelMode = carMode
@@ -316,9 +323,13 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         sensorSixDof?.let { it.reset(); it.start() }
         if (BuildConfig.BE) Unit
         else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) toast("Allow NextVR to use the camera")
-        else if (ar == null) {
-            bindCamera()
-            if (Settings.load(this).sixDof && !Settings.travelMode(this)) startArLater()
+        else {
+            val tracker = six
+            // A tracker that borrows the camera (VINS-Mono) needs the home's own stream; ARCore opens
+            // one of its own, and with no tracker at all CameraX gives the 3DoF passthrough.
+            if (tracker == null || !tracker.ownsCamera) bindCamera()
+            // ARCore may still be checking Google Play Services for AR when the home opens.
+            if (tracker == null && sixMode == Settings.SixDofMode.ARCORE && !Settings.travelMode(this)) startArLater()
         }
         CinemaActivity.setJoyConPassthrough(this, false)
         loadApps()
@@ -337,7 +348,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         super.onPause()
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
         surfaceView.onPause()
-        ar?.pause()
+        six?.pause()
         tracker.stop()
         sensorSixDof?.stop()
         cameraProvider?.unbindAll()
@@ -354,7 +365,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         windows.forEach { it.content.release() }
         panelContent?.release()
-        ar?.close()
+        six?.close()
         cameraExecutor.shutdownNow()
         trackingExecutor.execute { handTracker?.close() }
         trackingExecutor.shutdown()
@@ -382,32 +393,81 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     }
 
     /**
-     * ARCore may still be checking when the home opens: ask again for a few seconds, then move the
-     * camera from CameraX (3DoF) to ARCore (6DoF) on the fly.
+     * Starts the tracker of [mode], or null when this phone cannot run it. Nothing is held back on a
+     * failure: what the mode needs (Google Play Services for AR, the VINS-Mono core, the camera, the
+     * IMU) is checked by [SixDofSupport] and reported by the settings screens.
+     */
+    private fun startSixDof(mode: Settings.SixDofMode): SixDof? {
+        // Car mode is always 3DoF: in a moving car the room itself moves, and BE has no camera at all.
+        if (BuildConfig.BE || mode == Settings.SixDofMode.NONE || Settings.travelMode(this)) return null
+        val tracker = runCatching { SixDofSupport.create(this, mode) }.onFailure { Log.w(TAG, "$mode 6DoF failed to start", it) }.getOrNull()
+            ?: return null
+        // While the home is in the background the tracker stays asleep: onResume wakes it. Waking it
+        // here, when it is being started from a live settings change, is what makes a switch take
+        // effect without leaving the headset.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !tracker.resume()) {
+            tracker.pause()
+            tracker.close()
+            return null
+        }
+        // A tracker that draws the camera needs the GL texture it renders into; the others ignore this.
+        glTasks += { renderer?.attachSixDof(tracker) }
+        return tracker
+    }
+
+    /**
+     * The mode the user chose, applied now: the tracker that ran is closed before the next one starts,
+     * so two of them never read the same camera or the same gyroscope. The camera goes back to CameraX
+     * when the new tracker borrows it instead of owning it.
+     */
+    fun applySixDofMode(mode: Settings.SixDofMode, announce: Boolean = true) = runOnUiThread {
+        if (isFinishing) return@runOnUiThread
+        Settings.setSixDofMode(this, mode)
+        sixMode = mode
+        val old = six
+        six = null
+        if (old != null) { old.pause(); old.close() }
+        synchronized(headPosition) { headPosition.fill(0f) }
+        six = startSixDof(mode)
+        neckModel = mode != Settings.SixDofMode.NONE && !Settings.travelMode(this)
+        cameraProvider?.unbindAll()
+        if (six?.ownsCamera != true && !BuildConfig.BE &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        ) bindCamera()
+        if (announce) {
+            val tracker = six
+            toast(if (tracker == null) tr("3DoF: head rotation only") else tracker.statusText())
+        }
+        redraw.set(true)
+    }
+
+    /**
+     * ARCore may still be checking Google Play Services for AR when the home opens: ask again for a few
+     * seconds, then move the camera from CameraX (3DoF) to ARCore (6DoF) on the fly.
      */
     private fun startArLater(attempt: Int = 0) {
-        if (ar != null || isFinishing || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        if (six != null || sixMode != Settings.SixDofMode.ARCORE || isFinishing ||
+            !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        ) return
         if (BuildConfig.LITE) return
-        when (ArTracker.availability(this)) {
+        when (ArTracker.availability(this, requestInstall = true)) {
             ArTracker.Availability.CHECKING -> if (attempt < 40) handler.postDelayed({ startArLater(attempt + 1) }, 250)
             ArTracker.Availability.MISSING -> Unit
             ArTracker.Availability.READY -> {
                 cameraProvider?.unbindAll()
-                val created = ArTracker.create(this)
-                if (created == null || !created.resume()) {
-                    created?.close()
+                val created = startSixDof(Settings.SixDofMode.ARCORE)
+                if (created == null) {
                     bindCamera()
                     return
                 }
-                glTasks += { renderer?.attachAr(created) }
-                ar = created
+                six = created
                 toast("6DoF on: you can walk around the room")
             }
         }
     }
 
     private val onboardingHost = object : Onboarding.Host {
-        override val sixDof get() = ar != null
+        override val sixDof get() = six is ArTracker
         override fun tableFound() = RoomScan.table != null
         override fun finish() {
             onboarding = null
@@ -495,34 +555,44 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     /** "Straight ahead" and "here" become the current head direction and spot. */
     private fun recenter() {
         tracker.recenter()
-        ar?.recenter()
+        six?.recenter()
         sensorSixDof?.reset()
     }
 
     private val settingsHost = object : SettingsContent.Host {
         override fun easterEgg() = startEgg()
         override fun trackingText(): String {
-            val tracker = ar
+            six?.let { return it.statusText() }
+            val mode = sixMode
+            val missing = SixDofSupport.unavailableReason(this@VrHomeActivity, mode)
             return when {
-                tracker == null && !Settings.load(this@VrHomeActivity).sixDof -> "3DoF · 6DoF is off in settings"
-                tracker == null -> "3DoF · no ARCore (Google Play Services for AR)"
-                tracker.tracking -> "6DoF · ARCore, the room is tracked"
-                else -> "6DoF · ARCore is looking for the room…"
+                mode == Settings.SixDofMode.NONE -> "3DoF · 6DoF is off in settings"
+                missing != null -> "3DoF · $missing"
+                else -> "3DoF · the ${mode.title} tracker is not running"
             }
         }
+
+        override fun sixDofMode(): Settings.SixDofMode = sixMode
+
+        override fun canScanRoom(): Boolean = six is ArTracker
+
+        override fun sixDofModeReason(mode: Settings.SixDofMode): String? =
+            SixDofSupport.unavailableReason(this@VrHomeActivity, mode)
+
+        override fun setSixDofMode(mode: Settings.SixDofMode) = applySixDofMode(mode)
 
         override fun avatarWeb(vroid: Boolean) = openAvatarWeb(vroid)
 
 
         override fun startRoomScan() = runOnUiThread {
-            val tracker = ar ?: return@runOnUiThread toast("Room scanning only works in 6DoF")
+            val tracker = six as? ArTracker ?: return@runOnUiThread toast("Room scanning needs 6DoF with ARCore")
             tracker.recenter()
             windows.firstOrNull { it.id == "settings" }?.let { minimize(it) }
             toast("Slowly look over the floor, the walls and the tables — found surfaces appear automatically")
         }
 
         override fun roomText(): String {
-            val tracker = ar ?: return "The room is unavailable"
+            val tracker = six as? ArTracker ?: return "The room is unavailable"
             return if (!tracker.tracking) "The camera is looking around…"
             else "Found: floor/tables — ${tracker.horizontalPlanes}, walls — ${tracker.verticalPlanes}"
         }
@@ -960,12 +1030,22 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         future.addListener({
             val provider = future.get()
             cameraProvider = provider
+            // A 6DoF tracker that borrows the camera (VINS-Mono) is calibrated for one frame size and
+            // wants the frames small: it tracks features in every one of them.
+            val wanted = six?.wantedFrame
             val analysis = ImageAnalysis.Builder()
-                .setTargetResolution(android.util.Size(if (BuildConfig.LITE) 960 else 1280, if (BuildConfig.LITE) 540 else 720))
+                .setTargetResolution(wanted?.let { android.util.Size(it.first, it.second) }
+                    ?: android.util.Size(if (BuildConfig.LITE) 960 else 1280, if (BuildConfig.LITE) 540 else 720))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             analysis.setAnalyzer(cameraExecutor) { image ->
                 try {
+                    // The raw plane first, while the frame is still the camera's: the tracker of the room
+                    // reads the light the sensor saw, before it is turned upright for the hands.
+                    (six as? SixDofCameraFeed)?.let { feed ->
+                        val plane = image.planes[0]
+                        feed.onGrayFrame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride, image.imageInfo.timestamp)
+                    }
                     val upright = image.toBitmap().rotate(image.imageInfo.rotationDegrees)
                     synchronized(frameLock) {
                         val old = frame
@@ -1287,9 +1367,11 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     /**
      * How far the home, the windows and the keyboard stand. In 6DoF the eye's view is the camera's,
      * narrower than the 90° of 3DoF, so the same distance looks much nearer there: 6DoF puts things
-     * a little further away and 3DoF a little nearer, and both look the same, in between.
+     * a little further away and 3DoF a little nearer, and both look the same, in between. A tracker that
+     * does not report the camera's own projection (VINS-Mono, whose passthrough stays the 3DoF one) is
+     * measured by the view it actually draws, which is why the projection and not the tracker decides.
      */
-    private val distanceScale get() = if (ar != null) SIX_DOF_DISTANCE else THREE_DOF_DISTANCE
+    private val distanceScale get() = if (six?.projection != null) SIX_DOF_DISTANCE else THREE_DOF_DISTANCE
     private val windowRadius get() = VrWindow.RADIUS * distanceScale
     private val panelRadius get() = PANEL_RADIUS * distanceScale
     private val keyboardRadius get() = KEYBOARD_RADIUS * distanceScale
@@ -1534,7 +1616,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
      * user towards [window], kept on the table top. Null without 6DoF or a table within reach.
      */
     private fun tableKeyboard(window: VrWindow): FloatArray? {
-        if (ar == null) return null
+        if (six == null) return null
         val table = RoomScan.table ?: return null
         val head = synchronized(headPosition) { headPosition.copyOf() }
         val yaw = Math.toRadians(window.yaw.toDouble()).toFloat()
@@ -2226,14 +2308,15 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         carMode = on
         tracker.travelMode = on
         synchronized(panel) { panel.car = on }
+        // The tracker stops with the mode: in a car the room itself moves, and nothing here tells a
+        // moving room from a moving headset. applySixDofMode starts nothing while the car mode is on.
+        applySixDofMode(sixMode, announce = false)
         if (on) {
-            ar?.let { tracker6 -> ar = null; tracker6.pause(); tracker6.close(); bindCamera() }
             sensorSixDof?.stop()
-            synchronized(headPosition) { headPosition.fill(0f) }
             toast(tr("Car mode: 3DoF, windows follow your gaze"))
         } else {
             sensorSixDof?.let { it.reset(); it.start() }
-            if (Settings.load(this).sixDof) startArLater()
+            if (six == null && sixMode == Settings.SixDofMode.ARCORE) startArLater()
         }
         redraw.set(true)
     }
@@ -2367,7 +2450,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, arTexture)
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-            ar?.attachTexture(arTexture)
+            six?.attachTexture(arTexture)
             onboardingTexture = IntArray(1).also { GLES20.glGenTextures(1, it, 0) }[0]
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, onboardingTexture)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
@@ -2404,8 +2487,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             return id
         }
 
-        /** ARCore started after the GL surface: give it the camera texture and the eye size. */
-        fun attachAr(tracker6: ArTracker) {
+        /** A tracker started after the GL surface: give it the camera texture and the eye size. */
+        fun attachSixDof(tracker6: SixDof) {
             tracker6.attachTexture(arTexture)
             @Suppress("DEPRECATION")
             tracker6.setDisplay(windowManager.defaultDisplay.rotation, width / 2, height)
@@ -2416,7 +2499,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             height = h
             createCardboardTarget(w, h)
             @Suppress("DEPRECATION")
-            ar?.setDisplay(windowManager.defaultDisplay.rotation, w / 2, h)
+            six?.setDisplay(windowManager.defaultDisplay.rotation, w / 2, h)
         }
 
         /** Google Cardboard's rendering order: draw eyes to a texture, then lens-distort it. */
@@ -2427,7 +2510,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
          * colour) while the room is being set up.
          */
         private fun roomGrid(world: FloatArray) {
-            val tracker6 = ar ?: return
+            val tracker6 = six ?: return
             val setup = onboarding?.step == Onboarding.Step.ROOM
             if (!setup) return
             val surfaces = tracker6.surfaces
@@ -2507,12 +2590,13 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             }
         }
 
-        /** 6DoF: one ARCore step — head position, and a camera frame for the hands when they are free. */
-        private fun updateAr(tracker6: ArTracker) {
+        /** 6DoF: one step of the tracker — head position, and a camera frame for the hands when free. */
+        private fun updateSixDof(tracker6: SixDof) {
             tracker.copyHead(head)
             val job = tracker6.update(head, wantImage = !busy.get())
-            // The table, once a second: where it stands is remembered for the keyboard.
-            if (++scanFrames % 60 == 0) RoomScan.remember(this@VrHomeActivity, tracker6.surfaces)
+            // The table, once a second: where it stands is remembered for the keyboard. Only a
+            // backend that sees geometry has any; VINS-Mono tracks features, not walls.
+            if (tracker6.supportsRoomScan && ++scanFrames % 60 == 0) RoomScan.remember(this@VrHomeActivity, tracker6.surfaces)
             if (job != null && busy.compareAndSet(false, true)) {
                 trackingExecutor.execute {
                     try {
@@ -2534,15 +2618,15 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     }
                 }
             }
-            synchronized(headPosition) { synchronized(tracker6.position) { System.arraycopy(tracker6.position, 0, headPosition, 0, 3) } }
+            synchronized(headPosition) { tracker6.copyPosition(headPosition) }
         }
 
         override fun onDrawFrame(unused: GL10?) {
             while (true) glTasks.poll()?.invoke() ?: break
             followWithPanel()
             if (BuildConfig.BE) gaze()
-            val tracker6 = ar
-            if (tracker6 != null) updateAr(tracker6)
+            val tracker6 = six
+            if (tracker6 != null) updateSixDof(tracker6)
             else if (neckModel && !carMode) neck()
             if (redraw.getAndSet(false)) {
                 // The layout (where each target is) and the compose-hig panel's state, which redraws itself.
@@ -2631,7 +2715,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
             val eyeAspect = eyeWidth.toFloat() / height
             // Keep the pointer mapping in step with how the camera image is laid out below.
-            if (tracker6 != null) {
+            if (tracker6?.projection != null) {
                 // ARCore landmarks are already placed on the eye's view; its projection sets the angles.
                 viewScaleX = 1f / projection[0]
                 viewScaleY = 1f / projection[5]
@@ -2643,15 +2727,19 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                 viewScaleY = eyeAspect / cameraAspect
             }
             for (index in 0..1) {
-                if (tracker6 != null) synchronized(tracker6.projection) { System.arraycopy(tracker6.projection, 0, projection, 0, 16) }
+                val cameraProjection = tracker6?.projection
+                if (cameraProjection != null) synchronized(cameraProjection) { System.arraycopy(cameraProjection, 0, projection, 0, 16) }
                 else Matrix.perspectiveM(projection, 0, 90f, eyeWidth.toFloat() / height, .05f, 100f)
                 GLES20.glViewport(index * eyeWidth, 0, eyeWidth, height)
                 // Passthrough fills each eye; the camera image is cropped to the eye's shape.
                 // A chosen place takes the room's stead and is drawn below, once the view is known.
+                // Only a tracker that owns the camera brings its own texture coordinates; VINS-Mono
+                // leaves the camera to CameraX and so draws the usual cropped frame.
+                val passthroughMap = tracker6?.passthroughUv
                 if (hasEnvironment) Unit
-                else if (tracker6 != null && tracker6.hasUv) {
+                else if (passthroughMap != null) {
                     val uv = FloatArray(8)
-                    synchronized(tracker6.passthroughUv) { tracker6.passthroughUv.position(0); tracker6.passthroughUv.get(uv); tracker6.passthroughUv.position(0) }
+                    synchronized(passthroughMap) { passthroughMap.position(0); passthroughMap.get(uv); passthroughMap.position(0) }
                     quad(externalProgram, arTexture, identity, floatArrayOf(
                         -1f, -1f, 0f, uv[0], uv[1], 1f, -1f, 0f, uv[2], uv[3], -1f, 1f, 0f, uv[4], uv[5], 1f, 1f, 0f, uv[6], uv[7]
                     ), external = true)

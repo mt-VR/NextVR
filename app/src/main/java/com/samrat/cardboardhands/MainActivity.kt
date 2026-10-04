@@ -508,7 +508,7 @@ class MainActivity : ComponentActivity() {
         keyboardWindow = Settings.keyboardWindow(this)
         depthInstalled = DepthModel.installed(this)
         lensOffset = Settings.lensOffsetMm(this)
-        sixDof = Settings.load(this).sixDof
+        sixDofMode = Settings.sixDofMode(this)
         trackingSmoothness = Settings.load(this).trackingSmoothness
         clipboard = Settings.sharedClipboard(this)
         travel = Settings.travelMode(this)
@@ -662,16 +662,17 @@ class MainActivity : ComponentActivity() {
                 }
                 return@HigPage
             }
-            if (!sixDof) HigSection(
+            if (sixDofMode == Settings.SixDofMode.NONE) HigSection(
                 title = "3DoF is active right now",
                 footer = "Head rotation and controllers work, but walking around the room, the boundary, walls, tables and room physics need 6DoF."
             ) {
-                HigLink("Turn on 6DoF") {
-                    if (BuildConfig.LITE) error = "6DoF is available in NextVR Full"
-                    else {
-                        sixDof = true
-                        Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = true))
-                    }
+                val best = SixDofSupport.bestMode(this@MainActivity)
+                if (best == Settings.SixDofMode.NONE) HigRow("No 6DoF on this phone",
+                    SixDofSupport.unavailableReason(this@MainActivity, Settings.SixDofMode.ARCORE) ?: "No ARCore and no VINS-Mono here",
+                    detailColor = NextDesign.warnColor)
+                else HigLink("Turn on ${best.title}") {
+                    if (BuildConfig.LITE && best == Settings.SixDofMode.ARCORE) error = "6DoF is available in NextVR Full"
+                    else chooseSixDofMode(best)
                 }
             }
             HigSection(footer = "The VR home in mixed reality: a pointer ray comes out of your hand, pinch to press; a fist at the left or right edge of a window moves it; Joy‑Con: ZR or A.") {
@@ -1048,7 +1049,14 @@ class MainActivity : ComponentActivity() {
     private var keyboardWindow by mutableStateOf(true)
     private var ipd by mutableStateOf(Settings.DEFAULT_IPD_MM)
     private var lensOffset by mutableStateOf(0)
-    private var sixDof by mutableStateOf(true)
+    private var sixDofMode by mutableStateOf(Settings.SixDofMode.NONE)
+
+        /** Not `setSixDofMode`: the [sixDofMode] property above already owns that JVM name. */
+    private fun chooseSixDofMode(mode: Settings.SixDofMode) {
+        sixDofMode = mode
+        Settings.save(this, Settings.load(this).copy(sixDofMode = mode))
+    }
+
     private var trackingSmoothness by mutableStateOf(50)
     private var clipboard by mutableStateOf(false)
     private var travel by mutableStateOf(false)
@@ -1085,16 +1093,20 @@ class MainActivity : ComponentActivity() {
             }
             HigSection(
                 title = "Head tracking",
-                footer = "3DoF tracks rotation. 6DoF sees the room through the camera (ARCore): you can walk and the boundary and the table work. " +
-                    "Without ARCore, 6DoF gives head tilts and body movement from the sensors."
+                footer = "3DoF tracks rotation. 6DoF sees the room through the camera, so you can walk and the boundary, " +
+                    "the walls and the table work. ARCore does that through Google Play Services for AR; VINS-Mono does " +
+                    "it with the phone's own camera and IMU, on the phones ARCore does not run on."
             ) {
-                HigChoice("3DoF", "Head rotation", !sixDof) {
-                    sixDof = false
-                    Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = false))
-                }
-                HigChoice("6DoF", "Rotation and walking around the room", sixDof) {
-                    sixDof = true
-                    Settings.save(this@MainActivity, Settings.load(this@MainActivity).copy(sixDof = true))
+                val wanted = sixDofMode
+                Settings.SixDofMode.entries.forEach { mode ->
+                    val reason = SixDofSupport.unavailableReason(this@MainActivity, mode)
+                    if (reason == null) {
+                        HigChoice(mode.title, mode.description, mode == wanted) { chooseSixDofMode(mode) }
+                    } else {
+                        // The row is shown and greyed out, never hidden: a phone without ARCore should
+                        // see that ARCore was thought of, and why it is not offered here.
+                        HigRow(mode.title, reason, detailColor = HigColors.secondary)
+                    }
                 }
             }
             if (BuildConfig.LITE) HigSection(

@@ -10,6 +10,14 @@ object Settings {
 
     /** What the camera reports to OpenXR. */
     enum class HandMode { CONTROLLERS, HANDS }
+
+    /** The position-tracking backend used by the VR home. */
+    enum class SixDofMode(val title: String, val description: String) {
+        NONE("None", "Head rotation only"),
+        ARCORE("ARCore", "Room tracking through Google Play Services for AR"),
+        VINS_MONO("VINS-Mono", "Visual-inertial tracking using the camera and IMU")
+    }
+
     enum class HomeStyle(val title: String) { LARGE("Large"), COMPACT("Compact panel") }
 
     /** A VR controller input a Joy-Con button can be bound to. */
@@ -62,7 +70,9 @@ object Settings {
     )
 
     private const val PREFS = "phonexr"
+    // Keep KEY_SIX_DOF for migration from releases that only had the on/off switch.
     private const val KEY_SIX_DOF = "six_dof"
+    private const val KEY_SIX_DOF_MODE = "six_dof_mode"
     private const val KEY_HAND_MODE = "hand_mode"
     private const val KEY_BINDINGS = "bindings"
     private const val KEY_CAMERA_JOYCONS = "camera_joycons"
@@ -72,7 +82,7 @@ object Settings {
     private const val KEY_TRACKING_SMOOTHNESS = "tracking_smoothness"
 
     data class State(
-        val sixDof: Boolean = true,
+        val sixDofMode: SixDofMode = SixDofMode.ARCORE,
         val handMode: HandMode = HandMode.CONTROLLERS,
         /** Android key code of a Joy-Con button to the VR input it presses. */
         val bindings: Map<Int, Action> = DEFAULT_BINDINGS,
@@ -85,6 +95,9 @@ object Settings {
         val leftColor: JoyConVision.Target = JoyConVision.Target.NEON_BLUE,
         val rightColor: JoyConVision.Target = JoyConVision.Target.NEON_RED
     ) {
+        /** Compatibility flag used by the OpenXR hand-tracking stream. */
+        val sixDof: Boolean get() = sixDofMode != SixDofMode.NONE
+
         fun keysFor(action: Action): List<Int> =
             bindings.filterValues { it == action }.keys.sorted()
     }
@@ -97,8 +110,15 @@ object Settings {
             val code = key.toIntOrNull() ?: return@mapNotNull null
             code to (Action.entries.firstOrNull { it.name == action } ?: return@mapNotNull null)
         }?.toMap() ?: DEFAULT_BINDINGS
+        val trackingMode = prefs.getString(KEY_SIX_DOF_MODE, null)?.let { stored ->
+            SixDofMode.entries.firstOrNull { it.name == stored }
+        } ?: if (prefs.contains(KEY_SIX_DOF) && !prefs.getBoolean(KEY_SIX_DOF, true)) {
+            SixDofMode.NONE
+        } else {
+            preferredSixDofMode(context)
+        }
         return State(
-            sixDof = prefs.getBoolean(KEY_SIX_DOF, true),
+            sixDofMode = trackingMode,
             handMode = HandMode.valueOf(prefs.getString(KEY_HAND_MODE, HandMode.CONTROLLERS.name)!!),
             bindings = bindings,
             cameraJoyCons = prefs.getBoolean(KEY_CAMERA_JOYCONS, false),
@@ -112,6 +132,7 @@ object Settings {
     fun save(context: Context, state: State) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_SIX_DOF, state.sixDof)
+            .putString(KEY_SIX_DOF_MODE, state.sixDofMode.name)
             .putString(KEY_HAND_MODE, state.handMode.name)
             .putString(KEY_BINDINGS, state.bindings.entries.joinToString(",") { "${it.key}:${it.value.name}" })
             .putBoolean(KEY_CAMERA_JOYCONS, state.cameraJoyCons)
@@ -125,6 +146,29 @@ object Settings {
     }
 
     fun defaults() = State()
+
+    /** The mode for a phone nobody has configured yet: the best 6DoF it can do. */
+    fun preferredSixDofMode(context: Context) = SixDofSupport.bestMode(context)
+
+    /**
+     * The mode as stored, or [preferredSixDofMode] when nobody has chosen yet. This one lives in the
+     * owner's file and not in a guest's: which trackers this phone has is a fact about the phone, not
+     * about the hand of the person holding it.
+     */
+    fun sixDofMode(context: Context): SixDofMode {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_SIX_DOF_MODE, null)?.let { stored ->
+            SixDofMode.entries.firstOrNull { it.name == stored }
+        } ?: if (prefs.contains(KEY_SIX_DOF) && !prefs.getBoolean(KEY_SIX_DOF, true)) SixDofMode.NONE
+        else preferredSixDofMode(context)
+    }
+
+    fun setSixDofMode(context: Context, mode: SixDofMode) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_SIX_DOF_MODE, mode.name).putBoolean(KEY_SIX_DOF, mode != SixDofMode.NONE).apply()
+        // The tracking service keeps its own copy in another process.
+        context.sendBroadcast(Intent(ACTION_APPLY).setPackage(context.packageName))
+    }
 
     /** The name chosen in the first setup, shown in VR. */
     fun userName(context: Context): String =

@@ -1,6 +1,7 @@
 package com.samrat.cardboardhands
 
 import android.app.Activity
+import android.content.Context
 import android.graphics.Bitmap
 import android.media.Image
 import android.opengl.Matrix
@@ -21,71 +22,77 @@ import kotlin.math.roundToInt
 /**
  * 6DoF for the VR home with ARCore: where the headset is in the room. The head's rotation still
  * comes from the fast [HeadTracker]; ARCore adds the position, turned into the same world (its yaw
- * is aligned to the head tracker's), so windows stay put while the user walks around them.
- * ARCore also owns the camera: it gives the passthrough texture and the frames for hand tracking.
+ * is aligned to the head tracker's by [SixDofAligner]), so windows stay put while the user walks
+ * around them. ARCore also owns the camera: it gives the passthrough texture and the frames for hand
+ * tracking. Both jobs — the position and the camera — are what [SixDof] promises the home.
  */
-class ArTracker private constructor(private val session: Session) {
+class ArTracker private constructor(private val session: Session) : SixDof {
     enum class Availability { READY, CHECKING, MISSING }
 
     /** Camera frame for hands: upright bitmap, its time, and where it lies on the eye's view (0..1). */
     class CameraFrame(val bitmap: Bitmap, val timestampNs: Long, val viewLeft: Float, val viewTop: Float, val viewWidth: Float, val viewHeight: Float)
 
-    @Volatile var tracking = false
+    @Volatile override var tracking = false
         private set
-    @Volatile var horizontalPlanes = 0
+    @Volatile override var horizontalPlanes = 0
         private set
-    @Volatile var verticalPlanes = 0
+    @Volatile override var verticalPlanes = 0
         private set
     /** What the room scan found, in the VR home's world: floor, table, walls, drawn as a grid. */
-    @Volatile var surfaces: List<RoomScan.Surface> = emptyList()
+    @Volatile override var surfaces: List<RoomScan.Surface> = emptyList()
         private set
     private var frames = 0
     private var lastPlanes: List<Plane> = emptyList()
 
-    /** Head position in the head tracker's world, metres, relative to where tracking started. */
-    val position = FloatArray(3)
-    private var origin: FloatArray? = null
-    // Steady position: calm when standing, quick when walking; no millimetre shimmer.
-    private val smooth = Array(3) { HandGestures.OneEuro(minCutoff = 1.0f, beta = 2.5f, deadZone = .003f) }
-    private val lastRaw = FloatArray(3)
-    private var hasLast = false
-    private var alignYaw = Float.NaN
+    // Steady position, yaw alignment and jump rejection are the same work for every backend.
+    private val aligner = SixDofAligner()
     private val quadNdc: FloatBuffer = floatBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
     /** Texture coordinates of the passthrough quad (per eye), updated when the display changes. */
-    val passthroughUv: FloatBuffer = floatBuffer(FloatArray(8))
-    @Volatile var hasUv = false
-        private set
+    override val passthroughUv: FloatBuffer = floatBuffer(FloatArray(8))
+    @Volatile private var hasUv = false
     /** The camera's projection for one eye's viewport: virtual things line up with the passthrough. */
-    val projection = FloatArray(16).also { Matrix.perspectiveM(it, 0, 90f, 1f, .05f, 100f) }
+    private val projectionMatrix = FloatArray(16).also { Matrix.perspectiveM(it, 0, 90f, 1f, .05f, 100f) }
+    override val projection: FloatArray get() = projectionMatrix
     private var imageRotation = 0
     private var imageToView = floatArrayOf(0f, 0f, 1f, 1f)
 
     /** Must be called on the GL thread with the external texture ARCore draws the camera into. */
-    fun attachTexture(texture: Int) = session.setCameraTextureName(texture)
+    override fun attachTexture(texture: Int) = session.setCameraTextureName(texture)
 
-    fun setDisplay(rotation: Int, eyeWidth: Int, height: Int) = session.setDisplayGeometry(rotation, eyeWidth, height)
+    override fun setDisplay(rotation: Int, eyeWidth: Int, height: Int) = session.setDisplayGeometry(rotation, eyeWidth, height)
 
-    fun resume() = runCatching { session.resume() }.onFailure { Log.w(TAG, "ARCore resume failed", it) }.isSuccess
+    override fun resume() = runCatching { session.resume() }.onFailure { Log.w(TAG, "ARCore resume failed", it) }.isSuccess
 
-    fun pause() = session.pause()
+    override fun pause() {
+        runCatching { session.pause() }.onFailure { Log.w(TAG, "ARCore pause failed", it) }
+    }
 
-    fun close() = session.close()
+    override fun close() = session.close()
 
     /** Makes the current spot the centre of the room again (with the head tracker's recenter). */
-    fun recenter() {
-        origin = null
-        alignYaw = Float.NaN
-        hasLast = false
-        smooth.forEach { it.reset() }
+    override fun recenter() {
+        aligner.reset()
         horizontalPlanes = 0
         verticalPlanes = 0
+    }
+
+    override val ownsCamera get() = true
+    override val supportsRoomScan get() = true
+
+    override fun copyPosition(out: FloatArray) = synchronized(aligner.position) {
+        System.arraycopy(aligner.position, 0, out, 0, 3)
+    }
+
+    override fun statusText(): String = when {
+        !tracking -> "6DoF · ARCore is looking for the room…"
+        else -> "6DoF · ARCore, the room is tracked"
     }
 
     /**
      * One ARCore frame on the GL thread. [sensorHead] is the head tracker's rotation, used to align
      * ARCore's world. Returns a CPU camera frame for the hands when [wantImage] and one is ready.
      */
-    fun update(sensorHead: FloatArray, wantImage: Boolean): (() -> CameraFrame?)? {
+    override fun update(sensorHead: FloatArray, wantImage: Boolean): (() -> CameraFrame?)? {
         val frame: Frame = runCatching { session.update() }.getOrElse { return null }
         if (frame.hasDisplayGeometryChanged() || !hasUv) {
             passthroughUv.position(0)
@@ -105,48 +112,18 @@ class ArTracker private constructor(private val session: Session) {
             verticalPlanes = planes.count { it.type == Plane.Type.VERTICAL }
             lastPlanes = planes
         }
-        synchronized(projection) { camera.getProjectionMatrix(projection, 0, .05f, 100f) }
+        synchronized(projectionMatrix) { camera.getProjectionMatrix(projectionMatrix, 0, .05f, 100f) }
+        synchronized(projectionMatrix) { camera.getProjectionMatrix(projectionMatrix, 0, .05f, 100f) }
         if (tracking) {
-            val pose = camera.displayOrientedPose
-            val ar = FloatArray(16).also { pose.toMatrix(it, 0) }
-            // Both worlds have gravity along y; only the heading differs. Follow it slowly.
-            val yawAr = atan2(ar[8], ar[10])
-            val yawSensor = atan2(sensorHead[8], sensorHead[10])
-            var delta = yawSensor - yawAr
-            while (delta > Math.PI) delta -= (2 * Math.PI).toFloat()
-            while (delta < -Math.PI) delta += (2 * Math.PI).toFloat()
-            alignYaw = if (alignYaw.isNaN()) delta else alignYaw + wrap(delta - alignYaw) * .05f
-            val start = origin ?: floatArrayOf(pose.tx(), pose.ty(), pose.tz()).also { origin = it }
-            // ARCore sometimes snaps to a corrected map: a jump of half a metre in one frame is not
-            // the user walking. Move the origin with it so the room does not lurch.
-            if (hasLast) {
-                val jx = pose.tx() - lastRaw[0]; val jy = pose.ty() - lastRaw[1]; val jz = pose.tz() - lastRaw[2]
-                if (jx * jx + jy * jy + jz * jz > .25f) { start[0] += jx; start[1] += jy; start[2] += jz }
-            }
-            lastRaw[0] = pose.tx(); lastRaw[1] = pose.ty(); lastRaw[2] = pose.tz(); hasLast = true
-            val dx = pose.tx() - start[0]; val dy = pose.ty() - start[1]; val dz = pose.tz() - start[2]
-            val c = kotlin.math.cos(alignYaw); val s = kotlin.math.sin(alignYaw)
-            val time = frame.timestamp
-            val px = smooth[0].filter(c * dx + s * dz, time)
-            val py = smooth[1].filter(dy, time)
-            val pz = smooth[2].filter(-s * dx + c * dz, time)
-            synchronized(position) {
-                position[0] = px
-                position[1] = py
-                position[2] = pz
-            }
+            // ARCore's world and the head's hang from the same gravity; the aligner follows the
+            // heading, drops the jump of a relocalisation and smooths the rest.
+            val ar = FloatArray(16).also { camera.displayOrientedPose.toMatrix(it, 0) }
+            aligner.update(ar, sensorHead, frame.timestamp)
         }
         // The scanned surfaces, a few times a second (their outlines grow slowly).
-        if (tracking && origin != null && !alignYaw.isNaN() && frames++ % 10 == 0) {
-            val start = origin!!
-            val c = kotlin.math.cos(alignYaw); val s = kotlin.math.sin(alignYaw)
+        if (tracking && aligner.origin != null && !aligner.alignYaw.isNaN() && frames++ % 10 == 0) {
             surfaces = lastPlanes.mapNotNull { plane ->
-                runCatching {
-                    RoomScan.surface(plane) { x, y, z ->
-                        val dx = x - start[0]; val dy = y - start[1]; val dz = z - start[2]
-                        floatArrayOf(c * dx + s * dz, dy, -s * dx + c * dz)
-                    }
-                }.getOrNull()
+                runCatching { RoomScan.surface(plane) { x, y, z -> aligner.transformPoint(x, y, z) } }.getOrNull()
             }
         }
         if (!wantImage) return null
@@ -181,24 +158,26 @@ class ArTracker private constructor(private val session: Session) {
         imageToView = floatArrayOf(xs.min(), ys.min(), xs.max() - xs.min(), ys.max() - ys.min())
     }
 
-    private fun wrap(angle: Float): Float {
-        var a = angle
-        while (a > Math.PI) a -= (2 * Math.PI).toFloat()
-        while (a < -Math.PI) a += (2 * Math.PI).toFloat()
-        return a
-    }
-
     companion object {
         private const val TAG = "PhoneXR-AR"
 
-        /** ARCore's answer can take a moment on the first call: CHECKING means ask again shortly. */
-        fun availability(activity: Activity): Availability {
-            val answer = runCatching { ArCoreApk.getInstance().checkAvailability(activity) }.getOrNull() ?: return Availability.MISSING
+        /**
+         * ARCore's answer can take a moment on the first call: CHECKING means ask again shortly.
+         *
+         * A [Context] is enough to ask, so the settings screens can grey a mode out without being
+         * an activity; only [requestInstall] needs one, and only they raise the install prompt —
+         * a screen that merely lists the modes must never send the user to the Play Store.
+         */
+        fun availability(context: Context, requestInstall: Boolean = false): Availability {
+            val answer = runCatching { ArCoreApk.getInstance().checkAvailability(context.applicationContext) }
+                .getOrNull() ?: return Availability.MISSING
             return when {
                 answer == ArCoreApk.Availability.SUPPORTED_INSTALLED -> Availability.READY
                 answer.isTransient -> Availability.CHECKING
                 answer == ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED || answer == ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD -> {
-                    runCatching { ArCoreApk.getInstance().requestInstall(activity, true) }
+                    if (requestInstall && context is Activity) {
+                        runCatching { ArCoreApk.getInstance().requestInstall(context, true) }
+                    }
                     Availability.MISSING
                 }
                 else -> Availability.MISSING

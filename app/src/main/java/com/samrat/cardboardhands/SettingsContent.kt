@@ -65,6 +65,14 @@ class SettingsContent(
         fun easterEgg() = Unit
         /** "6DoF · ARCore" or "3DoF" and whether the room is tracked right now. */
         fun trackingText(): String
+        /** Which tracker the home runs now, so the choice can be marked. */
+        fun sixDofMode(): Settings.SixDofMode = Settings.SixDofMode.NONE
+        /** Why a mode cannot be picked on this phone; null when it can. */
+        fun sixDofModeReason(mode: Settings.SixDofMode): String? = null
+        /** Picks another tracker; the home closes the one that ran before starting this one. */
+        fun setSixDofMode(mode: Settings.SixDofMode) = Unit
+        /** Whether the tracker in charge can see walls and a table at all (ARCore can, VINS-Mono cannot). */
+        fun canScanRoom(): Boolean = false
         /** Opens Avaturn (or VRoid Hub) in a window; a model downloaded there becomes the avatar. */
         fun avatarWeb(vroid: Boolean)
         fun startRoomScan()
@@ -323,18 +331,48 @@ class SettingsContent(
 
     @Composable
     private fun Room() {
-        if (host.trackingText().startsWith("3DoF")) {
-            HigSection {
-                HigRow("6DoF needed", "Scanning the floor, walls and tables only works in 6DoF. Turn on 6DoF in the NextVR settings and install Google Play Services for AR.",
+        // The tracker itself is chosen here: this is the page whose whole subject is the room, and the
+        // row that says "the room is unavailable" belongs next to the switch that can make it available.
+        val current = host.sixDofMode()
+        HigSection(
+            title = "6DoF",
+            footer = "How NextVR finds the room. ARCore looks through the camera with Google Play Services " +
+                "for AR; VINS-Mono does the same with the phone's own camera and IMU, for the phones ARCore " +
+                "does not run on (Huawei, stripped ROMs). None keeps the head's rotation only."
+        ) {
+            Settings.SixDofMode.entries.forEach { mode ->
+                val reason = host.sixDofModeReason(mode)
+                if (reason == null) {
+                    HigChoice(mode.title, mode.description, mode == current) { host.setSixDofMode(mode) }
+                } else {
+                    // Greyed out and explained, never silently missing: the row is there to be read.
+                    HigRow(mode.title, reason, detailColor = HigColors.secondary)
+                }
+            }
+            HigRow(tr("Tracking now"), host.trackingText())
+        }
+        when {
+            current == Settings.SixDofMode.NONE -> HigSection {
+                HigRow("6DoF is off", "Head rotation only: nothing follows the room, so there is nothing to scan. Pick a tracker above.",
                     detailColor = NextDesign.warnColor)
             }
-            return
-        }
-        HigSection(
-            footer = "Slowly look over the floor, the walls and the surfaces from every side. NextVR shows the horizontal and vertical planes it finds."
-        ) {
-            HigRow(host.roomText())
-            HigLink(tr("Start a new scan")) { host.startRoomScan() }
+
+            host.trackingText().startsWith("3DoF") -> HigSection {
+                HigRow("6DoF needed", "Scanning the floor, walls and tables only works in 6DoF. ${host.trackingText()}.",
+                    detailColor = NextDesign.warnColor)
+            }
+
+            !host.canScanRoom() -> HigSection {
+                HigRow("No room scan", "VINS-Mono follows where the head is, not what the walls are: the grid, the table and the boundary need ARCore.",
+                    detailColor = NextDesign.warnColor)
+            }
+
+            else -> HigSection(
+                footer = "Slowly look over the floor, the walls and the surfaces from every side. NextVR shows the horizontal and vertical planes it finds."
+            ) {
+                HigRow(host.roomText())
+                HigLink(tr("Start a new scan")) { host.startRoomScan() }
+            }
         }
     }
 }
