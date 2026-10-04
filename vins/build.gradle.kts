@@ -21,6 +21,8 @@ android {
 
     defaultConfig {
         minSdk = 29
+        // The app's release build minifies; the JNI names must survive it.
+        consumerProguardFiles += file("consumer-rules.pro")
         // The estimator runs on the phone's own arm64 core; the other ABIs are not worth the build time.
         ndk { abiFilters += listOf("arm64-v8a") }
         if (nativeCore) externalNativeBuild {

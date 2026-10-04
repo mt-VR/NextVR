@@ -402,7 +402,10 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         if (BuildConfig.BE || mode == Settings.SixDofMode.NONE || Settings.travelMode(this)) return null
         val tracker = runCatching { SixDofSupport.create(this, mode) }.onFailure { Log.w(TAG, "$mode 6DoF failed to start", it) }.getOrNull()
             ?: return null
-        if (!tracker.resume()) {
+        // While the home is in the background the tracker stays asleep: onResume wakes it. Waking it
+        // here, when it is being started from a live settings change, is what makes a switch take
+        // effect without leaving the headset.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !tracker.resume()) {
             tracker.pause()
             tracker.close()
             return null
