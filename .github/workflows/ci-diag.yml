@@ -78,6 +78,38 @@ jobs:
             tail -14 "$LOG" | cut -c1-200
           } > diag-out/errors.md
           wc -c diag-out/errors.md | cut -c1-40 >> diag-out/errors.md
+      - name: What the OpenCV AAR actually contains
+        run: |
+          set +e
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p diag-out
+          AAR=$(find "$HOME/.gradle/caches/modules-2/files-2.1/org.opencv" -name "*.aar" 2>/dev/null | head -1)
+          {
+            echo "### AAR path"
+            echo "$AAR"
+            echo "### AAR contents (top level, and anything native)"
+            unzip -l "$AAR" 2>/dev/null | awk '{print $4}' | grep -vE "^$|^Name$|^---" | \
+              grep -iE "prefab|cmake|native|^sdk/|include|[^/]*$|\.so$|\.h$|\.hpp$" | head -80
+            echo "### counts"
+            unzip -l "$AAR" 2>/dev/null | tail -2
+            echo "### prefab in the AAR"
+            unzip -l "$AAR" 2>/dev/null | grep -ci prefab || true
+            echo "### OpenCVConfig.cmake anywhere in the caches"
+            find "$HOME/.gradle/caches" -name "OpenCVConfig.cmake" 2>/dev/null | head -5
+            echo "### headers"
+            find "$HOME/.gradle/caches" -path "*opencv*" -name "core.hpp" 2>/dev/null | head -5
+            echo "### extracted aar dirs"
+            find "$HOME/.gradle/caches" -maxdepth 6 -type d -name "opencv*" 2>/dev/null | head -8
+            echo "### module metadata"
+            find "$HOME/.gradle/caches/modules-2/files-2.1/org.opencv" -name "*.module" 2>/dev/null | head -1 | xargs -r head -c 1500
+          } > diag-out/opencv.md
+          enc() { sed -e 's/%/%25/g' -e 's/#/%23/g' | tr -d '\r' | awk '{printf "%s%s", (NR>1 ? "%0A" : ""), $0}'; }
+          split -C 1150 -a 2 -d diag-out/opencv.md diag-out/ov
+          n=0
+          for f in diag-out/ov*; do
+            n=$((n+1)); [ "$n" -gt 6 ] && break
+            echo "::warning title=aar$n::$(enc < "$f")"
+          done
       - name: Report
         run: |
           set +e
