@@ -3,9 +3,10 @@
 # The sandbox this branch is developed in has no JDK and no route to Maven Central or Google's maven,
 # so nothing here can be compiled locally. This workflow builds what the real workflows build — the unit
 # tests *and* the three APKs, so VINS-Mono's native core is compiled too — and reports the errors back
-# through check-run annotations, which are readable with
-#     gh api repos/mt-VR/NextVR/check-runs/<check-run-id>/annotations
-# (the job log, the artifacts and the job summary all live on hosts this environment cannot reach).
+# through check-run annotations, readable with:
+#     gh api repos/mt-VR/NextVR/check-runs/<check-run-id>/annotations --jq '.[].message'
+# (the job log, the artifacts and the job summary all live on hosts this environment cannot reach, and
+# each annotation is cut at 4096 characters — hence the chunks.)
 name: CI diagnostics
 on:
   push:
@@ -13,8 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
+  contents: read
 
 jobs:
   diag:
@@ -35,61 +35,67 @@ jobs:
           elif command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses >/dev/null 2>&1 || true
           fi
-      - name: Toolchain and build
+      - name: Build
         run: |
           set +e
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           mkdir -p diag-out
           LOG=diag-out/gradle.log
           {
-            echo "TOOLCHAIN"
-            java -version 2>&1 || true
+            echo "TOOLCHAIN java: $(java -version 2>&1 | head -1)"
             echo "SDK=$SDK"
-            for d in platforms ndk ndk-bundle cmake build-tools; do
+            for d in platforms ndk cmake build-tools; do
               echo "$d: $(ls "$SDK/$d" 2>/dev/null | tr '\n' ' ' || true)"
             done
-            echo "cmake: $(command -v cmake || echo none) | $(cmake --version 2>&1 | head -1 || true)"
-            echo "ninja: $(command -v ninja || echo none)"
           } > diag-out/toolchain.md
+          # -Pvins.nativeOnly first: the native core is the part nobody has ever compiled here, and a
+          # CMake failure would otherwise be buried under 400 lines of Gradle stack trace.
+          ./gradlew :vins:assembleDebug --no-daemon --console=plain --stacktrace > diag-out/vins.log 2>&1
+          echo "VINS_EXIT=$?" >> diag-out/vins.log
           ./gradlew test :app:assembleFullDebug :app:assembleLiteDebug :app:assembleBeDebug \
               --no-daemon --continue --console=plain --stacktrace --warning-mode=summary \
               > "$LOG" 2>&1
           echo "GRADLE_EXIT=$?" >> "$LOG"
-          grep -nE "^(e: |w: file)" "$LOG" | head -100 > diag-out/errors.md
-          grep -nE "[A-Za-z0-9_./-]+\.(kt|kts|java|cpp|c|h):[0-9]+:[0-9]+" "$LOG" | head -200 >> diag-out/errors.md
-          awk '/\* What went wrong/{p=1} /\* Try:/{p=0} p' "$LOG" | head -300 >> diag-out/errors.md
-          grep -nE "error:|fatal error|undefined reference|CMake Error|Could not (resolve|find|create|download|open)|FAILURE: Build|> Task .* FAILED" "$LOG" \
-              | cut -c1-300 | head -300 >> diag-out/errors.md
-          echo "=== TAIL ===" >> diag-out/errors.md
-          tail -100 "$LOG" >> diag-out/errors.md
-          wc -l "$LOG" diag-out/errors.md >> diag-out/errors.md
-      - name: Report as annotations
+          cat diag-out/vins.log >> "$LOG"
+          P=/home/runner/work/NextVR/NextVR/
+          {
+            echo "### FAILING TASKS"
+            grep -hE "^> Task .* FAILED" "$LOG" diag-out/vins.log | sort -u
+            echo "### GRADLE EXIT"
+            grep -hE "^(VINS|GRADLE)_EXIT" "$LOG" diag-out/vins.log
+            echo "### KOTLIN/JAVA ERRORS (unique)"
+            cat "$LOG" diag-out/vins.log | grep -hoE "e: file://[^ ]+\.kt:[0-9]+:[0-9]+ .*" | sed "s#file://$P##" | sort -u | head -70
+            echo "### WHAT WENT WRONG"
+            cat "$LOG" diag-out/vins.log | grep -hA5 "What went wrong" | grep -vE "^\s*at |^--$" | head -90
+            echo "### NATIVE / CMAKE / DEPENDENCY ERRORS (unique)"
+            cat "$LOG" diag-out/vins.log | grep -hE "error:|fatal error|undefined reference|CMake Error|CMake Warning|Could not (resolve|find|create|download|open)|No such file or directory" \
+                | sed "s#$P##" | sort -u | head -70
+            echo "### TAIL"
+            tail -25 "$LOG" | cut -c1-200
+          } > diag-out/errors.md
+          wc -c diag-out/errors.md | cut -c1-40 >> diag-out/errors.md
+      - name: Report
         run: |
           set +e
           cd "$GITHUB_WORKSPACE"
-          encode() { sed -e 's/%/%25/g' -e 's/#/%23/g' | tr -d '\r' | awk '{printf "%s%s", (NR>1 ? "%0A" : ""), $0}'; }
-          head -c 45000 diag-out/errors.md | encode > diag-out/a1.txt
-          tail -c 20000 diag-out/gradle.log | encode > diag-out/a2.txt
-          { cat diag-out/toolchain.md; echo; head -c 6000 diag-out/gradle.log; } | encode > diag-out/a0.txt
-          echo "::error title=report::$(cat diag-out/a1.txt)"
-          echo "::error title=gradle tail::$(cat diag-out/a2.txt)"
-          echo "::notice title=toolchain and head::$(cat diag-out/a0.txt)"
-          wc -c diag-out/errors.md diag-out/a1.txt
-      - name: Push the log to ci-diag
-        run: |
-          set +e
-          cd "$RUNNER_TEMP"
-          rm -rf push; mkdir push; cd push
-          cp "$GITHUB_WORKSPACE"/diag-out/*.md "$GITHUB_WORKSPACE"/diag-out/gradle.log . 2>/dev/null
-          ls -la
-          git init -q .
-          git config user.name ci-diag
-          git config user.email ci-diag@localhost
-          git add -A
-          git commit -qm "diag log $GITHUB_RUN_ID"
-          echo "COMMIT_EXIT=$?"
-          git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-              HEAD:refs/heads/ci-diag --force
-          echo "PUSH_EXIT=$?"
-      - name: Fail, so the run is marked red
+          enc() { sed -e 's/%/%25/g' -e 's/#/%23/g' | tr -d '\r' | awk '{printf "%s%s", (NR>1 ? "%0A" : ""), $0}'; }
+          total=$(wc -c < diag-out/errors.md)
+          echo "::error title=size::errors.md is $total bytes, in chunks of 3800"
+          head -c 38000 diag-out/errors.md > diag-out/a.txt
+          split -b 3800 diag-out/a.txt diag-out/e
+          n=0
+          for f in diag-out/e*; do
+            n=$((n+1)); [ "$n" -gt 9 ] && break
+            echo "::error title=e$n::$(enc "$f")"
+          done
+          # The tail of the report, if it did not fit above, plus the toolchain.
+          tail -c 20000 diag-out/errors.md > diag-out/b.txt
+          split -b 3800 diag-out/b.txt diag-out/w
+          m=0
+          for f in diag-out/w*; do
+            m=$((m+1)); [ "$m" -gt 6 ] && break
+            echo "::warning title=w$m::$(enc "$f")"
+          done
+          enc < diag-out/toolchain.md | { read -r line; echo "::notice title=toolchain::$line"; }
+      - name: Always red
         run: exit 1
