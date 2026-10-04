@@ -327,7 +327,7 @@ class SettingsContent(
         if (host.trackingText().startsWith("3DoF")) {
             HigSection {
                 HigRow("6DoF needed", "Scanning the floor, walls and tables only works in 6DoF. Turn on 6DoF in the PhoneXR settings and install Google Play Services for AR.",
-                    detailColor = Color(0xFFFF9F0A))
+                    detailColor = NextDesign.warnColor)
             }
             return
         }

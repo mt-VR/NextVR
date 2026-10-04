@@ -6,14 +6,18 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
         <item name="android:windowLightNavigationBar">?attr/isLightTheme</item>
-        <item name="colorPrimary">#FF7A1A</item>
-        <item name="colorSecondary">#FFB77B</item>
-        <item name="colorSurface">#111318</item>
+        <!-- The Next VR colours, for whatever the system draws for the app: the teal action, the
+             accent, and the app's own warm-black backdrop between screens. -->
+        <item name="colorPrimary">#3E7E90</item>
+        <item name="colorSecondary">#9BBAFF</item>
+        <item name="colorSurface">#120904</item>
+        <item name="android:statusBarColor">#120904</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
     <style name="Theme.CardboardBrowser" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#FF7A1A</item>
-        <item name="android:navigationBarColor">#111118</item>
+        <item name="android:colorAccent">#9BBAFF</item>
+        <item name="android:navigationBarColor">#120904</item>
     </style>
     <style name="Theme.PhoneXR.Transparent" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>

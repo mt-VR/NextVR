@@ -125,8 +125,8 @@ class UpdateActivity : ComponentActivity() {
             }
             val value = progress
             Box(
-                Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(25.dp))
-                    .background(Color(0xFF0A84FF))
+                Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(NextDesign.Radius.control.dp))
+                    .background(NextDesign.primaryColor)
                     .clickable(enabled = value == null) { update(found) },
                 contentAlignment = Alignment.Center
             ) {

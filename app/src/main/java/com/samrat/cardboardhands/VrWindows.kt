@@ -981,8 +981,8 @@ class PhotosContent(
                 items(photos.size, key = { photos[it].uri.toString() }) { index ->
                     val item = photos[index]
                     androidx.compose.foundation.layout.Box(
-                        androidx.compose.ui.Modifier.aspectRatio(1f).clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                            .background(androidx.compose.ui.graphics.Color(0xFF2C2C2E)).clickable { pick(item) }
+                        androidx.compose.ui.Modifier.aspectRatio(1f).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                            .background(NextDesign.tileColor).clickable { pick(item) }
                     ) {
                         val thumb = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item.uri) {
                             value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1001,7 +1001,7 @@ class PhotosContent(
                         if (badge != null) zone.ien.hig.CupertinoText(
                             badge, color = androidx.compose.ui.graphics.Color.White,
                             modifier = androidx.compose.ui.Modifier.padding(6.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                                .background(androidx.compose.ui.graphics.Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 2.dp)
+                                .background(NextDesign.glassSolidColor.copy(alpha = .78f)).padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }

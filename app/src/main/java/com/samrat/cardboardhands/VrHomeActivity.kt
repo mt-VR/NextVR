@@ -136,8 +136,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     @Volatile private var arFrameMap: FloatArray? = null
     /** The latest ARCore camera frame, kept for "take a photo". */
     @Volatile private var arPhoto: Bitmap? = null
-    // Material You: the wallpaper's tones, as the rest of the home.
-    private val keyboard by lazy { KeyboardPanel().apply { MaterialYouIcons.palette(this@VrHomeActivity, true).let { tint(it.tile, it.glyph) } } }
+    // The floating keyboard wears the Next VR language ([NextDesign]), like the rest of the home.
+    private val keyboard by lazy { KeyboardPanel() }
     private val keyboardRedraw = AtomicBoolean(true)
     @Volatile private var hoveredKey: String? = null
     /** Window the keyboard was opened for by hand (apps that cannot ask for it themselves). */
@@ -911,10 +911,9 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
     /** Palm held toward the face: the compact menu above that hand. */
     private fun openHandMenu(holderLeft: Boolean) {
-        // Material You: the wallpaper's tonal colours, as on the rest of the home.
-        val palette = MaterialYouIcons.palette(this, true)
-        val ink = palette.glyph
-        handMenu = HandMenu(holderLeft, palette.tile, palette.glyph, listOf(
+        // The menu's icons: the design language's ink ([NextDesign] through the palette helper).
+        val ink = MaterialYouIcons.palette(this, true).glyph
+        handMenu = HandMenu(holderLeft, listOf(
             HandMenu.Item(MENU_MUTE, if (Calls.muted) tr("Mic off") else tr("Mute"), vectorIcon(if (Calls.muted) Icons.Rounded.MicOff else Icons.Rounded.Mic, ink)),
             HandMenu.Item(MENU_RECENTER, tr("Recenter"), vectorIcon(Icons.Rounded.CenterFocusStrong, ink)),
             HandMenu.Item(MENU_RECORD, if (renderer?.recording == true) tr("Stop recording") else tr("Record video"),
@@ -2373,7 +2372,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, onboardingTexture)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-            tracingTexture = bannerTexture("Finish the scan · make a fist", Color.rgb(10, 132, 255))
+            tracingTexture = bannerTexture("Finish the scan · make a fist", NextDesign.accent)
             redraw.set(true)
         }
 
@@ -2381,11 +2380,19 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             val bitmap = Bitmap.createBitmap(1400, 180, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            paint.color = Color.argb(225, 28, 28, 32)
-            canvas.drawRoundRect(RectF(0f, 0f, 1400f, 180f), 90f, 90f, paint)
+            // The design language's caption: glass, its hairline, an accent dot and semibold ink.
+            val shape = RectF(2f, 2f, 1398f, 178f)
+            paint.color = NextDesign.glassSolidVeil
+            canvas.drawRoundRect(shape, 88f, 88f, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            paint.color = NextDesign.stroke
+            canvas.drawRoundRect(shape, 88f, 88f, paint)
+            paint.style = Paint.Style.FILL
             paint.color = color
             canvas.drawCircle(95f, 90f, 34f, paint)
-            paint.color = Color.WHITE
+            paint.color = NextDesign.ink
+            paint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
             paint.textSize = 54f
             canvas.drawText(text, 160f, 108f, paint)
             val id = IntArray(1).also { GLES20.glGenTextures(1, it, 0) }[0]
@@ -3510,8 +3517,16 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             val look = Glass(Ui.dark)
             look.fill(paint, 0f, 120f)
-            canvas.drawRoundRect(RectF(0f, 0f, 900f, 120f), 60f, 60f, paint)
+            val shape = RectF(2f, 2f, 898f, 118f)
+            canvas.drawRoundRect(shape, 58f, 58f, paint)
             paint.shader = null
+            // The reference's hairline, the same one the window pill wears.
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            paint.color = look.edge
+            canvas.drawRoundRect(shape, 58f, 58f, paint)
+            paint.style = Paint.Style.FILL
+            paint.strokeWidth = 0f
             paint.color = look.faint
             canvas.drawRect(299f, 18f, 301f, 102f, paint); canvas.drawRect(599f, 18f, 601f, 102f, paint)
             paint.color = look.ink; paint.textAlign = Paint.Align.CENTER; paint.textSize = 54f
@@ -3523,13 +3538,13 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
     }
 
-    /** The Horizon glass for the canvas-drawn bits of windows: white or dark, with ink. */
+    /** The Next VR glass for the canvas-drawn bits of windows: the reference's panel, or white. */
     private class Glass(dark: Boolean) {
-        val top = if (dark) Color.argb(240, 43, 47, 54) else Color.argb(247, 255, 255, 255)
-        val bottom = if (dark) Color.argb(240, 29, 32, 38) else Color.argb(247, 242, 242, 242)
-        val ink = if (dark) Color.rgb(242, 242, 242) else Color.rgb(39, 39, 39)
-        val faint = if (dark) Color.argb(30, 242, 242, 242) else Color.argb(26, 39, 39, 39)
-        val edge = if (dark) Color.argb(50, 255, 255, 255) else Color.argb(20, 39, 39, 39)
+        val top = if (dark) NextDesign.glassTopVeil else Color.argb(247, 255, 255, 255)
+        val bottom = if (dark) NextDesign.glassBottomVeil else Color.argb(247, 242, 242, 242)
+        val ink = if (dark) NextDesign.ink else Color.rgb(39, 39, 39)
+        val faint = if (dark) NextDesign.tile else Color.argb(26, 39, 39, 39)
+        val edge = if (dark) NextDesign.stroke else Color.argb(20, 39, 39, 39)
         fun fill(paint: Paint, from: Float, to: Float) {
             // A shader still takes the paint's alpha: full, or the glass turns see-through.
             paint.color = Color.WHITE

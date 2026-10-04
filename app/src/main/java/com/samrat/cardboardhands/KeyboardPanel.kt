@@ -7,8 +7,10 @@ import android.graphics.Paint
 import android.graphics.RectF
 
 /**
- * A floating VR keyboard in the Horizon look (dark glass, see-through keys, a blue enter key):
- * Russian and English letters, digits, shift, backspace, space, enter.
+ * The floating VR keyboard in the Next VR language: the reference's blue-black panel with a
+ * hairline, translucent keys that light up under the pointer, a pressed key going light periwinkle
+ * with navy text, and a steel-blue enter. Russian and English letters, digits, shift, backspace,
+ * space, enter.
  */
 class KeyboardPanel {
     val bitmap: Bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
@@ -19,23 +21,6 @@ class KeyboardPanel {
     private var shift = false
 
     private var symbols = false
-    // Material You colours: the panel, the keys and the accent (enter, hover), from the wallpaper.
-    private var panelColor = Color.rgb(30, 42, 64)
-    private var keyColor = Color.rgb(62, 75, 92)
-    private var specialColor = Color.rgb(50, 62, 78)
-    private var accentColor = BLUE
-
-    /** Tints the keyboard with a Material You pair: [tile] (a deep tone) and [glyph] (a light accent). */
-    fun tint(tile: Int, glyph: Int) {
-        fun mix(a: Int, b: Int, t: Float) = Color.rgb(
-            (Color.red(a) + (Color.red(b) - Color.red(a)) * t).toInt(),
-            (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt(),
-            (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt())
-        panelColor = mix(tile, Color.BLACK, .35f)
-        keyColor = mix(tile, glyph, .18f)
-        specialColor = mix(tile, Color.BLACK, .1f)
-        accentColor = glyph
-    }
 
     /** What a touch at 0..1 panel coordinates types: a character, or "backspace", "enter", "hide". */
     fun press(u: Float, v: Float): String? {
@@ -55,14 +40,20 @@ class KeyboardPanel {
 
     fun hovered(u: Float, v: Float): String? = keys.firstOrNull { it.first.contains(u * WIDTH, v * HEIGHT) }?.second
 
-    /** Quest's keyboard: a deep blue-grey panel, four rows of large keys, numbers as small hints. */
+    /** Four rows of keys on the reference's keyboard panel, numbers as small hints. */
     fun draw(hover: String?) {
         keys.clear()
         bitmap.eraseColor(Color.TRANSPARENT)
-        paint.shader = android.graphics.LinearGradient(0f, 0f, WIDTH.toFloat(), HEIGHT.toFloat(),
-            (panelColor and 0xFFFFFF) or (245 shl 24), (specialColor and 0xFFFFFF) or (245 shl 24), android.graphics.Shader.TileMode.CLAMP)
-        canvas.drawRoundRect(RectF(0f, 0f, WIDTH.toFloat(), HEIGHT.toFloat()), 48f, 48f, paint)
-        paint.shader = null
+        // The panel: the reference's blue-black, its hairline, and the keys floating on it.
+        val shape = RectF(2f, 2f, WIDTH - 2f, HEIGHT - 2f)
+        paint.color = NextDesign.keyboardPanel
+        canvas.drawRoundRect(shape, PANEL_R, PANEL_R, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = NextDesign.keyboardPanelStroke
+        canvas.drawRoundRect(shape, PANEL_R, PANEL_R, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
         val rows = when {
             symbols -> SYMBOL_ROWS
             russian -> RUSSIAN
@@ -112,30 +103,42 @@ class KeyboardPanel {
 
     private fun key(rect: RectF, id: String, text: String, hover: String?, hint: String? = null, lit: Boolean = false) {
         val enter = id == ENTER
-        val special = id.startsWith("#") || id == BACKSPACE || id == HIDE
         val hovered = id == hover
+        // On: a light periwinkle key with navy text. Under the pointer: the key brightens. Enter is
+        // the reference's steel blue, quieter than the accent so it does not shout on every screen.
+        val pressed = lit
         paint.color = when {
-            enter -> accentColor
-            hovered || lit -> (accentColor and 0xFFFFFF) or (150 shl 24)
-            special -> specialColor
-            else -> keyColor
+            enter -> NextDesign.keyEnter
+            hovered && !pressed -> NextDesign.keyHover
+            pressed -> NextDesign.keyPressed
+            else -> NextDesign.key
         }
-        canvas.drawRoundRect(rect, 22f, 22f, paint)
+        canvas.drawRoundRect(rect, KEY_R, KEY_R, paint)
+        if (pressed) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            paint.color = NextDesign.keyStroke
+            canvas.drawRoundRect(rect, KEY_R, KEY_R, paint)
+            paint.style = Paint.Style.FILL
+            paint.strokeWidth = 0f
+        }
         paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         paint.textAlign = Paint.Align.CENTER
         if (hint != null) {
-            paint.color = Color.argb(150, 255, 255, 255)
+            paint.color = NextDesign.inkFaint
             paint.textSize = 26f
             canvas.drawText(hint, rect.right - 22f, rect.top + 32f, paint)
         }
-        paint.color = if (enter) panelColor else Color.WHITE
+        paint.color = if (pressed) NextDesign.keyPressedInk else NextDesign.keyInk
         paint.textSize = if (text.length > 2) 40f else 52f
         canvas.drawText(text, rect.centerX(), rect.centerY() + paint.textSize * .35f, paint)
         keys += rect to id
     }
 
     companion object {
-        private val BLUE = Color.rgb(24, 119, 242)
+        /** The panel's and the keys' corner radii, kept in proportion to the reference's 24 / 8. */
+        private const val PANEL_R = 56f
+        private const val KEY_R = 20f
         const val WIDTH = 1560
         const val HEIGHT = 560
         const val SHIFT = "#shift"

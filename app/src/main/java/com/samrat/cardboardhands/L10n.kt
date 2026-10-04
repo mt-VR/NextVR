@@ -42,7 +42,7 @@ object L10n {
         "Settings" to arrayOf("Настройки", "Ajustes", "Definições"),
         "Enter VR" to arrayOf("Войти в VR", "Entrar no VR", "Entrar em VR"),
         "Games" to arrayOf("Игры", "Jogos", "Jogos"),
-        // VR home (Horizon library and dock)
+        // VR home (the library and the dock)
         "Library" to arrayOf("Библиотека", "Biblioteca", "Biblioteca"),
         "Are you ready?" to arrayOf("Вы готовы?", "Está pronto?", "Está pronto?"),
         "Feed" to arrayOf("Лента", "Feed", "Feed"),

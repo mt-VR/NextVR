@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
- * Meta Horizon–style home: the Library (title, search, a list of sections on the left, a grid of
+ * The VR home of the Next VR design language: the Library (title, search, sections on the left, a grid of
  * app tiles, sorting on the right) above a dock bar (profile, status, notifications, search,
  * passthrough, pinned apps, recent apps, the library button).
  *
@@ -286,7 +286,7 @@ class HomePanel {
     class Key(val id: String, val label: String, val rect: RectF)
 
     /**
-     * The search keyboard, laid out like the Meta Horizon keyboard: letters, backspace at the end of
+     * The search keyboard, laid out like the floating one: letters, backspace at the end of
      * the first row, a dark enter key, and language, space and hide at the bottom.
      */
     fun keyboard(): List<Key> {
@@ -356,7 +356,7 @@ class HomePanel {
 
         fun sortButton() = RectF(1450f, 270f, 1710f, 336f)
 
-        /** The room sliders: tall pills in a row under the worlds, like Horizon's room controls. */
+        /** The room sliders: tall pills in a row under the worlds. */
         fun sliderRect(index: Int): RectF {
             val cx = GRID_CENTER_X + (index - 1.5f) * 200f
             return RectF(cx - 62f, 620f, cx + 62f, 1085f)
@@ -365,7 +365,7 @@ class HomePanel {
         const val PAGE_DOTS_Y = 1115f
         fun pageDotX(i: Int, pages: Int) = GRID_CENTER_X + (i - (pages - 1) / 2f) * 44f
 
-        /** Search keyboard: the Horizon keyboard (640×299 design units) scaled into the card. */
+        /** Search keyboard: the floating keyboard (640×299 design units) scaled into the card. */
         val KEYBOARD = RectF(340f, 590f, 1460f, 590f + 299f * 1120f / 640f)
         const val KB = 1120f / 640f
         fun suggestion(i: Int): RectF {
@@ -374,7 +374,7 @@ class HomePanel {
         }
 
         // ---------------------------------------------------------------- the dock
-        /** The dock bar is the Horizon bar (970×70 design units) scaled by [DOCK_SCALE]. */
+        /** The dock bar is the reference's dock (970×70 design units) scaled by [DOCK_SCALE]. */
         const val DOCK_SCALE = 1.8f
         const val DOCK_W = 970f * DOCK_SCALE
         const val DOCK_H = 70f * DOCK_SCALE
