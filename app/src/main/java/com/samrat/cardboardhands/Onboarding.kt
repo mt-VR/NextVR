@@ -182,8 +182,14 @@ class Onboarding(private val context: Context, private val host: Host) {
         rows.forEachIndexed { i, label ->
             val top = 135f + i * (fieldH + gap)
             val rect = RectF(300f, top, WIDTH - 300f, top + fieldH)
-            paint.color = if (i == field) Color.argb(60, 255, 255, 255) else FAINT
-            canvas.drawRoundRect(rect, fieldH / 2, fieldH / 2, paint)
+            paint.color = if (i == field) NextDesign.tileHover else FAINT
+            canvas.drawRoundRect(rect, FIELD_R, FIELD_R, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            paint.color = if (i == field) NextDesign.accentLine else NextDesign.stroke
+            canvas.drawRoundRect(rect, FIELD_R, FIELD_R, paint)
+            paint.style = Paint.Style.FILL
+            paint.strokeWidth = 0f
             val value = when (i) { 0 -> email; 1 -> "•".repeat(password.length); else -> name }
             val cursor = if (i == field && (t * 2).toInt() % 2 == 0) "|" else ""
             paint.textAlign = Paint.Align.LEFT
@@ -198,7 +204,7 @@ class Onboarding(private val context: Context, private val host: Host) {
         button(RectF(300f, actions, 560f, actions + 58f), tr("Back"), FAINT, INK) { accountMode = 0; message = null }
         val go = if (busy) "…" else if (accountMode == 1) tr("Sign in") else tr("Create")
         button(RectF(WIDTH - 560f, actions, WIDTH - 300f, actions + 58f), go) { submitAccount() }
-        message?.let { text(it, WIDTH / 2f, actions + 40f, 28f, Color.rgb(211, 47, 47)) }
+        message?.let { text(it, WIDTH / 2f, actions + 40f, 28f, NextDesign.danger) }
         keyboard.draw(hover)
         canvas.drawBitmap(keyboard.bitmap, null, keyboardRect, paint)
     }
@@ -273,7 +279,7 @@ class Onboarding(private val context: Context, private val host: Host) {
                 card()
                 title(tr("What's your name?"))
                 paint.color = FAINT
-                canvas.drawRoundRect(RectF(300f, 220f, WIDTH - 300f, 330f), 55f, 55f, paint)
+                canvas.drawRoundRect(RectF(300f, 220f, WIDTH - 300f, 330f), 30f, 30f, paint)
                 text(if (name.isEmpty()) tr("Username") else name + if ((t * 2).toInt() % 2 == 0) "|" else "",
                     WIDTH / 2f, 295f, 60f, if (name.isEmpty()) SOFT else INK)
                 button(RectF(WIDTH / 2f - 200f, 360f, WIDTH / 2f + 200f, 440f), tr("Done")) { confirmName() }
@@ -284,7 +290,7 @@ class Onboarding(private val context: Context, private val host: Host) {
                 card()
                 title(tr("Room scan"))
                 body(tr("Look at the floor, the walls and the table — PhoneXR covers them with a grid and remembers where the table is: the keyboard will lie on it."))
-                text(if (host.tableFound()) tr("Table found ✓") else tr("Looking for a table…"), WIDTH / 2f, 640f, 44f, if (host.tableFound()) Color.rgb(11, 138, 27) else SOFT, bold = true)
+                text(if (host.tableFound()) tr("Table found ✓") else tr("Looking for a table…"), WIDTH / 2f, 640f, 44f, if (host.tableFound()) NextDesign.good else SOFT, bold = true)
                 button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), if (host.tableFound()) tr("Done") else tr("Skip"), if (host.tableFound()) BLUE else FAINT, if (host.tableFound()) Color.WHITE else INK) { go(Step.WELCOME) }
             }
             Step.REACH -> {
@@ -293,7 +299,7 @@ class Onboarding(private val context: Context, private val host: Host) {
                 body(tr("Windows are pressed with a finger: point your index finger, curl the others, and push your hand forward briefly. Three times."))
                 button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), tr("Skip"), FAINT, INK) { go(Step.WELCOME) }
                 for (i in 0 until 3) {
-                    paint.color = if (i < pushes) Color.rgb(11, 138, 27) else FAINT
+                    paint.color = if (i < pushes) NextDesign.good else FAINT
                     canvas.drawCircle(WIDTH / 2f + (i - 1) * 90f, 600f, 30f, paint)
                 }
             }
@@ -356,8 +362,8 @@ class Onboarding(private val context: Context, private val host: Host) {
                 val x = left + column * pitchX
                 // A little higher than before: the language row lies under the last row of hellos.
                 val y = 130f + row * 128f
-                text(word, x, y, 40f, Color.argb((appear * 255).toInt(), 245, 246, 247))
-                text(code, x, y + 38f, 24f, Color.argb((appear * 150).toInt(), 245, 246, 247))
+                text(word, x, y, 40f, Color.argb((appear * 255).toInt(), 244, 246, 250))
+                text(code, x, y + 38f, 24f, Color.argb((appear * 128).toInt(), 244, 246, 250))
             }
         }
         val big = when (L10n.current) {
@@ -370,18 +376,24 @@ class Onboarding(private val context: Context, private val host: Host) {
         if (t > .6f) languageRow()
     }
 
-    /** The Horizon card: white (or dark) glass with a soft shadow. */
+    /** The card: the reference's glass panel with its hairline and a soft shadow under it. */
     private fun glass(rect: RectF, dark: Boolean) {
-        paint.color = Color.argb(70, 0, 0, 0)
+        paint.color = NextDesign.shadow
         paint.maskFilter = android.graphics.BlurMaskFilter(30f, android.graphics.BlurMaskFilter.Blur.NORMAL)
-        canvas.drawRoundRect(RectF(rect.left, rect.top + 12f, rect.right, rect.bottom + 12f), 80f, 80f, paint)
+        canvas.drawRoundRect(RectF(rect.left, rect.top + 12f, rect.right, rect.bottom + 12f), CARD_R, CARD_R, paint)
         paint.maskFilter = null
         // A shader still takes the paint's alpha: full, or the card turns see-through.
         paint.color = Color.WHITE
-        paint.shader = if (dark) LinearGradient(0f, rect.top, 0f, rect.bottom, Color.argb(240, 43, 47, 54), Color.argb(240, 29, 32, 38), Shader.TileMode.CLAMP)
+        paint.shader = if (dark) LinearGradient(0f, rect.top, 0f, rect.bottom, NextDesign.glassTopVeil, NextDesign.glassBottomVeil, Shader.TileMode.CLAMP)
         else LinearGradient(0f, rect.top, 0f, rect.bottom, Color.WHITE, Color.rgb(242, 242, 242), Shader.TileMode.CLAMP)
-        canvas.drawRoundRect(rect, 80f, 80f, paint)
+        canvas.drawRoundRect(rect, CARD_R, CARD_R, paint)
         paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = if (dark) NextDesign.stroke else Color.argb(20, 39, 39, 39)
+        canvas.drawRoundRect(rect, CARD_R, CARD_R, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
     }
 
     /**
@@ -423,23 +435,35 @@ class Onboarding(private val context: Context, private val host: Host) {
         for (word in value.split(' ')) {
             val next = if (line.isEmpty()) word else "$line $word"
             if (paint.measureText(next) > WIDTH - 360f) {
-                text(line, WIDTH / 2f, 300f + row * 62f, 44f, Color.argb(200, 39, 39, 39)); row++; line = word
+                text(line, WIDTH / 2f, 300f + row * 62f, 44f, SOFT); row++; line = word
             } else line = next
         }
-        text(line, WIDTH / 2f, 300f + row * 62f, 44f, Color.argb(200, 39, 39, 39))
+        text(line, WIDTH / 2f, 300f + row * 62f, 44f, SOFT)
     }
 
     private fun bar(progress: Float) {
         paint.color = FAINT
         canvas.drawRoundRect(RectF(400f, 560f, WIDTH - 400f, 590f), 15f, 15f, paint)
-        paint.color = INK
+        paint.color = NextDesign.accent
         canvas.drawRoundRect(RectF(400f, 560f, 400f + (WIDTH - 800f) * progress, 590f), 15f, 15f, paint)
     }
 
-    /** A Horizon pill: solid ink with white text, or a faint one with ink text. */
-    private fun button(rect: RectF, label: String, color: Int = BLUE, ink: Int = Color.WHITE, size: Float = 44f, action: () -> Unit) {
+    /**
+     * A button of the setup: the filled teal action, or — with [color] left at the tile colour — the
+     * reference's tinted button, a white 7% tile with a hairline and ink text.
+     */
+    private fun button(rect: RectF, label: String, color: Int = NextDesign.primary, ink: Int = Color.WHITE, size: Float = 44f, action: () -> Unit) {
+        val tinted = color == FAINT
         paint.color = color
-        canvas.drawRoundRect(rect, rect.height() / 2, rect.height() / 2, paint)
+        canvas.drawRoundRect(rect, BUTTON_R, BUTTON_R, paint)
+        if (tinted) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            paint.color = NextDesign.stroke
+            canvas.drawRoundRect(rect, BUTTON_R, BUTTON_R, paint)
+            paint.style = Paint.Style.FILL
+            paint.strokeWidth = 0f
+        }
         text(label, rect.centerX(), rect.centerY() + size * .36f, size, ink, bold = true)
         buttons += rect to action
     }
@@ -458,12 +482,22 @@ class Onboarding(private val context: Context, private val host: Host) {
                 left + i * (width + gap), LANGUAGE_ROW_TOP,
                 left + i * (width + gap) + width, LANGUAGE_ROW_TOP + LANGUAGE_ROW_HEIGHT
             )
+            val chosen = lang == L10n.current
+            // The accent wash marks the chosen language; the hairline is what draws it.
             button(
                 rect, lang.title,
-                if (lang == L10n.current) BLUE else FAINT,
-                if (lang == L10n.current) Color.WHITE else INK,
+                if (chosen) NextDesign.accentSoft else FAINT,
+                if (chosen) NextDesign.accent else INK,
                 size = 32f
             ) { L10n.set(context, lang) }
+            if (chosen) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2f
+                paint.color = NextDesign.accentLine
+                canvas.drawRoundRect(rect, BUTTON_R, BUTTON_R, paint)
+                paint.style = Paint.Style.FILL
+                paint.strokeWidth = 0f
+            }
         }
     }
 
@@ -485,11 +519,15 @@ class Onboarding(private val context: Context, private val host: Host) {
         /** The language row under the first cards (see [languageRow]). */
         private const val LANGUAGE_ROW_TOP = 748f
         private const val LANGUAGE_ROW_HEIGHT = 84f
-        /** PhoneXR is dark only: white ink on dark glass, Meta's blue for the main button. */
-        private val INK = Color.rgb(245, 246, 247)
-        private val SOFT = Color.argb(170, 245, 246, 247)
-        private val FAINT = Color.argb(34, 255, 255, 255)
-        private val BLUE = Color.rgb(24, 119, 242)
+        /** PhoneXR is dark only: the design language's ink on its glass, its teal for the action. */
+        private val INK = NextDesign.ink
+        private val SOFT = NextDesign.inkSoft
+        private val FAINT = NextDesign.tile
+        private val BLUE = NextDesign.primary
+        /** The card's radius (the reference's window), a field's and a button's. */
+        private const val CARD_R = 52f
+        private const val FIELD_R = 20f
+        private const val BUTTON_R = 28f
         private const val GREETING_SECONDS = 3f
         private val GREETINGS = listOf("Hi" to "RU", "Hello" to "EN", "你好" to "ZH")
         /** Hello in the world's languages, row by row, for the card. */

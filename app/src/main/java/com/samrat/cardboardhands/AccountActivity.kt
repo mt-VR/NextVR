@@ -110,9 +110,9 @@ class AccountActivity : ComponentActivity() {
                 if (creating) Field("Name", name, false) { name = it }
                 Field("E-mail", email, false, KeyboardType.Email) { email = it }
                 Field("Password (6 characters or more)", password, true, KeyboardType.Password) { password = it }
-                error?.let { CupertinoText(it, color = Color(0xFFFF453A)) }
+                error?.let { CupertinoText(it, color = NextDesign.dangerColor) }
                 Box(
-                    Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(25.dp)).background(Color(0xFF0A84FF))
+                    Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(NextDesign.Radius.control.dp)).background(NextDesign.primaryColor)
                         .clickable(enabled = !busy && email.isNotBlank() && password.length >= 6) { submit() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -141,7 +141,7 @@ class AccountActivity : ComponentActivity() {
                 onValueChange = onChange,
                 singleLine = true,
                 textStyle = TextStyle(color = label, fontSize = 17.sp),
-                cursorBrush = SolidColor(Color(0xFF0A84FF)),
+                cursorBrush = SolidColor(NextDesign.accentColor),
                 keyboardOptions = KeyboardOptions(keyboardType = type),
                 visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
                 modifier = Modifier.fillMaxWidth()

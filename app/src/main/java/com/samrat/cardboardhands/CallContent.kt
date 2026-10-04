@@ -117,7 +117,7 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
     private fun Contacts() {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             VrTitle(tr("Calls"), "You: ${Account.current(context)?.name ?: ""}")
-            Calls.message?.let { CupertinoText(it, color = Color(0xFFFFB45A), modifier = Modifier.padding(horizontal = 24.dp)) }
+            Calls.message?.let { CupertinoText(it, color = NextDesign.warnColor, modifier = Modifier.padding(horizontal = 24.dp)) }
             // Friends first (online ones can be called), then anyone else who is online.
             val online = Calls.online
             val friendIds = friends.map { it.id }.toSet()
@@ -150,7 +150,7 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
         Column(Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    CupertinoText(Calls.peer?.name ?: tr("Call"), fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    CupertinoText(Calls.peer?.name ?: tr("Call"), fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
                     if (Calls.remoteTalking) CupertinoText("speaking", color = GREEN)
                 }
             }
@@ -159,16 +159,16 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
                 val name = Calls.peer?.name ?: "?"
                 val grow = 1f + Calls.remoteMouth.coerceIn(0f, 1f) * .12f
                 Box(
-                    Modifier.size(260.dp * grow).clip(CircleShape).background(Color(0xFF1877F2)),
+                    Modifier.size(260.dp * grow).clip(CircleShape).background(NextDesign.profileBrush),
                     contentAlignment = Alignment.Center
                 ) { CupertinoText(name.take(1).uppercase(), color = Color.White, fontSize = 110.sp, fontWeight = FontWeight.Bold) }
                 Image(synchronized(stage) { stage.asImageBitmap() }, null, modifier = Modifier.size(460.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Pill(if (Calls.muted) "Mic off" else tr("Mute"), if (Calls.muted) RED else Color(0x55FFFFFF)) {
+                Pill(if (Calls.muted) "Mic off" else tr("Mute"), if (Calls.muted) RED else NextDesign.tileHoverColor) {
                     Calls.muted = !Calls.muted; frame++
                 }
-                onWatchTogether?.let { Pill(tr("Watch together"), Color(0xFF0A84FF)) { it() } }
+                onWatchTogether?.let { Pill(tr("Watch together"), NextDesign.primaryColor) { it() } }
                 Pill(tr("End"), RED) { Calls.hangUp() }
             }
         }
@@ -234,7 +234,7 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
     }
 
     private companion object {
-        val GREEN = Color(0xFF30D158)
-        val RED = Color(0xFFFF453A)
+        val GREEN = NextDesign.goodColor
+        val RED = NextDesign.dangerColor
     }
 }

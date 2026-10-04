@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -34,7 +36,10 @@ import zone.ien.hig.theme.CupertinoTheme
 
 // Pieces shared by the compose-hig windows of the VR home.
 
-/** An app icon from a Drawable or Bitmap, or the first letter on the accent colour. */
+/**
+ * An app icon from a Drawable or Bitmap, or the first letter on the app's gradient tile
+ * ([NextDesign]) — the reference's tile for anything without an icon of its own.
+ */
 @Composable
 fun VrIcon(icon: Any?, title: String, size: Dp = 56.dp, round: Boolean = false) {
     val image = remember(icon) {
@@ -44,12 +49,18 @@ fun VrIcon(icon: Any?, title: String, size: Dp = 56.dp, round: Boolean = false) 
             else -> null
         }
     }
-    val shape = RoundedCornerShape(if (round) size / 2 else size * .24f)
+    val shape = RoundedCornerShape(if (round) size / 2 else size * .28f)
     if (image != null) {
         Image(image, null, contentScale = ContentScale.Crop, modifier = Modifier.size(size).clip(shape))
     } else {
-        Box(Modifier.size(size).clip(shape).background(CupertinoTheme.colorScheme.accent), contentAlignment = Alignment.Center) {
-            CupertinoText(title.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * .42f).sp)
+        val gradient = NextDesign.gradientFor(title)
+        Box(
+            Modifier.size(size).clip(shape)
+                .background(Brush.linearGradient(listOf(Color(gradient.first), Color(gradient.second))))
+                .border(Dp.Hairline, Color(NextDesign.strokeStrong), shape),
+            contentAlignment = Alignment.Center
+        ) {
+            CupertinoText(title.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = (size.value * .42f).sp)
         }
     }
 }
@@ -77,11 +88,11 @@ fun VrStoreCard(title: String, subtitle: String, icon: Any?, button: String, mod
     }
 }
 
-/** Large title of a VR window page. */
+/** Large title of a VR window page: the reference's app heading, semibold with a soft caption. */
 @Composable
 fun VrTitle(text: String, detail: String? = null) {
     Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 8.dp)) {
-        CupertinoText(text, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+        CupertinoText(text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
         if (detail != null) CupertinoText(detail, color = CupertinoTheme.colorScheme.secondaryLabel)
     }
 }
@@ -89,5 +100,6 @@ fun VrTitle(text: String, detail: String? = null) {
 /** Section heading inside a VR window. */
 @Composable
 fun VrHeading(text: String) {
-    CupertinoText(text, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 8.dp))
+    CupertinoText(text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 8.dp))
 }
+

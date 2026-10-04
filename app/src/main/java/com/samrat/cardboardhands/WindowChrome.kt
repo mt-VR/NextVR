@@ -13,19 +13,25 @@ import android.text.TextPaint
 import android.text.TextUtils
 
 /**
- * The frame of VR windows, as on Quest: a dark pill floating under every window (the title — drag it
- * to move the window — and keyboard, expand, minimize, close); the browser also has its bar on top:
- * title, tabs, and back / reload / address / bookmark.
+ * The frame of VR windows in the Next VR language ([NextDesign]): a glass pill floating under every
+ * window (the title — drag it to move the window — and keyboard, expand, minimize, close), with the
+ * periwinkle accent on what is switched on and the reference's soft red on close; the browser also
+ * has its bar on top: title, tabs, and back / reload / address / bookmark.
  */
 object WindowChrome {
     /** The bar's colours, light or dark like the rest of PhoneXR. */
     private class Look(dark: Boolean) {
-        val top = if (dark) Color.rgb(43, 47, 54) else Color.WHITE
-        val bottom = if (dark) Color.rgb(31, 34, 40) else Color.rgb(242, 242, 242)
-        val ink = if (dark) Color.rgb(242, 242, 242) else Color.rgb(39, 39, 39)
-        val soft = if (dark) Color.argb(170, 242, 242, 242) else Color.argb(170, 39, 39, 39)
-        val faint = if (dark) Color.argb(34, 242, 242, 242) else Color.argb(24, 39, 39, 39)
-        val chosen = if (dark) Color.rgb(70, 70, 74) else Color.WHITE
+        val top = if (dark) NextDesign.glassTopVeil else Color.WHITE
+        val bottom = if (dark) NextDesign.glassBottomVeil else Color.rgb(242, 242, 242)
+        val ink = if (dark) NextDesign.ink else Color.rgb(39, 39, 39)
+        val soft = if (dark) NextDesign.inkSoft else Color.argb(170, 39, 39, 39)
+        val faint = if (dark) NextDesign.tile else Color.argb(24, 39, 39, 39)
+        /** The chosen tab and a lit button: the reference's white 13%. */
+        val chosen = if (dark) NextDesign.tileHover else Color.rgb(230, 230, 230)
+        val edge = if (dark) NextDesign.stroke else Color.argb(20, 39, 39, 39)
+        val accent = if (dark) NextDesign.accent else Color.rgb(70, 110, 200)
+        val danger = if (dark) NextDesign.danger else Color.rgb(200, 60, 60)
+        val dangerSurface = if (dark) NextDesign.dangerSurface else Color.argb(30, 200, 60, 60)
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -60,8 +66,10 @@ object WindowChrome {
     }
 
     /**
-     * The pill floating under every window, as on Quest: dark and fully rounded, the title on the
-     * left and "···" (keyboard), expand, minimize and close on the right; [hovered] is lit.
+     * The pill floating under every window: the reference's glass capsule with a white hairline, the
+     * title on the left and "···" (keyboard), expand, minimize and close on the right; [hovered] is
+     * lit white, close under the pointer is the reference's soft red, and what is switched on (the
+     * keyboard, the curve) wears the accent.
      */
     @Synchronized
     fun drawPill(title: String, pillM: Float, back: Boolean, keyboardOn: Boolean, expanded: Boolean, curved: Boolean, hovered: String?): Bitmap {
@@ -69,35 +77,43 @@ object WindowChrome {
         val bitmap = Bitmap.createBitmap(PILL_PX, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val r = h / 2f
+        val inset = 2f
+        val shape = RectF(inset, inset, PILL_PX - inset, h - inset)
         paint.shader = null
         paint.style = Paint.Style.FILL
-        paint.color = Color.argb(236, 30, 31, 35)
-        canvas.drawRoundRect(RectF(0f, 0f, PILL_PX.toFloat(), h.toFloat()), r, r, paint)
+        paint.color = NextDesign.glassSolidVeil
+        canvas.drawRoundRect(shape, r - inset, r - inset, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = NextDesign.stroke
+        canvas.drawRoundRect(shape, r - inset, r - inset, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
         val button = PILL_PX * PILL_BUTTON_M / pillM
         val cy = h / 2f
         fun lit(cx: Float, name: String) {
             if (hovered != name) return
-            paint.color = Color.argb(60, 255, 255, 255)
+            paint.color = if (name == "close") NextDesign.dangerSurface else NextDesign.tileHover
             canvas.drawCircle(cx, cy, h * .38f, paint)
         }
         paint.strokeCap = Paint.Cap.ROUND
         paint.strokeWidth = h * .055f
         val s = h * .13f
-        // × close
+        // × close: the reference's soft red under the pointer.
         val cClose = PILL_PX - button / 2 - h * .15f
         lit(cClose, "close")
-        paint.color = Color.WHITE
+        paint.color = if (hovered == "close") NextDesign.danger else NextDesign.ink
         canvas.drawLine(cClose - s, cy - s, cClose + s, cy + s, paint)
         canvas.drawLine(cClose + s, cy - s, cClose - s, cy + s, paint)
         // − minimize
         val cMin = cClose - button
         lit(cMin, "minimize")
-        paint.color = Color.WHITE
+        paint.color = NextDesign.ink
         canvas.drawLine(cMin - s, cy, cMin + s, cy, paint)
         // Expand: four corners, pointing out (or in while expanded).
         val cExp = cMin - button
         lit(cExp, "expand")
-        paint.color = Color.WHITE
+        paint.color = NextDesign.ink
         val e = s * 1.05f; val k = s * .55f
         for (dx in floatArrayOf(-1f, 1f)) for (dy in floatArrayOf(-1f, 1f)) {
             if (!expanded) {
@@ -115,7 +131,7 @@ object WindowChrome {
         // Curve: the window bent around the user (an arc), or flat again (a straight line).
         val cCurve = cExp - button
         lit(cCurve, "curve")
-        paint.color = if (curved) Color.rgb(120, 170, 255) else Color.WHITE
+        paint.color = if (curved) NextDesign.accent else NextDesign.ink
         paint.style = Paint.Style.STROKE
         canvas.drawArc(RectF(cCurve - s * 1.3f, cy - s * .2f, cCurve + s * 1.3f, cy + s * 1.9f), 200f, 140f, false, paint)
         paint.style = Paint.Style.FILL
@@ -124,19 +140,19 @@ object WindowChrome {
         // ··· the keyboard (filled while it is up).
         val cKey = cCurve - button
         lit(cKey, "keyboard")
-        paint.color = if (keyboardOn) Color.rgb(120, 170, 255) else Color.WHITE
+        paint.color = if (keyboardOn) NextDesign.accent else NextDesign.ink
         for (i in -1..1) canvas.drawCircle(cKey + i * s * .9f, cy, h * .045f, paint)
         // ‹ back, then the title.
         var left = h * .55f
         if (back) {
             val cBack = button / 2 + h * .1f
             lit(cBack, "back")
-            paint.color = Color.WHITE
+            paint.color = NextDesign.ink
             canvas.drawLine(cBack + s * .45f, cy - s, cBack - s * .45f, cy, paint)
             canvas.drawLine(cBack - s * .45f, cy, cBack + s * .45f, cy + s, paint)
             left = button + h * .2f
         }
-        text.color = Color.WHITE
+        text.color = NextDesign.ink
         text.textSize = h * .34f
         text.textAlign = Paint.Align.LEFT
         val room = cKey - button / 2 - left - h * .2f
@@ -180,20 +196,30 @@ object WindowChrome {
 
     private fun tabWidth(tabs: Int) = minOf(400f, (BAR_W - 40f - 80f) / tabs.coerceAtLeast(1))
 
-    /** The browser bar: "···", the name, − ×; the tabs and +; back, forward, reload, the address, ☆, home. */
+    /** The browser bar: "···", the name, − ×; the tabs as tiles and +; back, forward, reload, the address, ☆, home. */
     @Synchronized
     fun drawBar(address: String, tabs: List<String>, active: Int, dark: Boolean): Bitmap {
         val look = Look(dark)
         val bitmap = Bitmap.createBitmap(BAR_W, BAR_H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val r = 56f
+        val inset = 2f
         val shape = Path().apply {
-            addRoundRect(RectF(0f, 0f, BAR_W.toFloat(), BAR_H.toFloat()), floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f), Path.Direction.CW)
+            addRoundRect(
+                RectF(inset, inset, BAR_W - inset, BAR_H - 2f),
+                floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f), Path.Direction.CW
+            )
         }
         paint.color = Color.WHITE
         paint.shader = LinearGradient(0f, 0f, 0f, BAR_H.toFloat(), look.bottom, look.top, Shader.TileMode.CLAMP)
         canvas.drawPath(shape, paint)
         paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = look.edge
+        canvas.drawPath(shape, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
         // Row 1: menu and title (minimize and close are on the pill under the window).
         text.color = look.ink
         text.textSize = 30f
@@ -211,6 +237,12 @@ object WindowChrome {
             if (i == active) {
                 paint.color = look.chosen
                 canvas.drawRoundRect(rect, 22f, 22f, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2f
+                paint.color = look.edge
+                canvas.drawRoundRect(rect, 22f, 22f, paint)
+                paint.style = Paint.Style.FILL
+                paint.strokeWidth = 0f
             }
             text.color = if (i == active) look.ink else look.soft
             val shown = TextUtils.ellipsize(title, text, width - 90f, TextUtils.TruncateAt.END).toString()
@@ -240,9 +272,15 @@ object WindowChrome {
         paint.color = look.faint
         val field = RectF(260f, ROW2 + 12f, BAR_W - 185f, BAR_H - 12f)
         canvas.drawRoundRect(field, field.height() / 2, field.height() / 2, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = look.edge
+        canvas.drawRoundRect(field, field.height() / 2, field.height() / 2, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
         val starred = address.startsWith("★ ")
         text.textSize = 40f
-        text.color = if (starred) Color.rgb(240, 180, 0) else look.ink
+        text.color = if (starred) look.accent else look.ink
         canvas.drawText(if (starred) "★" else "☆", BAR_W - 130f, row - 2f, text)
         text.color = look.ink
         canvas.drawText("⌂", BAR_W - 48f, row - 2f, text)

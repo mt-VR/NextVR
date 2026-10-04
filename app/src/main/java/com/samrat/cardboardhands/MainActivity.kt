@@ -180,7 +180,7 @@ class MainActivity : ComponentActivity() {
                 onValueChange = onChange,
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(color = CupertinoTheme.colorScheme.label, fontSize = 17.sp),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color(0xFF0A84FF)),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(NextDesign.accentColor),
             )
         }
     }

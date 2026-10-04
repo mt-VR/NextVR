@@ -3,6 +3,7 @@ package com.samrat.cardboardhands
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -32,8 +34,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -47,12 +51,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import zone.ien.hig.CupertinoActivityIndicator
 import zone.ien.hig.CupertinoAlertDialog
@@ -92,13 +99,15 @@ private val orange = Color(0xFFFF7A1A)
 private val orangeDark = Color(0xFFFF9544)
 
 /**
- * The looks PhoneXR has worn. Now every screen, on the phone and in VR, wears [HORIZON]: the same
- * white glass and ink as the VR home. The older two stay only so saved settings still read.
+ * The looks PhoneXR has worn. Now every screen, on the phone and in VR, wears [HORIZON] — the
+ * Next VR look: dark glass with hairlines, white 7% tiles, a periwinkle accent for what is selected
+ * and one teal filled action per screen ([NextDesign] holds the numbers). The older two stay only
+ * so saved settings still read.
  */
 enum class UiStyle(val title: String, val detail: String) {
     CUPERTINO("PhoneXR UI", "Grouped lists and the orange PhoneXR accent"),
     MATERIAL("Material You", "Like Android: cards and colors from the system wallpaper"),
-    HORIZON("PhoneXR VR", "Like VR: white glass, dark lettering, rounded cards"),
+    HORIZON("Next VR", "Glass windows, periwinkle accents, tiles on a dark backdrop"),
 }
 
 /** The look and light or dark, where every screen can read them and recompose when they change. */
@@ -108,7 +117,7 @@ object Ui {
     /** PhoneXR is dark only, like Meta's newest look: there is no light theme any more. */
     val dark = true
 
-    /** Card-and-row screens (Material and Horizon) rather than compose-hig sections. */
+    /** Card-and-row screens (Material and Next VR) rather than compose-hig sections. */
     val flat get() = style != UiStyle.CUPERTINO
 
     @Suppress("UNUSED_PARAMETER")
@@ -126,7 +135,7 @@ fun PhoneXRTheme(dark: Boolean? = null, scale: Float = PHONE_SCALE, content: @Co
     remember { Ui.load(context) }
     val night = dark ?: Ui.dark
     if (Ui.style == UiStyle.HORIZON) {
-        val colors = horizonColors(night)
+        val colors = nextColors(night)
         val density = androidx.compose.ui.platform.LocalDensity.current
         androidx.compose.runtime.CompositionLocalProvider(
             androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density * scale, density.fontScale)
@@ -150,28 +159,36 @@ fun PhoneXRTheme(dark: Boolean? = null, scale: Float = PHONE_SCALE, content: @Co
     }
 }
 
-/** The VR home's colours: white glass and #272727 ink, or the same inverted. */
-private fun horizonColors(dark: Boolean): MaterialColors {
-    val ink = Color(0xFF272727)
-    val paper = Color(0xFFF2F2F2)
+/** The Next VR colours: the reference's dark glass, periwinkle accent and teal action. */
+private fun nextColors(dark: Boolean): MaterialColors {
+    val ink = NextDesign.inkColor
+    val soft = NextDesign.inkSoftColor
+    val glass = NextDesign.glassSolidColor
     return if (dark) materialDarkColors(
-        primary = paper, onPrimary = ink, primaryContainer = Color(0xFF3A3F48), onPrimaryContainer = paper,
-        secondary = paper, onSecondary = ink, secondaryContainer = Color(0xFF3A3F48), onSecondaryContainer = paper,
-        tertiary = Color(0xFF7BD88F),
-        background = Color(0xFF14171C), onBackground = paper,
-        surface = Color(0xFF14171C), onSurface = paper, onSurfaceVariant = Color(0xB3F2F2F2),
-        surfaceContainerLowest = Color(0xFF1A1D23), surfaceContainerLow = Color(0xFF20242B), surfaceContainer = Color(0xFF252A31),
-        surfaceContainerHigh = Color(0xFF2F343C), surfaceContainerHighest = Color(0xFF3A3F48),
-        outline = Color(0x66F2F2F2), outlineVariant = Color(0x1FF2F2F2), error = Color(0xFFFF6B6B),
+        primary = NextDesign.primaryColor, onPrimary = Color.White,
+        primaryContainer = NextDesign.accentSoftColor, onPrimaryContainer = NextDesign.accentColor,
+        secondary = NextDesign.accentColor, onSecondary = Color(0xFF1B2338), secondaryContainer = NextDesign.accentSoftColor, onSecondaryContainer = Color.White,
+        tertiary = NextDesign.accentColor, onTertiary = Color(0xFF1B2338),
+        background = NextDesign.backdropColor, onBackground = ink,
+        // Cards and dialogs sit on the glass, not on the backdrop.
+        surface = glass, onSurface = ink, onSurfaceVariant = soft,
+        surfaceVariant = Color(NextDesign.tile),
+        surfaceContainerLowest = NextDesign.backdropDeepColor, surfaceContainerLow = NextDesign.glassBottomColor,
+        surfaceContainer = glass, surfaceContainerHigh = Color(0xFF262B33), surfaceContainerHighest = Color(0xFF2E343D),
+        outline = NextDesign.inkFaintColor, outlineVariant = NextDesign.strokeColor,
+        error = NextDesign.dangerColor, onError = Color(0xFF2A0F10),
     ) else materialLightColors(
-        primary = ink, onPrimary = Color.White, primaryContainer = Color(0xFFE6E6E6), onPrimaryContainer = ink,
-        secondary = ink, onSecondary = Color.White, secondaryContainer = Color(0xFFE6E6E6), onSecondaryContainer = ink,
-        tertiary = Color(0xFF0B8A1B),
-        background = paper, onBackground = ink,
-        surface = paper, onSurface = ink, onSurfaceVariant = Color(0xB3272727),
-        surfaceContainerLowest = Color.White, surfaceContainerLow = Color.White, surfaceContainer = Color.White,
-        surfaceContainerHigh = Color(0xFFEDEDED), surfaceContainerHighest = Color(0xFFE6E6E6),
-        outline = Color(0x66272727), outlineVariant = Color(0x1A272727), error = Color(0xFFD32F2F),
+        // PhoneXR is dark only; the light scheme stays so a screen that asks for it still draws.
+        primary = NextDesign.primaryColor, onPrimary = Color.White,
+        primaryContainer = NextDesign.accentSoftColor, onPrimaryContainer = Color(0xFF1B2338),
+        secondary = Color(0xFF4A63B8), onSecondary = Color.White,
+        tertiary = Color(0xFF4A63B8), onTertiary = Color.White,
+        background = Color(0xFFF2F2F2), onBackground = Color(0xFF272727),
+        surface = Color.White, onSurface = Color(0xFF272727), onSurfaceVariant = Color(0xB3272727),
+        surfaceVariant = Color(0xFFE9E9EC), surfaceContainerLowest = Color.White, surfaceContainerLow = Color.White,
+        surfaceContainer = Color.White, surfaceContainerHigh = Color(0xFFEDEDED), surfaceContainerHighest = Color(0xFFE6E6E6),
+        outline = Color(0x66272727), outlineVariant = Color(0x1A272727),
+        error = Color(0xFFD32F2F), onError = Color.White,
     )
 }
 
@@ -205,13 +222,19 @@ object HigColors {
     val accent: Color @Composable get() = CupertinoTheme.colorScheme.accent
     val label: Color @Composable get() = CupertinoTheme.colorScheme.label
     val secondary: Color @Composable get() = CupertinoTheme.colorScheme.secondaryLabel
-    val good: Color @Composable get() = if (Ui.style == UiStyle.HORIZON) Color(0xFF0B8A1B) else if (Ui.flat) MaterialTheme.colorScheme.primary else Color(0xFF34C759)
-    val bad: Color @Composable get() = if (Ui.flat) MaterialTheme.colorScheme.error else Color(0xFFFF3B30)
+    val good: Color @Composable get() = if (Ui.style == UiStyle.HORIZON) NextDesign.goodColor else if (Ui.flat) MaterialTheme.colorScheme.primary else Color(0xFF34C759)
+    val bad: Color @Composable get() = if (Ui.style == UiStyle.HORIZON) NextDesign.dangerColor else if (Ui.flat) MaterialTheme.colorScheme.error else Color(0xFFFF3B30)
 }
 
 // ---------------------------------------------------------------- pages and sections
 
-/** Grouped settings-style page: optional back button, large title, scrolling sections. */
+/**
+ * Grouped settings-style page: optional back button, large title, scrolling sections.
+ *
+ * In the Next VR look the page is the reference's warm black, lit at the top, with the title set
+ * the way the reference sets an app heading (large, tight, semibold) and a small eyebrow line above
+ * it when the screen has something to say about itself ([subtitle]).
+ */
 @OptIn(ExperimentalCupertinoApi::class)
 @Composable
 fun HigPage(
@@ -223,13 +246,12 @@ fun HigPage(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val material = Ui.flat
+    val next = Ui.style == UiStyle.HORIZON
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                if (Ui.style == UiStyle.HORIZON) androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(MaterialTheme.colorScheme.surfaceContainerLowest, MaterialTheme.colorScheme.surface)
-                )
+                if (next) NextDesign.pageBrush
                 else androidx.compose.ui.graphics.SolidColor(
                     if (material) MaterialTheme.colorScheme.surface else CupertinoTheme.colorScheme.systemGroupedBackground
                 )
@@ -250,14 +272,16 @@ fun HigPage(
                 }
             }
         } else {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(if (next) 22.dp else 16.dp))
         }
         if (material) {
             Text(
                 title,
-                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                ),
+                color = if (next) NextDesign.inkColor else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = if (next) 22.dp else 20.dp)
             )
         } else {
             CupertinoText(title, style = CupertinoTheme.typography.largeTitle, modifier = Modifier.padding(horizontal = 20.dp))
@@ -267,8 +291,12 @@ fun HigPage(
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp)
+                    color = if (next) NextDesign.inkSoftColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(
+                        start = if (next) 22.dp else 20.dp,
+                        end = if (next) 22.dp else 20.dp,
+                        top = if (next) 6.dp else 4.dp
+                    )
                 )
             } else {
                 CupertinoText(
@@ -305,22 +333,29 @@ fun HigSection(
         )
         return
     }
+    val next = Ui.style == UiStyle.HORIZON
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         if (title != null) {
             Text(
                 title,
-                style = MaterialTheme.typography.titleSmall,
-                color = if (Ui.style == UiStyle.HORIZON) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
+                // The reference sets a section label small, spaced and quiet, above the card.
+                style = MaterialTheme.typography.titleSmall.copy(
+                    letterSpacing = if (next) 0.9.sp else androidx.compose.ui.unit.TextUnit.Unspecified
+                ),
+                color = when {
+                    next -> NextDesign.inkSoftColor
+                    Ui.flat -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
             )
         }
-        val horizon = Ui.style == UiStyle.HORIZON
         Surface(
-            // Horizon cards: rounder, white, with a hairline edge and a soft shadow.
-            shape = RoundedCornerShape(if (horizon) 28.dp else 20.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            border = if (horizon) androidx.compose.foundation.BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.outlineVariant) else null,
-            shadowElevation = if (horizon) 2.dp else 0.dp,
+            // Next VR cards: dark glass, a hairline edge and a soft shadow under it.
+            shape = RoundedCornerShape(if (next) NextDesign.Radius.card.dp else 20.dp),
+            color = if (next) NextDesign.glassTopVeilColor else MaterialTheme.colorScheme.surfaceContainer,
+            border = if (next) androidx.compose.foundation.BorderStroke(1.dp, NextDesign.strokeColor) else null,
+            shadowElevation = if (next) 12.dp else 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column { HigScope(null).content() }
@@ -329,8 +364,8 @@ fun HigSection(
             Text(
                 footer,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp)
+                color = if (next) NextDesign.inkFaintColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 8.dp)
             )
         }
     }
@@ -406,7 +441,18 @@ fun HigScope.HigStepper(title: String, value: String, detail: String? = null, on
 
 @Composable
 private fun StepButton(label: String, onClick: () -> Unit) {
-    if (Ui.flat) {
+    if (Ui.style == UiStyle.HORIZON) {
+        // The reference's stepper: a tile per button, one hairline, nothing filled.
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(NextDesign.Radius.button.dp))
+                .background(NextDesign.tileColor)
+                .border(1.dp, NextDesign.strokeColor, RoundedCornerShape(NextDesign.Radius.button.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) { Text(label, color = NextDesign.inkColor, style = MaterialTheme.typography.titleMedium) }
+    } else if (Ui.flat) {
         FilledTonalButton(onClick = onClick, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), modifier = Modifier.size(40.dp)) {
             Text(label)
         }
@@ -435,7 +481,19 @@ fun HigScope.HigSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boo
         }
     } else {
         MaterialRow(onClick = { onCheckedChange(!checked) }, title = { MaterialTitle(title, enabled = true) }) {
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                // The reference's switch: the accent when it is on, a quiet tile when it is not.
+                colors = if (Ui.style == UiStyle.HORIZON) SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = NextDesign.accentColor,
+                    checkedBorderColor = Color.Transparent,
+                    uncheckedThumbColor = NextDesign.inkSoftColor,
+                    uncheckedTrackColor = NextDesign.tileColor,
+                    uncheckedBorderColor = NextDesign.strokeColor
+                ) else SwitchDefaults.colors()
+            )
         }
     }
 }
@@ -470,7 +528,14 @@ fun HigScope.HigChoice(title: String, detail: String?, selected: Boolean, onClic
         }
     } else {
         MaterialRow(onClick = onClick, title = { MaterialTitle(title, enabled = true, detail = detail) }) {
-            RadioButton(selected = selected, onClick = onClick)
+            RadioButton(
+                selected = selected,
+                onClick = onClick,
+                colors = if (Ui.style == UiStyle.HORIZON) RadioButtonDefaults.colors(
+                    selectedColor = NextDesign.accentColor,
+                    unselectedColor = NextDesign.inkFaintColor
+                ) else RadioButtonDefaults.colors()
+            )
         }
     }
 }
@@ -543,14 +608,15 @@ private fun MaterialRow(
     icon: (@Composable () -> Unit)? = null,
     trailing: @Composable () -> Unit = {}
 ) {
+    val next = Ui.style == UiStyle.HORIZON
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .heightIn(min = 58.dp)
+            .padding(horizontal = 18.dp, vertical = 12.dp)
     ) {
         if (icon != null) icon()
         Box(Modifier.weight(1f)) { title() }
@@ -559,8 +625,8 @@ private fun MaterialRow(
             Icon(
                 CupertinoIcons.Default.ChevronForward,
                 null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(16.dp)
+                tint = if (next) NextDesign.inkFaintColor else MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(15.dp)
             )
         }
     }
@@ -591,16 +657,47 @@ private fun MaterialTitle(
 
 // ---------------------------------------------------------------- buttons, text, dialogs
 
-/** Full-width prominent button placed between sections. */
+/**
+ * Full-width prominent button placed between sections. In the Next VR look the filled one is the
+ * screen's single teal action, and the tinted one is a tile: white 7%, a hairline, no fill colour.
+ */
 @OptIn(ExperimentalCupertinoApi::class)
 @Composable
 fun HigButton(text: String, enabled: Boolean = true, filled: Boolean = true, onClick: () -> Unit) {
+    val next = Ui.style == UiStyle.HORIZON
+    val shape = RoundedCornerShape(if (next) NextDesign.Radius.control.dp else 24.dp)
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
         if (Ui.flat) {
             if (filled) {
-                Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(text) }
+                Button(
+                    onClick = onClick,
+                    enabled = enabled,
+                    shape = shape,
+                    colors = if (next) ButtonDefaults.buttonColors(
+                        containerColor = NextDesign.primaryColor, contentColor = Color.White
+                    ) else ButtonDefaults.buttonColors(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                }
             } else {
-                FilledTonalButton(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(text) }
+                FilledTonalButton(
+                    onClick = onClick,
+                    enabled = enabled,
+                    shape = shape,
+                    colors = if (next) ButtonDefaults.filledTonalButtonColors(
+                        containerColor = NextDesign.tileColor, contentColor = NextDesign.inkColor
+                    ) else ButtonDefaults.filledTonalButtonColors(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (next) Modifier.border(1.dp, NextDesign.strokeColor, shape) else Modifier
+                        )
+                ) {
+                    Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
+                }
             }
         } else {
             CupertinoButton(
@@ -673,9 +770,15 @@ fun HigAlert(
     }
     val cancel = actions.lastOrNull { it.style == HigActionStyle.CANCEL }
     val rest = actions.filter { it.style != HigActionStyle.CANCEL }
+    val next = Ui.style == UiStyle.HORIZON
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        // The Next VR dialog is the same glass as a window: the reference's radius, hairline and ink.
+        shape = RoundedCornerShape(if (next) NextDesign.Radius.window.dp else 28.dp),
+        containerColor = if (next) NextDesign.glassSolidVeilColor else MaterialTheme.colorScheme.surfaceContainerHigh,
+        titleContentColor = if (next) NextDesign.inkColor else MaterialTheme.colorScheme.onSurface,
+        textContentColor = if (next) NextDesign.inkSoftColor else MaterialTheme.colorScheme.onSurfaceVariant,
+        title = { Text(title, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -696,8 +799,11 @@ private fun DialogAction(action: HigAction, modifier: Modifier = Modifier) {
     TextButton(onClick = action.onClick, modifier = modifier) {
         Text(
             action.title,
-            color = if (action.style == HigActionStyle.DESTRUCTIVE) MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.primary
+            color = when {
+                action.style == HigActionStyle.DESTRUCTIVE -> NextDesign.dangerColor
+                Ui.style == UiStyle.HORIZON -> NextDesign.accentColor
+                else -> MaterialTheme.colorScheme.primary
+            }
         )
     }
 }
@@ -717,7 +823,7 @@ fun HigTabBar(
     onSelect: (Int) -> Unit
 ) {
     if (Ui.style == UiStyle.HORIZON) {
-        HorizonTabBar(tabs, selected, modifier, onSelect)
+        NextTabBar(tabs, selected, modifier, onSelect)
         return
     }
     if (Ui.flat) {
@@ -755,21 +861,33 @@ fun HigTabBar(
 }
 
 /**
- * The tab bar as the VR dock: a floating white glass pill, the chosen tab a solid ink circle with
- * its name beside it.
+ * The tab bar as the dock of the reference: a floating glass capsule anchored under the content,
+ * with the same lit top edge the reference's dock has. The chosen tab is a raised tile with the
+ * periwinkle accent and its name beside it; the others are quiet icons that wake up when chosen.
  */
 @Composable
-private fun HorizonTabBar(tabs: List<HigTab>, selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(50)
-    Box(modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+private fun NextTabBar(tabs: List<HigTab>, selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
+    val shape = RoundedCornerShape(NextDesign.Radius.capsule.dp)
+    Box(modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier
-                .shadow(10.dp, shape)
+                .shadow(18.dp, shape, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
                 .clip(shape)
-                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(colors.surfaceContainerLowest, colors.surfaceContainerHigh)))
+                .background(NextDesign.glassVeilBrush)
+                .border(1.dp, NextDesign.strokeColor, shape)
+                .drawWithContent {
+                    drawContent()
+                    // The reference's dock carries a hairline of light along its top edge.
+                    val inset = 22.dp.toPx()
+                    drawLine(
+                        brush = NextDesign.dockHighlightBrush,
+                        start = Offset(inset, 1.dp.toPx()),
+                        end = Offset(size.width - inset, 1.dp.toPx()),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
                 .padding(6.dp)
         ) {
             tabs.forEachIndexed { index, tab ->
@@ -779,13 +897,21 @@ private fun HorizonTabBar(tabs: List<HigTab>, selected: Int, modifier: Modifier,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .clip(shape)
-                        .background(if (chosen) colors.primary else Color.Transparent)
+                        .background(if (chosen) NextDesign.tileHoverColor else Color.Transparent)
                         .clickable { onSelect(index) }
                         .heightIn(min = 48.dp)
                         .padding(horizontal = if (chosen) 16.dp else 12.dp)
                 ) {
-                    Icon(tab.icon, tab.label, tint = if (chosen) colors.onPrimary else colors.onSurface, modifier = Modifier.size(24.dp))
-                    if (chosen) Text(tab.label, color = colors.onPrimary, style = MaterialTheme.typography.labelLarge)
+                    Icon(
+                        tab.icon, tab.label,
+                        tint = if (chosen) NextDesign.accentColor else NextDesign.inkSoftColor,
+                        modifier = Modifier.size(23.dp)
+                    )
+                    if (chosen) Text(
+                        tab.label,
+                        color = NextDesign.inkColor,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                    )
                 }
             }
         }
