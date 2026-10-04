@@ -2,10 +2,10 @@
 #
 # The sandbox this branch is developed in has no JDK and no route to Maven Central or Google's maven,
 # so nothing here can be compiled locally. This workflow builds what the real workflows build — the unit
-# tests *and* the three APKs, so VINS-Mono's native core is compiled too — and pushes the whole log to
-# the `ci-diag` branch, because the job log and the artifact download both live on hosts this
-# environment cannot reach. Read it back with:
-#     git fetch origin ci-diag && git show origin/ci-diag:gradle.log
+# tests *and* the three APKs, so VINS-Mono's native core is compiled too — and reports the errors back
+# through check-run annotations, which are readable with
+#     gh api repos/mt-VR/NextVR/check-runs/<check-run-id>/annotations
+# (the job log, the artifacts and the job summary all live on hosts this environment cannot reach).
 name: CI diagnostics
 on:
   push:
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -38,13 +38,11 @@ jobs:
       - name: Toolchain and build
         run: |
           set +e
-          S="${GITHUB_STEP_SUMMARY:-/tmp/step.md}"
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           mkdir -p diag-out
           LOG=diag-out/gradle.log
           {
-            echo "### Toolchain"
-            echo '```text'
+            echo "TOOLCHAIN"
             java -version 2>&1 || true
             echo "SDK=$SDK"
             for d in platforms ndk ndk-bundle cmake build-tools; do
@@ -52,56 +50,46 @@ jobs:
             done
             echo "cmake: $(command -v cmake || echo none) | $(cmake --version 2>&1 | head -1 || true)"
             echo "ninja: $(command -v ninja || echo none)"
-            echo '```'
           } > diag-out/toolchain.md
-          cat diag-out/toolchain.md >> "$S"
           ./gradlew test :app:assembleFullDebug :app:assembleLiteDebug :app:assembleBeDebug \
               --no-daemon --continue --console=plain --stacktrace --warning-mode=summary \
               > "$LOG" 2>&1
           echo "GRADLE_EXIT=$?" >> "$LOG"
-          grep -E "^(e: |w: file)" "$LOG" | head -120 >> diag-out/errors.md
-          grep -nE "[A-Za-z0-9_./-]+\.(kt|kts|java|cpp|h):[0-9]+:[0-9]+" "$LOG" | head -200 >> diag-out/errors.md
-          awk '/\* What went wrong/{p=1} /\* Try:/{p=0} p' "$LOG" | head -260 >> diag-out/errors.md
+          grep -nE "^(e: |w: file)" "$LOG" | head -100 > diag-out/errors.md
+          grep -nE "[A-Za-z0-9_./-]+\.(kt|kts|java|cpp|c|h):[0-9]+:[0-9]+" "$LOG" | head -200 >> diag-out/errors.md
+          awk '/\* What went wrong/{p=1} /\* Try:/{p=0} p' "$LOG" | head -300 >> diag-out/errors.md
           grep -nE "error:|fatal error|undefined reference|CMake Error|Could not (resolve|find|create|download|open)|FAILURE: Build|> Task .* FAILED" "$LOG" \
-              | cut -c1-300 | head -240 >> diag-out/errors.md
-          echo '### Tail' >> diag-out/errors.md
-          tail -80 "$LOG" >> diag-out/errors.md
-          head -c 60000 diag-out/errors.md >> "$S"
-      - name: Post the report to the pull request
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              | cut -c1-300 | head -300 >> diag-out/errors.md
+          echo "=== TAIL ===" >> diag-out/errors.md
+          tail -100 "$LOG" >> diag-out/errors.md
+          wc -l "$LOG" diag-out/errors.md >> diag-out/errors.md
+      - name: Report as annotations
         run: |
           set +e
           cd "$GITHUB_WORKSPACE"
-          python3 -c '
-          import json, os, urllib.request
-          tok = os.environ["GH_TOKEN"]; repo = os.environ["GITHUB_REPOSITORY"]; num = os.environ.get("PR_NUMBER") or "8"
-          def read(path, limit):
-              try:
-                  return open(path, encoding="utf-8", errors="replace").read()[:limit]
-              except OSError:
-                  return "(missing)"
-          body = "\n".join(["<!-- ci-diag -->", "", read("diag-out/toolchain.md", 3000), "", "### Errors", "",
-                            read("diag-out/errors.md", 42000), "", "<details><summary>start of the raw log</summary>", "",
-                            "```", read("diag-out/gradle.log", 9000), "```", "", "</details>"])
-          api = "https://api.github.com/repos/" + repo
-          def req(method, path, payload=None):
-              data = json.dumps(payload).encode() if payload is not None else None
-              r = urllib.request.Request(api + path, data=data, method=method, headers={
-                  "authorization": "Bearer " + tok, "accept": "application/vnd.github+json",
-                  "user-agent": "ci-diag", "content-type": "application/json"})
-              try:
-                  with urllib.request.urlopen(r, timeout=60) as f:
-                      return json.loads(f.read().decode() or "{}")
-              except Exception as e:
-                  print("API " + method + " " + path + " -> " + str(e))
-                  return []
-          existing = None
-          for c in req("GET", "/issues/" + num + "/comments?per_page=100"):
-              if "<!-- ci-diag -->" in (c.get("body") or ""):
-                  existing = c["id"]
-          req("PATCH" if existing else "POST", "/issues/comments/%s" % existing if existing else "/issues/" + num + "/comments", {"body": body})
-          print("posted %d chars" % len(body))'
+          encode() { sed -e 's/%/%25/g' -e 's/#/%23/g' | tr -d '\r' | awk '{printf "%s%s", (NR>1 ? "%0A" : ""), $0}'; }
+          head -c 45000 diag-out/errors.md | encode > diag-out/a1.txt
+          tail -c 20000 diag-out/gradle.log | encode > diag-out/a2.txt
+          { cat diag-out/toolchain.md; echo; head -c 6000 diag-out/gradle.log; } | encode > diag-out/a0.txt
+          echo "::error title=report::$(cat diag-out/a1.txt)"
+          echo "::error title=gradle tail::$(cat diag-out/a2.txt)"
+          echo "::notice title=toolchain and head::$(cat diag-out/a0.txt)"
+          wc -c diag-out/errors.md diag-out/a1.txt
+      - name: Push the log to ci-diag
+        run: |
+          set +e
+          cd "$RUNNER_TEMP"
+          rm -rf push; mkdir push; cd push
+          cp "$GITHUB_WORKSPACE"/diag-out/*.md "$GITHUB_WORKSPACE"/diag-out/gradle.log . 2>/dev/null
+          ls -la
+          git init -q .
+          git config user.name ci-diag
+          git config user.email ci-diag@localhost
+          git add -A
+          git commit -qm "diag log $GITHUB_RUN_ID"
+          echo "COMMIT_EXIT=$?"
+          git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              HEAD:refs/heads/ci-diag --force
+          echo "PUSH_EXIT=$?"
       - name: Fail, so the run is marked red
         run: exit 1
