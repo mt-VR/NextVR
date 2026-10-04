@@ -146,6 +146,12 @@ else()
         "${ceres_SOURCE_DIR}/include"
         "${ceres_BINARY_DIR}/include"
         "${ceres_BINARY_DIR}/config")
+    # This build turns glog off and uses the stand-in Ceres ships (MINIGLOG=ON), but Ceres' own public
+    # headers include <glog/logging.h> whatever the configuration — so the stand-in has to be on the
+    # include path of everything that reads them, not only of Ceres itself.
+    if (EXISTS "${ceres_SOURCE_DIR}/internal/ceres/miniglog")
+        list(APPEND VINS_CERES_INCLUDES "${ceres_SOURCE_DIR}/internal/ceres/miniglog")
+    endif()
 endif()
 if (NOT TARGET ceres)
     message(FATAL_ERROR "VINS-Mono: there is no 'ceres' target to link against. The Ceres fetch failed, "
