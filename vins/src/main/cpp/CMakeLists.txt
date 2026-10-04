@@ -86,42 +86,53 @@ else()
 endif()
 
 # VINS-Mono needs OpenCV's C++ side (cv::Mat, the optical flow, the feature detector, cv::FileStorage)
-# rather than its Java bindings. Two shapes are accepted, because which one a machine has depends on
+# rather than its Java bindings. Three shapes are accepted, because which one a machine has depends on
 # how OpenCV got there:
 #
-#   * the Maven AAR the Gradle module depends on, whose Prefab package gives one imported target per
-#     module (opencv::core, opencv::imgproc, ...);
-#   * an OpenCV SDK checkout with an OpenCVConfig.cmake, pointed at by -DVINS_OPENCV_DIR (or already
-#     on CMAKE_PREFIX_PATH), which is what upstream VINS-Mono builds against.
+#   * the Maven AAR the Gradle module depends on (org.opencv:opencv), whose Prefab package creates an
+#     imported target for every module the AAR ships — that one is "opencv_java4", the whole library;
+#   * an OpenCV SDK checkout with an OpenCVConfig.cmake, pointed at by -DVINS_OPENCV_DIR, which is what
+#     upstream VINS-Mono builds against (it defines OpenCV_LIBS, the prefab package does not);
+#   * nothing, in which case the error says so, and says where it looked.
 set(VINS_OPENCV_DIR "" CACHE PATH "An OpenCV SDK's native/jni directory, containing OpenCVConfig.cmake")
-set(OpenCV_MODULES core imgproc calib3d features2d video photo objdetect)
 set(VINS_OPENCV_LIBS "")
 set(VINS_OPENCV_INCLUDES "")
 if (VINS_OPENCV_DIR)
     set(OpenCV_DIR "${VINS_OPENCV_DIR}")
 endif()
 find_package(OpenCV QUIET)
-if (OpenCV_FOUND)
+if (OpenCV_FOUND AND OpenCV_LIBS)
     set(VINS_OPENCV_LIBS ${OpenCV_LIBS})
     set(VINS_OPENCV_INCLUDES ${OpenCV_INCLUDE_DIRS})
     message(STATUS "VINS-Mono: OpenCV ${OpenCV_VERSION} from ${OpenCV_INSTALL_PATH}")
 endif()
 if (NOT VINS_OPENCV_LIBS)
-    find_package(opencv QUIET)
-    foreach (module IN LISTS OpenCV_MODULES)
-        if (TARGET opencv::${module})
-            list(APPEND VINS_OPENCV_LIBS opencv::${module})
+    # Prefab's package name is the dependency's, and the module name is inside the AAR — for the
+    # official OpenCV one that is a single "opencv_java4" holding every module. Both spellings and
+    # the names of a couple of other OpenCV-for-Android packages are tried; the target that exists
+    # is the one to link, and it carries its own include directory.
+    foreach (candidate
+            OpenCV::opencv_java4 opencv::opencv_java4
+            OpenCV::opencv opencv::opencv
+            OpenCV::core opencv::core
+            opencv::opencv_world OpenCV::opencv_world)
+        if (TARGET ${candidate})
+            list(APPEND VINS_OPENCV_LIBS ${candidate})
         endif()
     endforeach()
-    if (NOT VINS_OPENCV_LIBS AND TARGET opencv::opencv)
-        set(VINS_OPENCV_LIBS opencv::opencv)
+    if (VINS_OPENCV_LIBS)
+        list(REMOVE_DUPLICATES VINS_OPENCV_LIBS)
+    else()
+        # What a hand-rolled or offline build needs to know: where it looked and what it found.
+        file(GLOB_RECURSE _vins_cv_found "${CMAKE_BINARY_DIR}/../*prefab*" NAMES_REGEX ".*Config\.cmake$")
+        message(FATAL_ERROR
+            "VINS-Mono found no OpenCV to link against.\n"
+            "  find_package(OpenCV) said: ${OpenCV_FOUND} (OpenCV_LIBS: ${OpenCV_LIBS})\n"
+            "  CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}\n"
+            "  Prefab generates the opencv targets when the Gradle module builds with prefab turned "
+            "on (vins/build.gradle.kts) and org.opencv:opencv on the classpath; an SDK build instead "
+            "takes -DVINS_OPENCV_DIR=<OpenCV>/native/jni. See vins/README.txt.")
     endif()
-endif()
-if (NOT VINS_OPENCV_LIBS)
-    message(FATAL_ERROR
-        "VINS-Mono found no OpenCV. The Gradle dependency's Prefab package should have provided "
-        "opencv::core and friends; if this is an offline or hand-rolled build, pass "
-        "-DVINS_OPENCV_DIR=<OpenCV SDK>/native/jni (see vins/README.txt).")
 endif()
 message(STATUS "VINS-Mono: linking ${VINS_OPENCV_LIBS}")
 
