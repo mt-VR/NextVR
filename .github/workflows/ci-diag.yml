@@ -1,0 +1,99 @@
+# TEMPORARY — diagnostics only, delete before merge.
+#
+# The sandbox this branch is developed in has no JDK and no route to Maven Central or Google's
+# maven, so nothing here can be compiled locally. This workflow builds everything the real
+# workflows build — the unit tests *and* the three APKs, so the native VINS core is compiled too —
+# and copies the errors into the job summary, which is readable through the API
+# (gh api repos/<owner>/<repo>/actions/jobs/<job-id>/summary) instead of the log download.
+name: CI diagnostics
+on:
+  push:
+    branches: ["arena/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Build everything and report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Android SDK licenses
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          if [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          elif command -v sdkmanager >/dev/null 2>&1; then
+            yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          fi
+      - name: Toolchain
+        run: |
+          echo "### Toolchain" >> /tmp/toolchain.md
+          {
+            echo '```text'
+            java -version 2>&1
+            echo "ANDROID_HOME=${ANDROID_HOME:-unset} ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
+            SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+            echo "platforms:"; ls "$SDK/platforms" 2>&1
+            echo "ndk:"; ls "$SDK/ndk" 2>&1
+            echo "ndk-bundle:"; ls -d "$SDK/ndk-bundle" 2>&1
+            echo "cmake:"; ls "$SDK/cmake" 2>&1
+            echo "build-tools:"; ls "$SDK/build-tools" 2>&1
+            echo "cmake on PATH: $(command -v cmake || echo none) $(cmake --version 2>/dev/null | head -1)"
+            echo "ninja: $(command -v ninja || echo none)"
+            echo '```'
+          } >> /tmp/toolchain.md
+          cat /tmp/toolchain.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Test + assemble (continue past failures)
+        run: |
+          set +e
+          mkdir -p diag-out
+          LOG=diag-out/gradle.log
+          ./gradlew test :app:assembleFullDebug :app:assembleLiteDebug :app:assembleBeDebug \
+              --no-daemon --continue --console=plain --stacktrace --warning-mode=summary \
+              > "$LOG" 2>&1
+          echo "GRADLE_EXIT=$?" | tee -a "$LOG"
+          # The whole log, for humans in the UI; the summary below is the machine-readable part.
+          {
+            echo "### gradle output (whole log, first 400 lines)"
+            echo '```text'
+            cut -c1-260 "$LOG" | head -400
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### compile errors (Kotlin/Java)"
+            echo '```text'
+            grep -nE "^(e: |w: file|> Task .*(FAILED|compile))" "$LOG" | head -60
+            grep -nE "^\s*[A-Za-z0-9_./-]+\.(kt|kts|java):[0-9]+:[0-9]+" "$LOG" | head -120
+            echo '```'
+            echo "### what went wrong"
+            echo '```text'
+            awk '/\* What went wrong/{p=1} /\* Try:/{p=0} p' "$LOG" | cut -c1-300 | head -160
+            echo '```'
+            echo "### native + resolution errors"
+            echo '```text'
+            grep -nE "error:|fatal error|undefined reference|CMake Error|Could not (resolve|find|create|download)|Unresolved reference|FAILURE: Build" "$LOG" | cut -c1-300 | head -160
+            echo '```'
+            echo "### tasks that failed"
+            echo '```text'
+            grep -nE "^> Task .* FAILED" "$LOG" | head -40
+            echo '```'
+            echo "### tail"
+            echo '```text'
+            cut -c1-260 "$LOG" | tail -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag-logs
+          path: diag-out/gradle.log
+          if-no-files-found: ignore
