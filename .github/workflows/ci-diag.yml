@@ -78,24 +78,22 @@ jobs:
         run: |
           set +e
           cd "$GITHUB_WORKSPACE"
+          # An annotation is cut at 4096 characters, and every newline costs three of those, so the
+          # chunks are kept small and on whole lines.
           enc() { sed -e 's/%/%25/g' -e 's/#/%23/g' | tr -d '\r' | awk '{printf "%s%s", (NR>1 ? "%0A" : ""), $0}'; }
           total=$(wc -c < diag-out/errors.md)
-          echo "::error title=size::errors.md is $total bytes, in chunks of 3800"
-          head -c 38000 diag-out/errors.md > diag-out/a.txt
-          split -b 3800 diag-out/a.txt diag-out/e
+          echo "::error title=size::errors.md is $total bytes"
+          split -C 1150 -a 2 -d diag-out/errors.md diag-out/ee
           n=0
-          for f in diag-out/e*; do
+          for f in diag-out/ee*; do
             n=$((n+1)); [ "$n" -gt 9 ] && break
             echo "::error title=e$n::$(enc "$f")"
           done
-          # The tail of the report, if it did not fit above, plus the toolchain.
-          tail -c 20000 diag-out/errors.md > diag-out/b.txt
-          split -b 3800 diag-out/b.txt diag-out/w
+          tail -n +1 diag-out/errors.md | tail -c 6000 > diag-out/tt
+          split -C 1150 -a 2 -d diag-out/tt diag-out/ww
           m=0
-          for f in diag-out/w*; do
+          for f in diag-out/ww*; do
             m=$((m+1)); [ "$m" -gt 6 ] && break
             echo "::warning title=w$m::$(enc "$f")"
           done
-          enc < diag-out/toolchain.md | { read -r line; echo "::notice title=toolchain::$line"; }
-      - name: Always red
-        run: exit 1
+          echo "::notice title=toolchain::$(enc diag-out/toolchain.md)"
