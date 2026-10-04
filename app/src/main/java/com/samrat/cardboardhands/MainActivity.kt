@@ -666,9 +666,9 @@ class MainActivity : ComponentActivity() {
                 title = "3DoF is active right now",
                 footer = "Head rotation and controllers work, but walking around the room, the boundary, walls, tables and room physics need 6DoF."
             ) {
-                val best = SixDofSupport.bestMode(this)
+                val best = SixDofSupport.bestMode(this@MainActivity)
                 if (best == Settings.SixDofMode.NONE) HigRow("No 6DoF on this phone",
-                    SixDofSupport.unavailableReason(this, Settings.SixDofMode.ARCORE) ?: "No ARCore and no VINS-Mono here",
+                    SixDofSupport.unavailableReason(this@MainActivity, Settings.SixDofMode.ARCORE) ?: "No ARCore and no VINS-Mono here",
                     detailColor = NextDesign.warnColor)
                 else HigLink("Turn on ${best.title}") {
                     if (BuildConfig.LITE && best == Settings.SixDofMode.ARCORE) error = "6DoF is available in NextVR Full"

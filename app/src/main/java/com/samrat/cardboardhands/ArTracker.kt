@@ -63,7 +63,9 @@ class ArTracker private constructor(private val session: Session) : SixDof {
 
     override fun resume() = runCatching { session.resume() }.onFailure { Log.w(TAG, "ARCore resume failed", it) }.isSuccess
 
-    override fun pause() = runCatching { session.pause() }
+    override fun pause() {
+        runCatching { session.pause() }.onFailure { Log.w(TAG, "ARCore pause failed", it) }
+    }
 
     override fun close() = session.close()
 
@@ -159,14 +161,23 @@ class ArTracker private constructor(private val session: Session) : SixDof {
     companion object {
         private const val TAG = "PhoneXR-AR"
 
-        /** ARCore's answer can take a moment on the first call: CHECKING means ask again shortly. */
-        fun availability(activity: Activity): Availability {
-            val answer = runCatching { ArCoreApk.getInstance().checkAvailability(activity) }.getOrNull() ?: return Availability.MISSING
+        /**
+         * ARCore's answer can take a moment on the first call: CHECKING means ask again shortly.
+         *
+         * A [Context] is enough to ask, so the settings screens can grey a mode out without being
+         * an activity; only [requestInstall] needs one, and only they raise the install prompt —
+         * a screen that merely lists the modes must never send the user to the Play Store.
+         */
+        fun availability(context: Context, requestInstall: Boolean = false): Availability {
+            val answer = runCatching { ArCoreApk.getInstance().checkAvailability(context.applicationContext) }
+                .getOrNull() ?: return Availability.MISSING
             return when {
                 answer == ArCoreApk.Availability.SUPPORTED_INSTALLED -> Availability.READY
                 answer.isTransient -> Availability.CHECKING
                 answer == ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED || answer == ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD -> {
-                    runCatching { ArCoreApk.getInstance().requestInstall(activity, true) }
+                    if (requestInstall && context is Activity) {
+                        runCatching { ArCoreApk.getInstance().requestInstall(context, true) }
+                    }
                     Availability.MISSING
                 }
                 else -> Availability.MISSING

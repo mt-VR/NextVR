@@ -58,8 +58,10 @@ object VinsCore {
 
     /** Whether this APK carries the native core at all (it is missing when the module was switched off). */
     val available: Boolean by lazy {
-        runCatching { System.loadLibrary("vins_jni") }.isSuccess
-    }.also { loaded -> if (!loaded) android.util.Log.w(TAG, "libvins_jni.so is not in this build") }
+        val loaded = runCatching { System.loadLibrary("vins_jni") }.isSuccess
+        if (!loaded) android.util.Log.w(TAG, "libvins_jni.so is not in this build")
+        loaded
+    }
 
     /**
      * Starts the estimator with the device's config file (a YAML in the shape of upstream's

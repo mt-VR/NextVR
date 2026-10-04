@@ -77,7 +77,7 @@ class SettingsActivity : ComponentActivity() {
                     "phone has it, and through VINS-Mono (the camera and the IMU, no ARCore) where it does not."
             ) {
                 Settings.SixDofMode.entries.forEach { mode ->
-                    val reason = SixDofSupport.unavailableReason(this, mode)
+                    val reason = SixDofSupport.unavailableReason(this@SettingsActivity, mode)
                     if (reason == null) {
                         HigChoice(mode.title, mode.description, mode == state.sixDofMode) { update(state.copy(sixDofMode = mode)) }
                     } else {
