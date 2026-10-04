@@ -27,8 +27,10 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
         if (nativeCore) externalNativeBuild {
             cmake {
+                // No ANDROID_STL here: OpenCV's AAR ships a libc++_shared.so built by the NDK, and a
+                // static STL in the same process would mean two C++ runtimes. c++_shared is AGP's
+                // default, which is the one that library already links against.
                 arguments += listOf(
-                    "-DANDROID_STL=c++_static",
                     "-DANDROID_ARM_NEON=TRUE",
                     "-DCMAKE_BUILD_TYPE=Release",
                 )
@@ -46,7 +48,8 @@ android {
         }
     }
 
-    // OpenCV's C++ headers and libraries come from its AAR, through Prefab.
+    // OpenCV's C++ headers and imported CMake targets (opencv::core, opencv::imgproc, …) come from
+    // its AAR through Prefab, which is what src/main/cpp/CMakeLists.txt looks for first.
     buildFeatures { prefab = true }
 
     compileOptions {

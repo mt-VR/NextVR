@@ -361,16 +361,20 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val distortion = if (android.os.Build.VERSION.SDK_INT >= 30)
             runCatching { characteristics.get(CameraCharacteristics.LENS_DISTORTION) }.getOrNull() else null
         val focal = focalMm / pixelMm
+        // Most phones publish no lens profile at all, and a missing one is not a reason to give up:
+        // zero coefficients is the plain pinhole the estimator then refines on its own.
+        val radial = runCatching { distortion?.radialDistortion }.getOrNull()
+        val tangential = runCatching { distortion?.tangentialDistortion }.getOrNull()
         return Optics(
-            fx = focal * scale,
+            fx = focal.toDouble() * scale,
             // The pixels are square, so the vertical focal length is the same number of pixels.
-            fy = focal * scale,
+            fy = focal.toDouble() * scale,
             cx = width / 2.0,
             cy = height / 2.0,
-            k1 = distortion?.radial?.getOrNull(0)?.toDouble() ?: 0.0,
-            k2 = distortion?.radial?.getOrNull(1)?.toDouble() ?: 0.0,
-            p1 = distortion?.tangential?.getOrNull(0)?.toDouble() ?: 0.0,
-            p2 = distortion?.tangential?.getOrNull(1)?.toDouble() ?: 0.0,
+            k1 = radial?.getOrNull(0)?.toDouble() ?: 0.0,
+            k2 = radial?.getOrNull(1)?.toDouble() ?: 0.0,
+            p1 = tangential?.getOrNull(0)?.toDouble() ?: 0.0,
+            p2 = tangential?.getOrNull(1)?.toDouble() ?: 0.0,
         )
     }
 

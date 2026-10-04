@@ -45,6 +45,11 @@ endif()
 message(STATUS "VINS-Mono: Eigen at ${EIGEN3_INCLUDE_DIR}")
 
 set(VINS_CERES_DIR "" CACHE PATH "A Ceres Solver checkout to use instead of building one")
+# Ceres 1.14.0 asks for a CMake older than 3.5, which CMake 4 refuses to honour at all; this tells
+# the policy machinery to treat that old request as 3.5 instead of failing. Ignored by older CMake.
+if (NOT CMAKE_POLICY_VERSION_MINIMUM)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
 if (VINS_CERES_DIR)
     add_subdirectory("${VINS_CERES_DIR}" ceres_build)
 else()
@@ -74,10 +79,45 @@ else()
     endif()
 endif()
 
-# OpenCV comes from the Maven AAR the Gradle module depends on: Prefab puts its C++ headers, its
-# static libraries and its config file on the search path, and VINS-Mono needs the C++ side (cv::Mat,
-# the optical flow, the feature detector, cv::FileStorage) rather than the Java bindings.
-find_package(OpenCV REQUIRED)
+# VINS-Mono needs OpenCV's C++ side (cv::Mat, the optical flow, the feature detector, cv::FileStorage)
+# rather than its Java bindings. Two shapes are accepted, because which one a machine has depends on
+# how OpenCV got there:
+#
+#   * the Maven AAR the Gradle module depends on, whose Prefab package gives one imported target per
+#     module (opencv::core, opencv::imgproc, ...);
+#   * an OpenCV SDK checkout with an OpenCVConfig.cmake, pointed at by -DVINS_OPENCV_DIR (or already
+#     on CMAKE_PREFIX_PATH), which is what upstream VINS-Mono builds against.
+set(VINS_OPENCV_DIR "" CACHE PATH "An OpenCV SDK's native/jni directory, containing OpenCVConfig.cmake")
+set(OpenCV_MODULES core imgproc calib3d features2d video photo objdetect)
+set(VINS_OPENCV_LIBS "")
+set(VINS_OPENCV_INCLUDES "")
+if (VINS_OPENCV_DIR)
+    set(OpenCV_DIR "${VINS_OPENCV_DIR}")
+endif()
+find_package(OpenCV QUIET)
+if (OpenCV_FOUND)
+    set(VINS_OPENCV_LIBS ${OpenCV_LIBS})
+    set(VINS_OPENCV_INCLUDES ${OpenCV_INCLUDE_DIRS})
+    message(STATUS "VINS-Mono: OpenCV ${OpenCV_VERSION} from ${OpenCV_INSTALL_PATH}")
+endif()
+if (NOT VINS_OPENCV_LIBS)
+    find_package(opencv QUIET)
+    foreach (module IN LISTS OpenCV_MODULES)
+        if (TARGET opencv::${module})
+            list(APPEND VINS_OPENCV_LIBS opencv::${module})
+        endif()
+    endforeach()
+    if (NOT VINS_OPENCV_LIBS AND TARGET opencv::opencv)
+        set(VINS_OPENCV_LIBS opencv::opencv)
+    endif()
+endif()
+if (NOT VINS_OPENCV_LIBS)
+    message(FATAL_ERROR
+        "VINS-Mono found no OpenCV. The Gradle dependency's Prefab package should have provided "
+        "opencv::core and friends; if this is an offline or hand-rolled build, pass "
+        "-DVINS_OPENCV_DIR=<OpenCV SDK>/native/jni (see vins/README.txt).")
+endif()
+message(STATUS "VINS-Mono: linking ${VINS_OPENCV_LIBS}")
 
 # ---------------------------------------------------------------- VINS-Mono itself
 set(VINS_UPSTREAM ${CMAKE_CURRENT_SOURCE_DIR}/upstream)
@@ -127,9 +167,9 @@ target_include_directories(vins_jni PRIVATE
     ${VINS_UPSTREAM}/vins_estimator/src
     ${VINS_UPSTREAM}/camera_model/include
     ${EIGEN3_INCLUDE_DIR}
-    ${OpenCV_INCLUDE_DIRS})
+    ${VINS_OPENCV_INCLUDES})
 
 target_link_libraries(vins_jni PRIVATE
     ceres
-    ${OpenCV_LIBS}
+    ${VINS_OPENCV_LIBS}
     ${LOG_LIB})

@@ -672,7 +672,7 @@ class MainActivity : ComponentActivity() {
                     detailColor = NextDesign.warnColor)
                 else HigLink("Turn on ${best.title}") {
                     if (BuildConfig.LITE && best == Settings.SixDofMode.ARCORE) error = "6DoF is available in NextVR Full"
-                    else setSixDofMode(best)
+                    else chooseSixDofMode(best)
                 }
             }
             HigSection(footer = "The VR home in mixed reality: a pointer ray comes out of your hand, pinch to press; a fist at the left or right edge of a window moves it; Joy‑Con: ZR or A.") {
@@ -1051,7 +1051,8 @@ class MainActivity : ComponentActivity() {
     private var lensOffset by mutableStateOf(0)
     private var sixDofMode by mutableStateOf(Settings.SixDofMode.NONE)
 
-    private fun setSixDofMode(mode: Settings.SixDofMode) {
+        /** Not `setSixDofMode`: the [sixDofMode] property above already owns that JVM name. */
+    private fun chooseSixDofMode(mode: Settings.SixDofMode) {
         sixDofMode = mode
         Settings.save(this, Settings.load(this).copy(sixDofMode = mode))
     }
@@ -1100,7 +1101,7 @@ class MainActivity : ComponentActivity() {
                 Settings.SixDofMode.entries.forEach { mode ->
                     val reason = SixDofSupport.unavailableReason(this@MainActivity, mode)
                     if (reason == null) {
-                        HigChoice(mode.title, mode.description, mode == wanted) { setSixDofMode(mode) }
+                        HigChoice(mode.title, mode.description, mode == wanted) { chooseSixDofMode(mode) }
                     } else {
                         // The row is shown and greyed out, never hidden: a phone without ARCore should
                         // see that ARCore was thought of, and why it is not offered here.
