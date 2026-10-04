@@ -77,7 +77,7 @@ object NextDesign {
     val dockStroke: Int = 0x33C0DCFF
     val dockHighlightFrom: Int = 0x00B9DCFF
     val dockHighlight: Int = 0xB0B9DCFF.toInt()
-    val dockHighlightTo: Int = 0x80D5C2FF
+    val dockHighlightTo: Int = 0x80D5C2FF.toInt()
     val divider: Int = 0x26CEDAFF
 
     /** The profile circle of the dock. */
