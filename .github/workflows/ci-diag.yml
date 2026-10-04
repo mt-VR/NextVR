@@ -33,63 +33,61 @@ jobs:
           elif command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses >/dev/null 2>&1 || true
           fi
-      - name: Toolchain
+      - name: Toolchain and build
         run: |
-          echo "### Toolchain" >> /tmp/toolchain.md
+          S="$GITHUB_STEP_SUMMARY"
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           {
+            echo "### Toolchain"
             echo '```text'
-            java -version 2>&1
-            echo "ANDROID_HOME=${ANDROID_HOME:-unset} ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
-            SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-            echo "platforms:"; ls "$SDK/platforms" 2>&1
-            echo "ndk:"; ls "$SDK/ndk" 2>&1
-            echo "ndk-bundle:"; ls -d "$SDK/ndk-bundle" 2>&1
-            echo "cmake:"; ls "$SDK/cmake" 2>&1
-            echo "build-tools:"; ls "$SDK/build-tools" 2>&1
-            echo "cmake on PATH: $(command -v cmake || echo none) $(cmake --version 2>/dev/null | head -1)"
+            java -version 2>&1 || true
+            echo "SDK=$SDK"
+            for d in platforms ndk ndk-bundle cmake build-tools platform-tools; do
+              echo "$d: $(ls "$SDK/$d" 2>/dev/null | tr '\n' ' ' || true)"
+            done
+            echo "cmake: $(command -v cmake || echo none) | $(cmake --version 2>&1 | head -1 || true)"
             echo "ninja: $(command -v ninja || echo none)"
+            echo "clang: $(clang --version 2>&1 | head -1 || true)"
             echo '```'
-          } >> /tmp/toolchain.md
-          cat /tmp/toolchain.md >> "$GITHUB_STEP_SUMMARY"
-      - name: Test + assemble (continue past failures)
-        run: |
-          set +e
+          } >> "$S"
           mkdir -p diag-out
           LOG=diag-out/gradle.log
+          set +e
           ./gradlew test :app:assembleFullDebug :app:assembleLiteDebug :app:assembleBeDebug \
               --no-daemon --continue --console=plain --stacktrace --warning-mode=summary \
               > "$LOG" 2>&1
           echo "GRADLE_EXIT=$?" | tee -a "$LOG"
-          # The whole log, for humans in the UI; the summary below is the machine-readable part.
+          set -e
           {
-            echo "### gradle output (whole log, first 400 lines)"
+            echo "### gradle output (first 400 lines)"
             echo '```text'
             cut -c1-260 "$LOG" | head -400
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } >> "$S"
           {
             echo "### compile errors (Kotlin/Java)"
             echo '```text'
-            grep -nE "^(e: |w: file|> Task .*(FAILED|compile))" "$LOG" | head -60
-            grep -nE "^\s*[A-Za-z0-9_./-]+\.(kt|kts|java):[0-9]+:[0-9]+" "$LOG" | head -120
+            grep -nE "^(e: |w: file|> Task .*(FAILED|compile))" "$LOG" | head -60 || true
+            grep -nE "[A-Za-z0-9_./-]+\.(kt|kts|java):[0-9]+:[0-9]+" "$LOG" | head -140 || true
             echo '```'
             echo "### what went wrong"
             echo '```text'
-            awk '/\* What went wrong/{p=1} /\* Try:/{p=0} p' "$LOG" | cut -c1-300 | head -160
+            awk '/\* What went wrong/{p=1} /\* Try:/{p=0} p' "$LOG" | cut -c1-300 | head -200 || true
             echo '```'
             echo "### native + resolution errors"
             echo '```text'
-            grep -nE "error:|fatal error|undefined reference|CMake Error|Could not (resolve|find|create|download)|Unresolved reference|FAILURE: Build" "$LOG" | cut -c1-300 | head -160
+            grep -nE "error:|fatal error|undefined reference|CMake Error|Could not (resolve|find|create|download|open)|Unresolved reference|FAILURE: Build" "$LOG" | cut -c1-300 | head -200 || true
             echo '```'
             echo "### tasks that failed"
             echo '```text'
-            grep -nE "^> Task .* FAILED" "$LOG" | head -40
+            grep -nE "^> Task .* FAILED" "$LOG" | head -40 || true
             echo '```'
             echo "### tail"
             echo '```text'
-            cut -c1-260 "$LOG" | tail -80
+            cut -c1-260 "$LOG" | tail -60
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } >> "$S"
+          exit 1
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
