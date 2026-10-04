@@ -51,8 +51,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -332,7 +334,7 @@ fun HigSection(
         return
     }
     val next = Ui.style == UiStyle.HORIZON
-    Column(Modifier.fillMaxWidth().padding(horizontal = if (next) 16.dp else 16.dp, vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         if (title != null) {
             Text(
                 title,
@@ -867,49 +869,49 @@ fun HigTabBar(
 private fun NextTabBar(tabs: List<HigTab>, selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(NextDesign.Radius.capsule.dp)
     Box(modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
                 .shadow(18.dp, shape, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
                 .clip(shape)
                 .background(NextDesign.glassVeilBrush)
                 .border(1.dp, NextDesign.strokeColor, shape)
+                .drawWithContent {
+                    drawContent()
+                    // The reference's dock carries a hairline of light along its top edge.
+                    val inset = 22.dp.toPx()
+                    drawLine(
+                        brush = NextDesign.dockHighlightBrush,
+                        start = Offset(inset, 1.dp.toPx()),
+                        end = Offset(size.width - inset, 1.dp.toPx()),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+                .padding(6.dp)
         ) {
-            // The reference's dock carries a hairline of light along its top edge.
-            Box(
-                Modifier
-                    .padding(start = 26.dp, end = 26.dp)
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(NextDesign.dockHighlightBrush)
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(6.dp)
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    val chosen = index == selected
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .clip(shape)
-                            .background(if (chosen) NextDesign.tileHoverColor else Color.Transparent)
-                            .clickable { onSelect(index) }
-                            .heightIn(min = 48.dp)
-                            .padding(horizontal = if (chosen) 16.dp else 12.dp)
-                    ) {
-                        Icon(
-                            tab.icon, tab.label,
-                            tint = if (chosen) NextDesign.accentColor else NextDesign.inkSoftColor,
-                            modifier = Modifier.size(23.dp)
-                        )
-                        if (chosen) Text(
-                            tab.label,
-                            color = NextDesign.inkColor,
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                        )
-                    }
+            tabs.forEachIndexed { index, tab ->
+                val chosen = index == selected
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .clip(shape)
+                        .background(if (chosen) NextDesign.tileHoverColor else Color.Transparent)
+                        .clickable { onSelect(index) }
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = if (chosen) 16.dp else 12.dp)
+                ) {
+                    Icon(
+                        tab.icon, tab.label,
+                        tint = if (chosen) NextDesign.accentColor else NextDesign.inkSoftColor,
+                        modifier = Modifier.size(23.dp)
+                    )
+                    if (chosen) Text(
+                        tab.label,
+                        color = NextDesign.inkColor,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                    )
                 }
             }
         }

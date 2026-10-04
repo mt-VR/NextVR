@@ -213,8 +213,11 @@ object NextDesign {
         "own:android" to (0xFFA9CF8C.toInt() to 0xFF4A8C3F.toInt()),
         "own:avatar" to (0xFFE4A6D2.toInt() to 0xFF9B4C87.toInt()),
         "own:instagram" to (0xFFFCB03F.toInt() to 0xFFC13584.toInt()),
+        "own:minecraft" to (0xFF8FBF6A.toInt() to 0xFF3F7A46.toInt()),
         "own:discord" to (0xFF7289FF.toInt() to 0xFF4752C4.toInt()),
         "desktop" to (0xFF7FD4E8.toInt() to 0xFF2C7C93.toInt()),
+        // The same tile under the name the icon pack knows the desktop by.
+        "own:desktop" to (0xFF7FD4E8.toInt() to 0xFF2C7C93.toInt()),
     )
 
     /** A gradient for anything else, from a hue of its own — still the reference's colour → deep. */
