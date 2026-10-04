@@ -21,6 +21,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # -O3 is what the upstream nodes are built with; the estimator is the hottest loop on the phone.
 add_compile_options(-O3 -fno-strict-aliasing -DEIGEN_DONT_PARALLELIZE -DNDEBUG -w)
+# ...and one header in every translation unit, for the strdupa() that bionic does not have (see the
+# file: it is a compiler flag rather than an added include, because the upstream header that uses it
+# stays as upstream wrote it).
+add_compile_options(-include ${CMAKE_CURRENT_SOURCE_DIR}/shim/vins_gnu.h)
 
 find_library(LOG_LIB log)
 

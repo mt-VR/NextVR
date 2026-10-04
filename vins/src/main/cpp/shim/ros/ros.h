@@ -67,3 +67,7 @@ class NodeHandle {
 inline Time now() { return Time(); }
 
 }  // namespace ros
+
+// <ros/ros.h> is also how upstream gets at ROS_ASSERT and ROS_BREAK; both are declared in their
+// own header there, and this one has to be included last, once the log macros exist.
+#include "assert.h"
