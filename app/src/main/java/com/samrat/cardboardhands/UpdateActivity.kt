@@ -38,7 +38,7 @@ import zone.ien.hig.theme.CupertinoTheme
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
-/** Native "Software Update" screen for PhoneXR. */
+/** Native "Software Update" screen for NextVR. */
 class UpdateActivity : ComponentActivity() {
     private var release by mutableStateOf<Updates.Release?>(null)
     private var checking by mutableStateOf(true)
@@ -96,8 +96,8 @@ class UpdateActivity : ComponentActivity() {
                 checking -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { HigSpinner() }
                 found != null -> UpdateCard(found)
                 else -> Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    CupertinoText("PhoneXR ${Updates.currentVersion(this@UpdateActivity)}", fontWeight = FontWeight.SemiBold)
-                    CupertinoText(error ?: tr("PhoneXR is up to date"), color = CupertinoTheme.colorScheme.secondaryLabel)
+                    CupertinoText("NextVR ${Updates.currentVersion(this@UpdateActivity)}", fontWeight = FontWeight.SemiBold)
+                    CupertinoText(error ?: tr("NextVR is up to date"), color = CupertinoTheme.colorScheme.secondaryLabel)
                 }
             }
         }
@@ -119,7 +119,7 @@ class UpdateActivity : ComponentActivity() {
                     }
                 }
                 Column(Modifier.padding(start = 14.dp)) {
-                    CupertinoText("PhoneXR ${found.version}", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    CupertinoText("NextVR ${found.version}", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     CupertinoText(Updates.formatSize(found.size), color = CupertinoTheme.colorScheme.secondaryLabel)
                 }
             }

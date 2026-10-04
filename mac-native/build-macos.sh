@@ -27,5 +27,5 @@ build_edition() {
 }
 
 /bin/mkdir -p "$OUTPUT_DIR/module-cache"
-build_edition "PhoneXR Share" "" "$SCRIPT_DIR/Info.plist" "$FULL_APK"
-build_edition "PhoneXR Lite Share" "-D PHONEXR_LITE" "$SCRIPT_DIR/Info-Lite.plist" "$LITE_APK"
+build_edition "NextVR Share" "" "$SCRIPT_DIR/Info.plist" "$FULL_APK"
+build_edition "NextVR Lite Share" "-D PHONEXR_LITE" "$SCRIPT_DIR/Info-Lite.plist" "$LITE_APK"

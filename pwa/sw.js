@@ -1,4 +1,4 @@
-// PhoneXR PWA: the app itself works offline; MediaPipe (hands) is cached after the first run.
+// NextVR PWA: the app itself works offline; MediaPipe (hands) is cached after the first run.
 const CACHE = 'phonexr-pwa-1';
 const APP = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 

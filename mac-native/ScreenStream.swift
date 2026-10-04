@@ -28,7 +28,7 @@ final class ScreenStream: ObservableObject {
             let listener = try NWListener(using: .tcp, on: 24820)
             listener.newConnectionHandler = { [weak self] connection in
                 connection.start(queue: .main)
-                Task { @MainActor in self?.clients.append(connection); self?.status = "PhoneXR connected · sharing the screen" }
+                Task { @MainActor in self?.clients.append(connection); self?.status = "NextVR connected · sharing the screen" }
             }
             listener.stateUpdateHandler = { [weak self] state in
                 if case .failed(let error) = state { Task { @MainActor in self?.status = error.localizedDescription; self?.stop() } }
@@ -43,7 +43,7 @@ final class ScreenStream: ObservableObject {
                     self?.announcer?.send(content: Data("PHONEXR_DESKTOP_V1 24820 \(name)".utf8), completion: .contentProcessed { _ in })
                 }
             }
-            running = true; status = "Waiting for PhoneXR on the local network…"
+            running = true; status = "Waiting for NextVR on the local network…"
             timer = Timer.scheduledTimer(withTimeInterval: frameInterval, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.sendFrame() }
             }

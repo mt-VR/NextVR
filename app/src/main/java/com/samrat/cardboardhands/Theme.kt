@@ -94,18 +94,18 @@ import androidx.compose.material3.lightColorScheme as materialLightColors
 /** How much larger the phone app is drawn than Android's standard size. */
 const val PHONE_SCALE = 1.12f
 
-/** PhoneXR orange, the accent of the launcher icon. */
+/** NextVR orange, the accent of the launcher icon. */
 private val orange = Color(0xFFFF7A1A)
 private val orangeDark = Color(0xFFFF9544)
 
 /**
- * The looks PhoneXR has worn. Now every screen, on the phone and in VR, wears [HORIZON] — the
+ * The looks NextVR has worn. Now every screen, on the phone and in VR, wears [HORIZON] — the
  * Next VR look: dark glass with hairlines, white 7% tiles, a periwinkle accent for what is selected
  * and one teal filled action per screen ([NextDesign] holds the numbers). The older two stay only
  * so saved settings still read.
  */
 enum class UiStyle(val title: String, val detail: String) {
-    CUPERTINO("PhoneXR UI", "Grouped lists and the orange PhoneXR accent"),
+    CUPERTINO("NextVR UI", "Grouped lists and the orange NextVR accent"),
     MATERIAL("Material You", "Like Android: cards and colors from the system wallpaper"),
     HORIZON("Next VR", "Glass windows, periwinkle accents, tiles on a dark backdrop"),
 }
@@ -114,7 +114,7 @@ enum class UiStyle(val title: String, val detail: String) {
 object Ui {
     var style by mutableStateOf(UiStyle.HORIZON)
         private set
-    /** PhoneXR is dark only, like Meta's newest look: there is no light theme any more. */
+    /** NextVR is dark only, like Meta's newest look: there is no light theme any more. */
     val dark = true
 
     /** Card-and-row screens (Material and Next VR) rather than compose-hig sections. */
@@ -125,7 +125,7 @@ object Ui {
 }
 
 /**
- * The PhoneXR look in light or dark; [dark] null follows the shared light/dark choice ([Ui.dark]).
+ * The NextVR look in light or dark; [dark] null follows the shared light/dark choice ([Ui.dark]).
  * [scale] makes everything larger: the phone app is drawn a size up, like the VR home's big
  * controls; the VR windows keep 1.
  */
@@ -178,7 +178,7 @@ private fun nextColors(dark: Boolean): MaterialColors {
         outline = NextDesign.inkFaintColor, outlineVariant = NextDesign.strokeColor,
         error = NextDesign.dangerColor, onError = Color(0xFF2A0F10),
     ) else materialLightColors(
-        // PhoneXR is dark only; the light scheme stays so a screen that asks for it still draws.
+        // NextVR is dark only; the light scheme stays so a screen that asks for it still draws.
         primary = NextDesign.primaryColor, onPrimary = Color.White,
         primaryContainer = NextDesign.accentSoftColor, onPrimaryContainer = Color(0xFF1B2338),
         secondary = Color(0xFF4A63B8), onSecondary = Color.White,
@@ -192,7 +192,7 @@ private fun nextColors(dark: Boolean): MaterialColors {
     )
 }
 
-/** Material You: the wallpaper palette on Android 12 and newer, the PhoneXR orange before that. */
+/** Material You: the wallpaper palette on Android 12 and newer, the NextVR orange before that. */
 private fun materialColors(context: Context, dark: Boolean): MaterialColors = when {
     Build.VERSION.SDK_INT >= 31 && dark -> dynamicDarkColorScheme(context)
     Build.VERSION.SDK_INT >= 31 -> dynamicLightColorScheme(context)

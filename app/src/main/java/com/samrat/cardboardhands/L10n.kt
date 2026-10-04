@@ -3,15 +3,47 @@ package com.samrat.cardboardhands
 import android.content.Context
 
 /**
- * PhoneXR's languages. The interface is written in English; [tr] gives the chosen language's text
+ * NextVR's languages. The interface is written in English; [tr] gives the chosen language's text
  * for an English source string (untranslated strings stay English).
  */
+enum class KeyboardLayout(
+    val letters: List<String>,
+    val symbols: List<String>,
+    val spaceLabel: String,
+) {
+    LATIN(
+        letters = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm@"),
+        symbols = listOf("1234567890", "@#_&+()/*\"", "!?:;'%="),
+        spaceLabel = "space",
+    ),
+    CYRILLIC(
+        letters = listOf("йцукенгшщзх", "фывапролджэ", "ячсмитьбю"),
+        symbols = listOf("1234567890", "@#_&+()/*\"", "!?:;'%="),
+        spaceLabel = "пробел",
+    ),
+    PORTUGUESE(
+        letters = listOf("qwertyuiop", "asdfghjklç", "zxcvbnm@"),
+        symbols = listOf("1234567890", "@#_&+()/*\"", "!áéíóúãõç"),
+        spaceLabel = "espaço",
+    ),
+}
+
 object L10n {
-    enum class Lang(val code: String, val title: String, val speech: String) {
-        EN("en", "English", "en-US"),
-        RU("ru", "Русский", "ru-RU"),
-        PT_BR("pt-BR", "Português (Brasil)", "pt-BR"),
-        PT_PT("pt-PT", "Português (Portugal)", "pt-PT"),
+    /** These are the languages the UI actually translates; every picker and keyboard uses this list. */
+    enum class Lang(
+        val code: String,
+        val title: String,
+        val speech: String,
+        val nativeName: String,
+        val detail: String,
+        val badge: String,
+        val greeting: String,
+        val keyboard: KeyboardLayout,
+    ) {
+        EN("en", "English", "en-US", "English", "English (United States)", "US", "Hello", KeyboardLayout.LATIN),
+        RU("ru", "Русский", "ru-RU", "Русский", "Russian", "RU", "Привет", KeyboardLayout.CYRILLIC),
+        PT_BR("pt-BR", "Português (Brasil)", "pt-BR", "Português", "Português (Brasil)", "BR", "Olá", KeyboardLayout.PORTUGUESE),
+        PT_PT("pt-PT", "Português (Portugal)", "pt-PT", "Português", "Português (Portugal)", "PT", "Olá", KeyboardLayout.PORTUGUESE),
     }
 
     private const val PREFS = "language"
@@ -87,7 +119,7 @@ object L10n {
             "Вставьте телефон в VR‑шлем",
             "Coloque o celular no headset VR",
             "Coloque o telemóvel no headset VR"),
-        "PhoneXR account" to arrayOf("Аккаунт PhoneXR", "Conta PhoneXR", "Conta PhoneXR"),
+        "NextVR account" to arrayOf("Аккаунт NextVR", "Conta NextVR", "Conta NextVR"),
         "Sign in to call friends, see them in VR and keep your settings. You can also do it later in the phone app." to arrayOf(
             "Войдите, чтобы звонить друзьям, видеть их в VR и сохранять настройки. Можно и позже — в приложении на телефоне.",
             "Entre para ligar para amigos, vê-los em VR e salvar suas configurações. Você também pode fazer isso depois no app do celular.",
@@ -105,10 +137,10 @@ object L10n {
         "Enter your name" to arrayOf("Введите имя", "Digite seu nome", "Introduza o seu nome"),
         "Welcome" to arrayOf("Добро пожаловать", "Bem-vindo", "Bem-vindo"),
         "Room scan" to arrayOf("Сканирование комнаты", "Escaneamento do ambiente", "Digitalização da sala"),
-        "Look at the floor, the walls and the table — PhoneXR covers them with a grid and remembers where the table is: the keyboard will lie on it. Then walk around the edge of the free space; the loop closes by itself, or make a fist." to arrayOf(
-            "Осмотрите пол, стены и стол — PhoneXR покроет их сеткой и запомнит, где стоит стол: на нём будет клавиатура. Потом обойдите свободное место по краю; круг замкнётся сам, или сожмите кулак.",
-            "Olhe para o chão, as paredes e a mesa — o PhoneXR os cobre com uma grade e lembra onde fica a mesa: o teclado ficará nela. Depois contorne o espaço livre; o círculo fecha sozinho, ou feche a mão.",
-            "Olhe para o chão, as paredes e a mesa — o PhoneXR cobre-os com uma grelha e lembra-se de onde está a mesa: o teclado ficará nela. Depois contorne o espaço livre; o círculo fecha-se sozinho, ou feche a mão."),
+        "Look at the floor, the walls and the table — NextVR covers them with a grid and remembers where the table is: the keyboard will lie on it. Then walk around the edge of the free space; the loop closes by itself, or make a fist." to arrayOf(
+            "Осмотрите пол, стены и стол — NextVR покроет их сеткой и запомнит, где стоит стол: на нём будет клавиатура. Потом обойдите свободное место по краю; круг замкнётся сам, или сожмите кулак.",
+            "Olhe para o chão, as paredes e a mesa — o NextVR os cobre com uma grade e lembra onde fica a mesa: o teclado ficará nela. Depois contorne o espaço livre; o círculo fecha sozinho, ou feche a mão.",
+            "Olhe para o chão, as paredes e a mesa — o NextVR cobre-os com uma grelha e lembra-se de onde está a mesa: o teclado ficará nela. Depois contorne o espaço livre; o círculo fecha-se sozinho, ou feche a mão."),
         "Table found ✓" to arrayOf("Стол найден ✓", "Mesa encontrada ✓", "Mesa encontrada ✓"),
         "Looking for a table…" to arrayOf("Ищу стол…", "Procurando uma mesa…", "À procura de uma mesa…"),
         "The app and VR look the same; the theme is shared with the VR home." to arrayOf(
@@ -126,14 +158,14 @@ object L10n {
         "Light" to arrayOf("Светлое", "Claro", "Claro"),
         "Dark" to arrayOf("Тёмное", "Escuro", "Escuro"),
         "Loading the store…" to arrayOf("Магазин загружается…", "Carregando a loja…", "A carregar a loja…"),
-        "Your friends will be here — sign in in the PhoneXR app" to arrayOf(
-            "Здесь будут друзья — войдите в аккаунт в приложении PhoneXR",
-            "Seus amigos aparecerão aqui — entre na sua conta no app PhoneXR",
-            "Os seus amigos aparecerão aqui — inicie sessão na app PhoneXR"),
-        "VR games prepared in the PhoneXR app will be here" to arrayOf(
-            "Здесь будут VR‑игры, подготовленные в приложении PhoneXR",
-            "Os jogos VR preparados no app PhoneXR aparecerão aqui",
-            "Os jogos VR preparados na app PhoneXR aparecerão aqui"),
+        "Your friends will be here — sign in in the NextVR app" to arrayOf(
+            "Здесь будут друзья — войдите в аккаунт в приложении NextVR",
+            "Seus amigos aparecerão aqui — entre na sua conta no app NextVR",
+            "Os seus amigos aparecerão aqui — inicie sessão na app NextVR"),
+        "VR games prepared in the NextVR app will be here" to arrayOf(
+            "Здесь будут VR‑игры, подготовленные в приложении NextVR",
+            "Os jogos VR preparados no app NextVR aparecerão aqui",
+            "Os jogos VR preparados na app NextVR aparecerão aqui"),
         "Add web apps from the store" to arrayOf(
             "Добавьте веб‑приложения из магазина",
             "Adicione apps web da loja",
@@ -159,6 +191,18 @@ object L10n {
         "Language" to arrayOf("Язык", "Idioma", "Idioma"),
         // The very first card of the setup: the language itself
         "Choose your language" to arrayOf("Выберите язык", "Escolha o idioma", "Escolha o idioma"),
+        "Your VR viewer" to arrayOf("Ваш VR-шлем", "Seu visor VR", "O seu visor VR"),
+        "Scan the QR code on your viewer to set the lens spacing." to arrayOf(
+            "Отсканируйте QR-код шлема, чтобы настроить расстояние между линзами.",
+            "Leia o código QR do visor para definir a distância entre as lentes.",
+            "Leia o código QR do visor para definir a distância entre as lentes."),
+        "Scan viewer profile QR" to arrayOf("Сканировать QR-код шлема", "Ler QR do visor", "Ler QR do visor"),
+        "Lens spacing" to arrayOf("Расстояние между линзами", "Distância entre lentes", "Distância entre lentes"),
+        "Current language" to arrayOf("Текущий язык", "Idioma atual", "Idioma atual"),
+        "Choose from these supported languages." to arrayOf(
+            "Выберите один из доступных языков.",
+            "Escolha um dos idiomas disponíveis.",
+            "Escolha um dos idiomas disponíveis."),
         "What's your name?" to arrayOf("Как вас зовут?", "Como você se chama?", "Como se chama?"),
         "Username" to arrayOf("Имя пользователя", "Nome de usuário", "Nome de utilizador"),
         "Touch" to arrayOf("Касание", "Toque", "Toque"),
@@ -186,7 +230,7 @@ object L10n {
         "Continue" to arrayOf("Продолжить", "Continuar", "Continuar"),
         "Something went wrong" to arrayOf("Не получилось", "Não deu certo", "Não foi possível"),
         "VR modes" to arrayOf("VR‑режимы", "Modos VR", "Modos VR"),
-        "PhoneXR apps" to arrayOf("Приложения PhoneXR", "Apps PhoneXR", "Apps PhoneXR"),
+        "NextVR apps" to arrayOf("Приложения NextVR", "Apps NextVR", "Apps NextVR"),
         "Android apps" to arrayOf("Android‑приложения", "Apps Android", "Apps Android"),
         "Web apps" to arrayOf("Веб‑приложения", "Apps web", "Apps web"),
         "Minecraft mods" to arrayOf("Моды Minecraft", "Mods do Minecraft", "Mods do Minecraft"),
@@ -266,10 +310,10 @@ object L10n {
         "Automatic Updates" to arrayOf("Автообновление", "Atualizações Automáticas", "Atualizações automáticas"),
         "Beta Updates" to arrayOf("Бета‑обновления", "Atualizações Beta", "Atualizações beta"),
         "Update Now" to arrayOf("Обновить сейчас", "Atualizar Agora", "Atualizar agora"),
-        "PhoneXR is up to date" to arrayOf(
+        "NextVR is up to date" to arrayOf(
             "Установлена последняя версия",
-            "O PhoneXR está atualizado",
-            "O PhoneXR está atualizado"),
+            "O NextVR está atualizado",
+            "O NextVR está atualizado"),
         // Calls and friends
         "Call" to arrayOf("Позвонить", "Ligar", "Ligar"),
         "Accept" to arrayOf("Принять", "Aceitar", "Aceitar"),
@@ -297,10 +341,10 @@ object L10n {
             "Ótima! Pronta para ajudar.",
             "Ótima! Pronta para ajudar."),
         "You're welcome!" to arrayOf("Пожалуйста!", "De nada!", "De nada!"),
-        "I'm Elix, the PhoneXR assistant." to arrayOf(
-            "Я Elix, ассистент PhoneXR.",
-            "Sou a Elix, a assistente do PhoneXR.",
-            "Sou a Elix, a assistente do PhoneXR."),
+        "I'm Elix, the NextVR assistant." to arrayOf(
+            "Я Elix, ассистент NextVR.",
+            "Sou a Elix, a assistente do NextVR.",
+            "Sou a Elix, a assistente do NextVR."),
         "It's" to arrayOf("Сейчас", "Agora são", "São"),
         "Battery" to arrayOf("Заряд", "Bateria", "Bateria"),
         "Taking a photo!" to arrayOf("Снимаю!", "Tirando foto!", "A tirar fotografia!"),
@@ -328,7 +372,7 @@ object L10n {
         "Back" to arrayOf("Назад", "Voltar", "Voltar"),
         "Computer" to arrayOf("Компьютер", "Computador", "Computador"),
         "Video" to arrayOf("Видео", "Vídeo", "Vídeo"),
-        "PhoneXR Browser" to arrayOf("Браузер PhoneXR", "Navegador PhoneXR", "Navegador PhoneXR"),
+        "NextVR Browser" to arrayOf("Браузер NextVR", "Navegador NextVR", "Navegador NextVR"),
         "Car mode" to arrayOf("Режим машины", "Modo carro", "Modo carro"),
         "Car mode: 3DoF, windows follow your gaze" to arrayOf(
             "Режим машины: 3DoF, окна следуют за взглядом",
@@ -364,10 +408,10 @@ object L10n {
             "Добавляйте друзей по юзернейму и звоните им персоной в VR",
             "Adicione amigos pelo nome de usuário e ligue para eles como sua Persona em VR",
             "Adicione amigos pelo nome de utilizador e ligue-lhes como a sua Persona em VR"),
-        "Friends and calls need a PhoneXR account." to arrayOf(
-            "Друзья и звонки работают с аккаунтом PhoneXR.",
-            "Amigos e chamadas funcionam com uma conta PhoneXR.",
-            "Amigos e chamadas funcionam com uma conta PhoneXR."),
+        "Friends and calls need a NextVR account." to arrayOf(
+            "Друзья и звонки работают с аккаунтом NextVR.",
+            "Amigos e chamadas funcionam com uma conta NextVR.",
+            "Amigos e chamadas funcionam com uma conta NextVR."),
         "You can call from the Calls app in the headset while a friend is online." to arrayOf(
             "Позвонить можно из приложения «Звонки» в шлеме, когда друг в сети.",
             "Você pode ligar pelo app Chamadas no headset enquanto o amigo estiver online.",
@@ -387,15 +431,15 @@ object L10n {
             "Камера не нужна: наведите точку в центре на кнопку и коснитесь экрана телефона.",
             "Sem câmera: mire o ponto central em um botão e toque na tela do celular.",
             "Sem câmara: aponte o ponto central a um botão e toque no ecrã do telemóvel."),
-        "Look at the floor, the walls and the table — PhoneXR covers them with a grid and remembers where the table is: the keyboard will lie on it." to arrayOf(
-            "Осмотрите пол, стены и стол — PhoneXR покроет их сеткой и запомнит, где стоит стол: на нём будет клавиатура.",
-            "Olhe para o chão, as paredes e a mesa — o PhoneXR os cobre com uma grade e lembra onde fica a mesa: o teclado ficará nela.",
-            "Olhe para o chão, as paredes e a mesa — o PhoneXR cobre-os com uma grelha e lembra-se de onde está a mesa: o teclado ficará nela."),
+        "Look at the floor, the walls and the table — NextVR covers them with a grid and remembers where the table is: the keyboard will lie on it." to arrayOf(
+            "Осмотрите пол, стены и стол — NextVR покроет их сеткой и запомнит, где стоит стол: на нём будет клавиатура.",
+            "Olhe para o chão, as paredes e a mesa — o NextVR os cobre com uma grade e lembra onde fica a mesa: o teclado ficará nela.",
+            "Olhe para o chão, as paredes e a mesa — o NextVR cobre-os com uma grelha e lembra-se de onde está a mesa: o teclado ficará nela."),
         "Device, version, account" to arrayOf("Устройство, версия, аккаунт", "Dispositivo, versão, conta", "Dispositivo, versão, conta"),
         "Network, controllers, keyboard" to arrayOf("Сеть, контроллеры, клавиатура", "Rede, controles, teclado", "Rede, controlos, teclado"),
         "Hands and touch" to arrayOf("Руки и касания", "Mãos e toque", "Mãos e toque"),
         "Hand tracking, pinch" to arrayOf("Трекинг рук, щипок", "Rastreamento das mãos, pinça", "Rastreio das mãos, pinça"),
-        "PhoneXR version" to arrayOf("Версия PhoneXR", "Versão do PhoneXR", "Versão do PhoneXR"),
+        "NextVR version" to arrayOf("Версия NextVR", "Versão do NextVR", "Versão do NextVR"),
         "Avaturn or VRoid Hub" to arrayOf("Avaturn или VRoid Hub", "Avaturn ou VRoid Hub", "Avaturn ou VRoid Hub"),
         "Grid, table, 6DoF" to arrayOf("Сетка, стол, 6DoF", "Grade, mesa, 6DoF", "Grelha, mesa, 6DoF"),
         "Search in settings" to arrayOf("Поиск в настройках", "Pesquisar nos ajustes", "Pesquisar nas definições"),

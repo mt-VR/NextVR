@@ -26,7 +26,7 @@ import kotlin.concurrent.thread
 
 /**
  * The store in the headset, in compose-hig and laid out like the App Store: cards with an icon, a
- * name, a line of description and a pill button — VR modes, PhoneXR apps, games from the server,
+ * name, a line of description and a pill button — VR modes, NextVR apps, games from the server,
  * Minecraft mods and web apps.
  */
 class StoreContent(private val context: Context, private val host: Host) : ComposeContent(barTitle = tr("Store")) {
@@ -94,7 +94,7 @@ class StoreContent(private val context: Context, private val host: Host) : Compo
             Modifier.fillMaxSize().background(CupertinoTheme.colorScheme.systemGroupedBackground)
                 .verticalScroll(rememberScrollState()).padding(bottom = 24.dp)
         ) {
-            VrTitle(tr("Store"), "Games, modes and apps for PhoneXR")
+            VrTitle(tr("Store"), "Games, modes and apps for NextVR")
             for (section in sections) {
                 VrHeading(section.title)
                 section.cards.chunked(2).forEach { pair ->
@@ -178,7 +178,7 @@ class StoreContent(private val context: Context, private val host: Host) : Compo
         sections = listOfNotNull(
             Section(tr("VR modes"), modes),
             Section("WebXR games", xrCards),
-            Section(tr("PhoneXR apps"), apps),
+            Section(tr("NextVR apps"), apps),
             Section(if (loading) "Games · loading…" else tr("Games"), gameCards).takeIf { loading || gameCards.isNotEmpty() },
             Section(tr("Minecraft mods"), modCards).takeIf { modCards.isNotEmpty() },
             Section(tr("Web apps"), webCards).takeIf { webCards.isNotEmpty() },

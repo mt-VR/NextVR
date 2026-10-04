@@ -51,7 +51,7 @@ class AboutActivity : ComponentActivity() {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AppIcon()
-                CupertinoText("PhoneXR", style = CupertinoTheme.typography.title1)
+                CupertinoText("NextVR", style = CupertinoTheme.typography.title1)
                 // Five taps in a row on the version: the easter egg.
                 CupertinoText(
                     "Version ${BuildConfig.VERSION_NAME}",

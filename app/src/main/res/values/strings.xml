@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="joycon_service_label">PhoneXR Joy‑Con</string>
+    <string name="joycon_service_label">NextVR Joy‑Con</string>
     <string name="joycon_service_description">Passes the Joy‑Con buttons to OpenXR games as VR controller buttons. It only reads presses on the Joy‑Con and leaves the other keys alone.</string>
 </resources>

@@ -78,7 +78,7 @@ class SettingsActivity : ComponentActivity() {
                 HigChoice("3DoF", "Head rotation without moving", !state.sixDof) {
                     update(state.copy(sixDof = false))
                 }
-                if (BuildConfig.LITE) HigRow("6DoF", "Only in PhoneXR Full", detailColor = HigColors.secondary)
+                if (BuildConfig.LITE) HigRow("6DoF", "Only in NextVR Full", detailColor = HigColors.secondary)
                 else HigChoice("6DoF", "Rotation and movement through ARCore", state.sixDof) {
                     update(state.copy(sixDof = true))
                 }
@@ -102,7 +102,7 @@ class SettingsActivity : ComponentActivity() {
                 footer = if (interceptEnabled) "Joy‑Con are tracked by the hand holding them: position and rotation come from the hand, " +
                     "buttons and the stick from the Joy‑Con. Nothing to set up."
                 else "Without interception, Joy‑Con buttons go to the game as a gamepad, not as VR controllers. " +
-                    "Turn on “PhoneXR Joy‑Con” in Accessibility."
+                    "Turn on “NextVR Joy‑Con” in Accessibility."
             ) {
                 HigRow(
                     "Button interception",
@@ -115,7 +115,7 @@ class SettingsActivity : ComponentActivity() {
             }
             HigSection(
                 title = "Controllers",
-                footer = "PhoneXR accepts any gamepad: Joy‑Con, DualShock, Xbox and no-name ones. " +
+                footer = "NextVR accepts any gamepad: Joy‑Con, DualShock, Xbox and no-name ones. " +
                     "A single gamepad works as both hands: the left stick and X/Y/L are the left hand, the right stick and A/B/R the right one."
             ) {
                 val found = JoyConButtons.names()
@@ -182,7 +182,7 @@ class SettingsActivity : ComponentActivity() {
         }
         HigAlert(
             title = "Press a button on the Joy‑Con",
-            message = "PhoneXR is waiting for a press. Then choose what that button does in VR.",
+            message = "NextVR is waiting for a press. Then choose what that button does in VR.",
             actions = listOf(HigAction(tr("Cancel"), HigActionStyle.CANCEL, stop)),
             onDismiss = stop
         )

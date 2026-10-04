@@ -6,15 +6,15 @@ import androidx.compose.ui.graphics.Color
 /**
  * The Next VR design language.
  *
- * PhoneXR's screens, its VR home and its window chrome all read their colours, radii and motion
+ * NextVR's screens, its VR home and its window chrome all read their colours, radii and motion
  * from here, so the phone app and the headset stay one design. The numbers come from the reference
  * UI: dark glass panels with a hairline stroke, white 7% tiles, a periwinkle accent for whatever is
  * selected or on, one teal filled action per screen, gradient app tiles and a world-locked dock.
  *
- * Two of the reference's choices were adapted deliberately for PhoneXR:
+ * Two of the reference's choices were adapted deliberately for NextVR:
  *  - the glass is a little denser than on the web (0.90 instead of 0.72): in the headset a window
  *    usually hangs over the live camera picture, and thin glass there costs legibility;
- *  - the warm black backdrop is only used where PhoneXR has a backdrop of its own (the phone app,
+ *  - the warm black backdrop is only used where NextVR has a backdrop of its own (the phone app,
  *    the setup), never behind passthrough or a chosen world.
  *
  * Everything is ARGB here so the Compose surfaces and the canvas-drawn VR chrome (window pill,
@@ -194,9 +194,9 @@ object NextDesign {
 
     /**
      * The reference's app tiles: a diagonal gradient from the app's own colour to its deep end,
-     * always with a white glyph. PhoneXR's own apps take the reference's palette where it has one
+     * always with a white glyph. NextVR's own apps take the reference's palette where it has one
      * (`store`, `people`, `browser`, `photos`, `settings`, `worlds`) and a neighbour of it where
-     * PhoneXR has apps the reference does not.
+     * NextVR has apps the reference does not.
      */
     val gradients: Map<String, Pair<Int, Int>> = mapOf(
         "own:store" to (0xFFF2BD70.toInt() to 0xFFB7772E.toInt()),

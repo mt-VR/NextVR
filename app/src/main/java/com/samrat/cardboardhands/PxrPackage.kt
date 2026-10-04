@@ -17,7 +17,7 @@ object PxrPackage {
     fun packAndroid(context: Context, apk: File, title: String = apk.nameWithoutExtension): File {
         require(apk.isFile && apk.length() > 0) { "The APK was not found" }
         val folder = File(context.filesDir, "pxr-exports").apply { mkdirs() }
-        val safe = title.replace(Regex("[^A-Za-zА-Яа-я0-9._-]+"), "-").trim('-').ifEmpty { "PhoneXR-app" }
+        val safe = title.replace(Regex("[^A-Za-zА-Яа-я0-9._-]+"), "-").trim('-').ifEmpty { "NextVR-app" }
         val output = File(folder, "$safe.pxr")
         ZipOutputStream(FileOutputStream(output)).use { zip ->
             zip.putNextEntry(ZipEntry("manifest.json"))
@@ -70,7 +70,7 @@ object PxrPackage {
                 }
             }
         }
-        require(validManifest) { "This is not a PhoneXR .pxr package" }
+        require(validManifest) { "This is not a NextVR .pxr package" }
         require(foundAndroid && output.length() > 0) { "The .pxr has no Android APK" }
         return output
     }

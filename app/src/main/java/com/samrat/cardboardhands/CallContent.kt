@@ -108,7 +108,7 @@ class CallContent(private val context: Context, private val onWatchTogether: (()
     @Composable
     private fun Offline() {
         val signedIn = Account.current(context) != null
-        Centered(if (signedIn) "Connecting…" else "Sign in to your PhoneXR account", if (signedIn) null else "On the phone: PhoneXR → Settings → Account") {
+        Centered(if (signedIn) "Connecting…" else "Sign in to your NextVR account", if (signedIn) null else "On the phone: NextVR → Settings → Account") {
             if (signedIn) Pill("Try again", CupertinoTheme.colorScheme.accent) { thread { Calls.stop(); Calls.start(context) } }
         }
     }

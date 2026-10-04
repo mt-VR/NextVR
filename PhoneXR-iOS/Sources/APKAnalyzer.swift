@@ -14,7 +14,7 @@ enum APKAnalyzer {
         guard ext == "apk" || ext == "zip" || ext == "pxr" else {
             return PackageReport(
                 title: url.deletingPathExtension().lastPathComponent,
-                details: ["The format is stored in the PhoneXR library."],
+                details: ["The format is stored in the NextVR library."],
                 isAndroidAPK: false,
                 hasOpenXR: false,
                 canLaunchNatively: false

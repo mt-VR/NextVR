@@ -38,7 +38,7 @@ object SharedClipboard {
                 lastSeen = content
                 runCatching {
                     context.getSystemService(ClipboardManager::class.java)
-                        ?.setPrimaryClip(ClipData.newPlainText("PhoneXR", content))
+                        ?.setPrimaryClip(ClipData.newPlainText("NextVR", content))
                 }
             }
             runCatching { open.close() }

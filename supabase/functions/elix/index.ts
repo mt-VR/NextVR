@@ -1,22 +1,22 @@
-// Elix — the PhoneXR assistant. Runs as a Supabase Edge Function so the Anthropic API key stays on
+// Elix — the NextVR assistant. Runs as a Supabase Edge Function so the Anthropic API key stays on
 // the server. Deploy:  supabase functions deploy elix
 //          then:       supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-// Only signed-in PhoneXR users can call it (the function checks the user's JWT by default).
+// Only signed-in NextVR users can call it (the function checks the user's JWT by default).
 
 const MODEL = "claude-sonnet-5";
 const MAX_TURNS = 20;
 
 const PROMPTS: Record<string, string> = {
-  ru: "Ты Elix — ассистент в VR-шлеме PhoneXR. Отвечай кратко и по делу, обычным текстом без markdown: " +
-    "ответ читают на панели в виртуальной реальности. Помогай с PhoneXR (VR-дом, звонки персонами, магазин, " +
+  ru: "Ты Elix — ассистент в VR-шлеме NextVR. Отвечай кратко и по делу, обычным текстом без markdown: " +
+    "ответ читают на панели в виртуальной реальности. Помогай с NextVR (VR-дом, звонки персонами, магазин, " +
     "граница комнаты, 6DoF) и с любыми вопросами.",
-  en: "You are Elix, the assistant in the PhoneXR VR headset. Answer briefly, in plain text without markdown: " +
-    "the answer is read on a panel in VR. Help with PhoneXR (VR home, Persona calls, store, room boundary, 6DoF) " +
+  en: "You are Elix, the assistant in the NextVR VR headset. Answer briefly, in plain text without markdown: " +
+    "the answer is read on a panel in VR. Help with NextVR (VR home, Persona calls, store, room boundary, 6DoF) " +
     "and with any question.",
-  "pt-BR": "Você é Elix, a assistente do headset VR PhoneXR. Responda de forma breve, em texto simples sem markdown: " +
-    "a resposta é lida num painel em VR. Ajude com o PhoneXR e com qualquer pergunta.",
-  "pt-PT": "É a Elix, a assistente do headset VR PhoneXR. Responda de forma breve, em texto simples sem markdown: " +
-    "a resposta é lida num painel em VR. Ajude com o PhoneXR e com qualquer pergunta.",
+  "pt-BR": "Você é Elix, a assistente do headset VR NextVR. Responda de forma breve, em texto simples sem markdown: " +
+    "a resposta é lida num painel em VR. Ajude com o NextVR e com qualquer pergunta.",
+  "pt-PT": "É a Elix, a assistente do headset VR NextVR. Responda de forma breve, em texto simples sem markdown: " +
+    "a resposta é lida num painel em VR. Ajude com o NextVR e com qualquer pergunta.",
 };
 
 const cors = {

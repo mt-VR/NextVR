@@ -46,7 +46,7 @@ object Environments {
             text.textSize = bitmap.height * .09f
             canvas.drawText(BuildConfig.VERSION_NAME.removeSuffix("-lite"), x, bitmap.height * .5f, text)
             text.textSize = bitmap.height * .03f
-            canvas.drawText("PhoneXR", x, bitmap.height * .56f, text)
+            canvas.drawText("NextVR", x, bitmap.height * .56f, text)
         }
         return bitmap
     }

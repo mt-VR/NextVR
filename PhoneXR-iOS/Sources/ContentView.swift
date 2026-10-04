@@ -21,7 +21,7 @@ struct ContentView: View {
                         Label("Check hand tracking", systemImage: "hand.raised")
                     }
                 } header: {
-                    Text("PhoneXR for iPhone")
+                    Text("NextVR for iPhone")
                 } footer: {
                     Text("The APK is stored on the iPhone and analyzed. Android code does not run as iOS code: a game needs a port from source.")
                 }
@@ -46,7 +46,7 @@ struct ContentView: View {
 
                 Section { Text(library.message).foregroundStyle(.secondary) }
             }
-            .navigationTitle("PhoneXR")
+            .navigationTitle("NextVR")
             .fileImporter(isPresented: $importing, allowedContentTypes: packageTypes) { result in
                 if case let .success(url) = result { library.importPackage(url) }
                 if case let .failure(error) = result { library.message = error.localizedDescription }
@@ -72,7 +72,7 @@ private struct GameDetails: View {
                 Button("Launch") { }
                     .disabled(!game.report.canLaunchNatively)
             } footer: {
-                Text(game.report.canLaunchNatively ? "The native PhoneXR package is ready." : "This APK holds Android binaries. The game has to be rebuilt for iOS/Metal.")
+                Text(game.report.canLaunchNatively ? "The native NextVR package is ready." : "This APK holds Android binaries. The game has to be rebuilt for iOS/Metal.")
             }
         }
         .navigationTitle(game.report.title)

@@ -59,7 +59,7 @@ class HandTrackingService : LifecycleService() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
-            .setContentTitle("PhoneXR Hand Tracking")
+            .setContentTitle("NextVR Hand Tracking")
             .setContentText("Hand gestures are sent to OpenXR")
             .setOngoing(true)
             .build()
@@ -371,7 +371,7 @@ class HandTrackingService : LifecycleService() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL, "PhoneXR Hands", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL, "NextVR Hands", NotificationManager.IMPORTANCE_LOW)
             )
         }
     }

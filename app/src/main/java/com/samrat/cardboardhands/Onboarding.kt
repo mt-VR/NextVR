@@ -14,10 +14,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * First start of the headset: "Hi", "Hello" and "你好" on an app card that turns light, dark,
- * light every three seconds, then one card with hello in the world's languages, then
- * the hands, the user's name, the room
- * room scan (6DoF), a reach calibration for touching, and "Welcome" before the home screen appears.
+ * First start of the headset: short greetings in the supported locales, a language picker, account,
+ * hand scan, the user's name, room scan (6DoF), reach calibration, then "Welcome" before the home screen.
  */
 class Onboarding(private val context: Context, private val host: Host) {
     interface Host {
@@ -51,6 +49,7 @@ class Onboarding(private val context: Context, private val host: Host) {
         step = next
         stepStart = SystemClock.elapsedRealtime()
         bothHandsSince = 0L
+        if (next == Step.NAME) keyboard.setLanguage(L10n.current)
     }
 
     private fun elapsed() = (SystemClock.elapsedRealtime() - stepStart) / 1000f
@@ -125,7 +124,7 @@ class Onboarding(private val context: Context, private val host: Host) {
                 "enter" -> {
                     // Enter goes to the next field, and from the last one signs in.
                     val last = if (accountMode == 2) 2 else 1
-                    if (field < last) field++ else submitAccount()
+                    if (field < last) selectAccountField(field + 1) else submitAccount()
                     return
                 }
                 else -> if (value.length < 64) value + key else value
@@ -162,13 +161,13 @@ class Onboarding(private val context: Context, private val host: Host) {
     @Volatile private var message: String? = null
 
     /**
-     * The PhoneXR account, like on Quest: sign in or create one right here with the VR keyboard,
+     * The NextVR account, like on Quest: sign in or create one right here with the VR keyboard,
      * or leave it for later (the phone app asks again).
      */
     private fun account(t: Float) {
         card()
         if (accountMode == 0) {
-            title(tr("PhoneXR account"))
+            title(tr("NextVR account"))
             body(tr("Sign in to call friends, see them in VR and keep your settings. You can also do it later in the phone app."))
             button(RectF(WIDTH / 2f - 420f, 620f, WIDTH / 2f - 20f, 710f), tr("Sign in")) { openForm(1) }
             button(RectF(WIDTH / 2f + 20f, 620f, WIDTH / 2f + 420f, 710f), tr("Create account"), FAINT, INK) { openForm(2) }
@@ -198,7 +197,7 @@ class Onboarding(private val context: Context, private val host: Host) {
             paint.color = if (value.isEmpty()) SOFT else INK
             canvas.drawText(if (value.isEmpty() && i != field) label else value + cursor, rect.left + 36f, rect.centerY() + 12f, paint)
             paint.textAlign = Paint.Align.LEFT
-            buttons += rect to { field = i }
+            buttons += rect to { selectAccountField(i) }
         }
         val actions = 135f + rows.size * (fieldH + gap) + 4f
         button(RectF(300f, actions, 560f, actions + 58f), tr("Back"), FAINT, INK) { accountMode = 0; message = null }
@@ -211,10 +210,15 @@ class Onboarding(private val context: Context, private val host: Host) {
 
     private fun openForm(mode: Int) {
         accountMode = mode
-        field = 0
+        selectAccountField(0)
         message = null
-        // E-mail and passwords are typed in Latin letters.
-        keyboard.setRussian(false)
+    }
+
+    /** E-mail and password stay Latin; the optional account name follows the selected UI language. */
+    private fun selectAccountField(index: Int) {
+        field = index
+        val followsUiLanguage = accountMode == 2 && index == 2
+        keyboard.setLanguage(if (followsUiLanguage) L10n.current else L10n.Lang.EN, lock = !followsUiLanguage)
     }
 
     /** Signs in or creates the account on a background thread; on success setup goes on. */
@@ -224,7 +228,7 @@ class Onboarding(private val context: Context, private val host: Host) {
             message = tr("Enter your e-mail and a password (6+ characters)")
             return
         }
-        if (accountMode == 2 && name.isBlank()) { message = tr("Enter your name"); field = 2; return }
+        if (accountMode == 2 && name.isBlank()) { message = tr("Enter your name"); selectAccountField(2); return }
         busy = true
         message = null
         val signUp = accountMode == 2
@@ -235,7 +239,6 @@ class Onboarding(private val context: Context, private val host: Host) {
                 if (error == null) {
                     password = ""
                     name = Settings.userName(context)
-                    keyboard.setRussian(true)
                     go(Step.HANDS)
                 } else message = error
             }
@@ -259,13 +262,7 @@ class Onboarding(private val context: Context, private val host: Host) {
                 greeting(t)
                 if (t > GREETINGS.size * GREETING_SECONDS) go(Step.HELLO)
             }
-            Step.HELLO -> {
-                hello(t)
-                // Under the language row so a choice comes before "next".
-                if (t > 1.5f) button(RectF(WIDTH / 2f - 200f, 852f, WIDTH / 2f + 200f, 932f), tr("Continue")) {
-                    go(if (Account.current(context) == null) Step.ACCOUNT else Step.HANDS)
-                }
-            }
+            Step.HELLO -> hello(t)
             Step.ACCOUNT -> account(t)
             Step.HANDS -> {
                 card()
@@ -289,7 +286,7 @@ class Onboarding(private val context: Context, private val host: Host) {
             Step.ROOM -> {
                 card()
                 title(tr("Room scan"))
-                body(tr("Look at the floor, the walls and the table — PhoneXR covers them with a grid and remembers where the table is: the keyboard will lie on it."))
+                body(tr("Look at the floor, the walls and the table — NextVR covers them with a grid and remembers where the table is: the keyboard will lie on it."))
                 text(if (host.tableFound()) tr("Table found ✓") else tr("Looking for a table…"), WIDTH / 2f, 640f, 44f, if (host.tableFound()) NextDesign.good else SOFT, bold = true)
                 button(RectF(WIDTH / 2f - 220f, 760f, WIDTH / 2f + 220f, 860f), if (host.tableFound()) tr("Done") else tr("Skip"), if (host.tableFound()) BLUE else FAINT, if (host.tableFound()) Color.WHITE else INK) { go(Step.WELCOME) }
             }
@@ -345,35 +342,104 @@ class Onboarding(private val context: Context, private val host: Host) {
         }
     }
 
-    /** One card with hello in the world's languages, the user's own in the middle, large. */
+    /** The supported-language picker, drawn inside the existing NextVR setup window. */
     private fun hello(t: Float) {
         glass(RectF(60f, 40f, WIDTH - 60f, HEIGHT - 40f), true)
-        val columns = 7
-        val left = 150f
-        val pitchX = (WIDTH - 2 * left) / (columns - 1)
-        var index = 0
-        for (row in 0 until 5) {
-            for (column in 0 until columns) {
-                // The middle row leaves room for the big word, the row under it a gap below it.
-                if (row == 2 && column in 2..4) continue
-                if (row == 3 && column == 3) continue
-                val (word, code) = WORLD.getOrNull(index++) ?: continue
-                val appear = ((t - index * .025f) / .5f).coerceIn(0f, 1f)
-                val x = left + column * pitchX
-                // A little higher than before: the language row lies under the last row of hellos.
-                val y = 130f + row * 128f
-                text(word, x, y, 40f, Color.argb((appear * 255).toInt(), 244, 246, 250))
-                text(code, x, y + 38f, 24f, Color.argb((appear * 128).toInt(), 244, 246, 250))
+
+        // Reference-style header and selected-language chip, adapted to the dark NextVR window.
+        paint.color = NextDesign.profileMid
+        canvas.drawRoundRect(RectF(138f, 94f, 204f, 160f), 20f, 20f, paint)
+        text("N", 171f, 140f, 42f, Color.WHITE, bold = true)
+        text("NEXT VR", 295f, 138f, 23f, SOFT, bold = true)
+        text(tr("Choose your language"), 550f, 222f, 56f, INK, bold = true)
+        text(tr("Choose from these supported languages."), 550f, 268f, 24f, SOFT)
+
+        val current = L10n.current
+        paint.color = FAINT
+        canvas.drawRoundRect(RectF(138f, 300f, 962f, 366f), 20f, 20f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = NextDesign.stroke
+        canvas.drawRoundRect(RectF(138f, 300f, 962f, 366f), 20f, 20f, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
+        text(current.badge, 195f, 343f, 23f, NextDesign.accent, bold = true)
+        text(tr("Current language"), 370f, 343f, 22f, SOFT)
+        text(current.title, 720f, 343f, 28f, INK, bold = true)
+
+        L10n.Lang.entries.forEachIndexed { index, lang ->
+            val top = 382f + index * 102f
+            languageOption(lang, RectF(138f, top, 962f, top + 90f))
+        }
+        languageArtwork(t)
+        if (t > .6f) {
+            button(RectF(600f, 852f, 1000f, 932f), tr("Continue")) {
+                go(if (Account.current(context) == null) Step.ACCOUNT else Step.HANDS)
             }
         }
-        val big = when (L10n.current) {
-            L10n.Lang.RU -> "Hi"
-            L10n.Lang.EN -> "Hello"
-            else -> "Olá"
+    }
+
+    /** A selectable row: exactly one row for each language [L10n] translates and types. */
+    private fun languageOption(lang: L10n.Lang, rect: RectF) {
+        val selected = lang == L10n.current
+        paint.color = if (selected) NextDesign.accentSoft else FAINT
+        canvas.drawRoundRect(rect, BUTTON_R, BUTTON_R, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        paint.color = if (selected) NextDesign.accentLine else NextDesign.stroke
+        canvas.drawRoundRect(rect, BUTTON_R, BUTTON_R, paint)
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 0f
+
+        val badge = RectF(rect.left + 18f, rect.top + 19f, rect.left + 86f, rect.bottom - 19f)
+        paint.color = if (selected) NextDesign.accentSoft else NextDesign.tileHover
+        canvas.drawRoundRect(badge, 14f, 14f, paint)
+        text(lang.badge, badge.centerX(), badge.centerY() + 9f, 22f, if (selected) NextDesign.accent else INK, bold = true)
+        text(lang.nativeName, rect.left + 310f, rect.top + 39f, 30f, INK, bold = true)
+        text(lang.detail, rect.left + 545f, rect.top + 68f, 22f, SOFT)
+        if (selected) text("✓", rect.right - 48f, rect.centerY() + 13f, 32f, NextDesign.accent, bold = true)
+        buttons += rect to {
+            L10n.set(context, lang)
+            keyboard.setLanguage(lang)
         }
-        val appear = (t / .6f).coerceIn(0f, 1f)
-        text(big, WIDTH / 2f, 130f + 2 * 128f + 44f, 140f, Color.argb((appear * 255).toInt(), 255, 255, 255), bold = true)
-        if (t > .6f) languageRow()
+    }
+
+    /** The reference's soft violet artwork, kept inside the same glass setup window. */
+    private fun languageArtwork(t: Float) {
+        val rect = RectF(1000f, 78f, 1490f, 918f)
+        paint.shader = LinearGradient(
+            rect.left, rect.top, rect.right, rect.bottom,
+            intArrayOf(0xFF32344A.toInt(), 0xFF3E3154.toInt(), 0xFF28374C.toInt()),
+            null, Shader.TileMode.CLAMP
+        )
+        canvas.drawRoundRect(rect, 42f, 42f, paint)
+        paint.shader = null
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 28f
+        paint.color = 0x24FFFFFF
+        canvas.drawCircle(1310f, 360f, 225f, paint)
+        paint.strokeWidth = 18f
+        paint.color = 0x18FFFFFF
+        canvas.drawCircle(1180f, 690f, 185f, paint)
+        paint.style = Paint.Style.FILL
+
+        paint.shader = LinearGradient(1160f, 250f, 1360f, 470f, 0xFF8396CE.toInt(), 0xFF172034.toInt(), Shader.TileMode.CLAMP)
+        canvas.drawCircle(1270f, 355f, 122f, paint)
+        paint.shader = null
+        paint.color = 0xFF76DDF2.toInt()
+        canvas.drawCircle(1342f, 305f, 9f, paint)
+        paint.color = 0xFFA995FF.toInt()
+        canvas.drawCircle(1320f, 345f, 6f, paint)
+        paint.color = Color.WHITE
+        canvas.drawCircle(1203f, 410f, 5f, paint)
+
+        val alpha = ((t / .5f).coerceIn(0f, 1f) * 255).toInt()
+        val greeting = L10n.current.greeting
+        text(greeting, rect.centerX(), 636f, 76f, Color.argb(alpha, 255, 255, 255), bold = true)
+        text(L10n.current.detail, rect.centerX(), 686f, 25f, Color.argb(alpha * 3 / 4, 244, 246, 250))
+        paint.color = Color.argb(alpha / 2, 255, 255, 255)
+        canvas.drawRoundRect(RectF(1120f, 760f, 1420f, 766f), 3f, 3f, paint)
     }
 
     /** The card: the reference's glass panel with its hairline and a soft shadow under it. */
@@ -468,12 +534,9 @@ class Onboarding(private val context: Context, private val host: Host) {
         buttons += rect to action
     }
 
-    /**
-     * The setup's own language row, on the very first screen: before this the setup spoke only
-     * Russian and there was no way to pick another language until it was over.
-     */
+    /** Choose among the supported interface languages from the opening greeting card. */
     private fun languageRow() {
-        val languages = L10n.Lang.values()
+        val languages = L10n.Lang.entries
         val width = 350f
         val gap = 18f
         val left = (WIDTH - (languages.size * width + (languages.size - 1) * gap)) / 2f
@@ -489,7 +552,10 @@ class Onboarding(private val context: Context, private val host: Host) {
                 if (chosen) NextDesign.accentSoft else FAINT,
                 if (chosen) NextDesign.accent else INK,
                 size = 32f
-            ) { L10n.set(context, lang) }
+            ) {
+                L10n.set(context, lang)
+                keyboard.setLanguage(lang)
+            }
             if (chosen) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = 2f
@@ -519,7 +585,7 @@ class Onboarding(private val context: Context, private val host: Host) {
         /** The language row under the first cards (see [languageRow]). */
         private const val LANGUAGE_ROW_TOP = 748f
         private const val LANGUAGE_ROW_HEIGHT = 84f
-        /** PhoneXR is dark only: the design language's ink on its glass, its teal for the action. */
+        /** NextVR is dark only: the design language's ink on its glass, its teal for the action. */
         private val INK = NextDesign.ink
         private val SOFT = NextDesign.inkSoft
         private val FAINT = NextDesign.tile
@@ -529,15 +595,8 @@ class Onboarding(private val context: Context, private val host: Host) {
         private const val FIELD_R = 20f
         private const val BUTTON_R = 28f
         private const val GREETING_SECONDS = 3f
-        private val GREETINGS = listOf("Hi" to "RU", "Hello" to "EN", "你好" to "ZH")
-        /** Hello in the world's languages, row by row, for the card. */
-        private val WORLD = listOf(
-            "Hello" to "EN", "Hola" to "ES", "Bonjour" to "FR", "Hallo" to "DE", "Ciao" to "IT", "Olá" to "PT", "こんにちは" to "JA",
-            "안녕하세요" to "KO", "你好" to "ZH", "Xin chào" to "VI", "สวัสดี" to "TH", "Selamat" to "ID", "Merhaba" to "TR", "Здравствуйте" to "RU",
-            "नमस्ते" to "HI", "مرحبا" to "AR", "Salve" to "LA", "Dia duit" to "GA",
-            "Kamusta" to "TL", "Ahoj" to "CS", "Sveiki" to "LV", "Szia" to "HU", "Tere" to "ET", "Kaixo" to "EU",
-            "Bok" to "HR", "Hej" to "SV", "Γειά σου" to "EL", "Здравей" to "BG", "Halló" to "IS", "Sawubona" to "ZU", "Molo" to "XH",
-        )
+        /** The opening greetings correspond only to the four locales the app actually supports. */
+        private val GREETINGS = L10n.Lang.entries.map { it.greeting to it.badge }
     }
 }
 
@@ -603,6 +662,9 @@ object HandProfile {
     /** A pinch latch tuned to this user's fingers. */
     fun latch(context: Context): HandGestures.PinchLatch {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return HandGestures.PinchLatch(prefs.getFloat("pinch_close", .30f), prefs.getFloat("pinch_open", .48f))
+        return HandGestures.PinchLatch(
+            prefs.getFloat("pinch_close", HandGestures.PINCH_CLOSE_GAP),
+            prefs.getFloat("pinch_open", HandGestures.PINCH_OPEN_GAP),
+        )
     }
 }

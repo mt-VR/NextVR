@@ -377,7 +377,7 @@ class BrowserContent(
             val manager = context.getSystemService(DisplayManager::class.java)
             // A private display owned by PhoneXR: no special permission needed for our own content.
             // 280 dpi reads like a tablet at arm's length in VR.
-            val created = manager.createVirtualDisplay("PhoneXR Browser", pixelWidth, pixelHeight, 280, surface, 0)
+            val created = manager.createVirtualDisplay("NextVR Browser", pixelWidth, pixelHeight, 280, surface, 0)
             display = created
             val view = buildWebView(context, startUrl)
             tabs += Tab(view, startUrl)
@@ -773,7 +773,7 @@ class ShizukuAppContent(context: Context, private val packageName: String, priva
         val surface = Surface(texture)
         Handler(Looper.getMainLooper()).post {
             if (VirtualScreen.access() != VirtualScreen.Access.READY) {
-                onError("Start Shizuku and allow PhoneXR access")
+                onError("Start Shizuku and allow NextVR access")
                 return@post
             }
             connection = VirtualScreen.bind(context) { bound ->
@@ -866,7 +866,7 @@ class DesktopStreamContent(private val onStatus: (String) -> Unit) : VrWindow.Co
         thread(name = "PhoneXR desktop stream") {
             while (running) {
                 runCatching {
-                    onStatus("Looking for PhoneXR Desktop on the local network…")
+                    onStatus("Looking for NextVR Desktop on the local network…")
                     val udp = DatagramSocket(null).also { discovery = it; it.reuseAddress = true; it.bind(InetSocketAddress(24819)) }
                     val bytes = ByteArray(512); val packet = DatagramPacket(bytes, bytes.size)
                     udp.receive(packet)
@@ -1052,7 +1052,7 @@ class PhotosContent(
         thread {
             try {
                 if (!DepthModel.installed(context)) {
-                    status = "The depth neural network is not downloaded: turn it on in the PhoneXR settings (${DepthModel.MEGABYTES} MB)"
+                    status = "The depth neural network is not downloaded: turn it on in the NextVR settings (${DepthModel.MEGABYTES} MB)"
                     return@thread
                 }
                 val made = SpatialPhoto.create(context, photo.uri, photo.name) { stage -> status = stage }

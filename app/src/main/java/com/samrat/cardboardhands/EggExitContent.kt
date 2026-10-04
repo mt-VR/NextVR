@@ -16,7 +16,7 @@ class EggExitContent(private val onExit: () -> Unit) : ComposeContent(pixelWidth
     @Composable
     override fun Content() {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-            VrStoreCard(tr("Sign out"), "PhoneXR", null, tr("Sign out"), Modifier) { onExit() }
+            VrStoreCard(tr("Sign out"), "NextVR", null, tr("Sign out"), Modifier) { onExit() }
         }
     }
 }
