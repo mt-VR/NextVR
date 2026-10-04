@@ -358,23 +358,19 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val pixelMm = sensor.width / array.width()
         if (pixelMm <= 0f) return fallback
         val scale = width.toFloat() / array.width()
-        val distortion = if (android.os.Build.VERSION.SDK_INT >= 30)
-            runCatching { characteristics.get(CameraCharacteristics.LENS_DISTORTION) }.getOrNull() else null
         val focal = focalMm / pixelMm
-        // Most phones publish no lens profile at all, and a missing one is not a reason to give up:
-        // zero coefficients is the plain pinhole the estimator then refines on its own.
-        val radial = runCatching { distortion?.radialDistortion }.getOrNull()
-        val tangential = runCatching { distortion?.tangentialDistortion }.getOrNull()
+        // No distortion coefficients: Android's lens profile (CameraCharacteristics.LENS_DISTORTION)
+        // is not readable from an ordinary app, and VINS-Mono's pinhole camera model runs on zeros —
+        // a phone's main camera is close enough at the 640x480 analysis size, and the estimator only
+        // needs the features to land where the model says they should, frame after frame. The scale
+        // that is not measured is the honest weakness of this mode, and it is in vins/README.txt.
         return Optics(
             fx = focal.toDouble() * scale,
             // The pixels are square, so the vertical focal length is the same number of pixels.
             fy = focal.toDouble() * scale,
             cx = width / 2.0,
             cy = height / 2.0,
-            k1 = radial?.getOrNull(0)?.toDouble() ?: 0.0,
-            k2 = radial?.getOrNull(1)?.toDouble() ?: 0.0,
-            p1 = tangential?.getOrNull(0)?.toDouble() ?: 0.0,
-            p2 = tangential?.getOrNull(1)?.toDouble() ?: 0.0,
+            k1 = 0.0, k2 = 0.0, p1 = 0.0, p2 = 0.0,
         )
     }
 

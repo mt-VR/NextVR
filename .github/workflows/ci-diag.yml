@@ -48,7 +48,7 @@ jobs:
               echo "$d: $(ls "$SDK/$d" 2>/dev/null | tr '\n' ' ' || true)"
             done
           } > diag-out/toolchain.md
-          # -Pvins.nativeOnly first: the native core is the part nobody has ever compiled here, and a
+          # The native module first: the native core is the part nobody has ever compiled here, and a
           # CMake failure would otherwise be buried under 400 lines of Gradle stack trace.
           ./gradlew :vins:assembleDebug --no-daemon --console=plain --stacktrace > diag-out/vins.log 2>&1
           echo "VINS_EXIT=$?" >> diag-out/vins.log
@@ -70,8 +70,12 @@ jobs:
             echo "### NATIVE / CMAKE / DEPENDENCY ERRORS (unique)"
             cat "$LOG" diag-out/vins.log | grep -hE "error:|fatal error|undefined reference|CMake Error|CMake Warning|Could not (resolve|find|create|download|open)|No such file or directory" \
                 | sed "s#$P##" | sort -u | head -70
+            echo "### COMPILE ERRORS BY FILE"
+            cat "$LOG" diag-out/vins.log | grep -hE "^[^ ]+\.(cpp|cc|c|h|hpp):[0-9]+:[0-9]+: (error|note)" | sort -u | head -60
+            echo "### CMAKE"
+            cat "$LOG" diag-out/vins.log | grep -hE "CMake (Error|Warning)|^  |ninja: build stopped|Configuring done|Generating done" | grep -vE "at |^  -- $" | head -60
             echo "### TAIL"
-            tail -25 "$LOG" | cut -c1-200
+            tail -14 "$LOG" | cut -c1-200
           } > diag-out/errors.md
           wc -c diag-out/errors.md | cut -c1-40 >> diag-out/errors.md
       - name: Report

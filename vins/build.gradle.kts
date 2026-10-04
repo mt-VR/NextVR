@@ -27,10 +27,11 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
         if (nativeCore) externalNativeBuild {
             cmake {
-                // No ANDROID_STL here: OpenCV's AAR ships a libc++_shared.so built by the NDK, and a
-                // static STL in the same process would mean two C++ runtimes. c++_shared is AGP's
-                // default, which is the one that library already links against.
+                // The shared STL, explicitly: AGP's default for a module with native code is a static
+                // one, and OpenCV's AAR carries a libc++_shared.so — a static STL next to it is two C++
+                // runtimes in one process, which AGP refuses outright (CXX1212).
                 arguments += listOf(
+                    "-DANDROID_STL=c++_shared",
                     "-DANDROID_ARM_NEON=TRUE",
                     "-DCMAKE_BUILD_TYPE=Release",
                 )
