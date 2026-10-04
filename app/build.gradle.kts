@@ -14,8 +14,8 @@ android {
         // Bumped and committed back by .github/workflows/release.yml on every merge to main: the
         // run that publishes the release is the run that writes these numbers, so the version in
         // the APKs is the version that was built. Do not edit them by hand.
-        versionCode = 14
-        versionName = "2.0.1"
+        versionCode = 15
+        versionName = "2.0.2"
         // PhoneXR itself runs 64-bit; this keeps OpenCV and MediaPipe for other ABIs out of the APK.
         ndk { abiFilters += listOf("arm64-v8a") }
     }
