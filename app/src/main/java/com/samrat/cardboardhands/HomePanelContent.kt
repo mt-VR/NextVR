@@ -9,6 +9,10 @@ import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -74,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -252,50 +257,65 @@ class HomePanelContent(private val panel: HomePanel) :
      */
     @Composable
     private fun Library(state: HomePanel.Snapshot, look: Look) {
-        val title = when (state.mode) {
-            HomePanel.Mode.STORE -> tr("Store")
-            HomePanel.Mode.MENU -> tr("Menu")
-            else -> tr("Library")
-        }
-        Label(title, HomePanel.WIDTH / 2f, HomePanel.TITLE_TOP, 62f, look.air, 900f, FontWeight.SemiBold, shadow = true)
-        SearchField(state, look)
-        Rail(state, look)
-        if (state.showSliders) Sliders(state, look)
-        else if (!state.searching) SortButton(state, look)
-        if (state.entries.isEmpty() && !state.searching) {
-            val empty = when {
-                state.mode == HomePanel.Mode.STORE -> tr("Loading the store…")
-                state.tab == HomePanel.Tab.PEOPLE -> tr("Your friends will be here — sign in in the PhoneXR app")
-                state.tab == HomePanel.Tab.GAMES -> tr("VR games prepared in the PhoneXR app will be here")
-                state.tab == HomePanel.Tab.WEB -> tr("Add web apps from the store")
-                else -> ""
+        // Windows arrive with a short fade in the reference; the library is PhoneXR's biggest one.
+        val appear = remember { Animatable(0f) }
+        LaunchedEffect(Unit) { appear.animateTo(1f, tween(NextDesign.Motion.windowMs)) }
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                alpha = appear.value
+                translationY = (1f - appear.value) * 36f
             }
-            Label(empty, HomePanel.GRID_CENTER_X, 560f, 38f, look.airSoft, 900f, lines = 2, shadow = true)
-        }
-        state.entries.forEachIndexed { index, entry ->
-            val (x, y) = HomePanel.cell(index)
-            val hover = state.hovered == HomePanel.Target.App(entry)
-            // The reference's tile: a white 13% wash, a hairline ring and a hair of lift under the pointer.
-            if (hover) At(x, y + 30f, HomePanel.CELL_W - 10f, HomePanel.ICON + 150f) {
-                Box(
-                    Modifier.fillMaxSize().clip(RoundedCornerShape(px(HomePanel.ICON * .34f)))
-                        .background(look.hover)
-                        .border(Dp.Hairline, Color(0x38FFFFFF), RoundedCornerShape(px(HomePanel.ICON * .34f)))
+        ) {
+            val title = when (state.mode) {
+                HomePanel.Mode.STORE -> tr("Store")
+                HomePanel.Mode.MENU -> tr("Menu")
+                else -> tr("Library")
+            }
+            Label(title, HomePanel.WIDTH / 2f, HomePanel.TITLE_TOP, 62f, look.air, 900f, FontWeight.SemiBold, shadow = true)
+            SearchField(state, look)
+            Rail(state, look)
+            if (state.showSliders) Sliders(state, look)
+            else if (!state.searching) SortButton(state, look)
+            if (state.entries.isEmpty() && !state.searching) {
+                val empty = when {
+                    state.mode == HomePanel.Mode.STORE -> tr("Loading the store…")
+                    state.tab == HomePanel.Tab.PEOPLE -> tr("Your friends will be here — sign in in the PhoneXR app")
+                    state.tab == HomePanel.Tab.GAMES -> tr("VR games prepared in the PhoneXR app will be here")
+                    state.tab == HomePanel.Tab.WEB -> tr("Add web apps from the store")
+                    else -> ""
+                }
+                Label(empty, HomePanel.GRID_CENTER_X, 560f, 38f, look.airSoft, 900f, lines = 2, shadow = true)
+            }
+            state.entries.forEachIndexed { index, entry ->
+                val (x, y) = HomePanel.cell(index)
+                val hover = state.hovered == HomePanel.Target.App(entry)
+                // The reference's tile: a white 13% wash, a hairline ring and a hair of lift under the pointer.
+                if (hover) At(x, y + 30f, HomePanel.CELL_W - 10f, HomePanel.ICON + 150f) {
+                    Box(
+                        Modifier.fillMaxSize().clip(RoundedCornerShape(px(HomePanel.ICON * .34f)))
+                            .background(look.hover)
+                            .border(Dp.Hairline, Color(0x38FFFFFF), RoundedCornerShape(px(HomePanel.ICON * .34f)))
+                    )
+                }
+                // The reference eases a tile towards the pointer, and a press sinks it back: 180 ms.
+                val scale by animateFloatAsState(
+                    if (hover) (if (state.pressed) .96f else 1.08f) else 1f,
+                    tween(NextDesign.Motion.hoverMs), label = "app"
                 )
-            }
-            val size = if (hover) (if (state.pressed) HomePanel.ICON * .96f else HomePanel.ICON * 1.08f) else HomePanel.ICON
-            At(x, y, size, size) { Box(Modifier.shadow(px(14f), RoundedCornerShape(px(size * .28f)))) { Tile(entry, size, state.dark) } }
-            entry.badge?.let { badge ->
-                At(x + HomePanel.ICON * .42f, y - HomePanel.ICON * .42f, 50f, 50f) {
-                    Box(Modifier.fillMaxSize().clip(CircleShape).background(look.chosen), contentAlignment = Alignment.Center) {
-                        Text(badge, look.onChosen, 30f, weight = FontWeight.Bold)
+                val size = HomePanel.ICON * scale
+                At(x, y, size, size) { Box(Modifier.shadow(px(14f), RoundedCornerShape(px(size * .28f)))) { Tile(entry, size, state.dark) } }
+                entry.badge?.let { badge ->
+                    At(x + HomePanel.ICON * .42f, y - HomePanel.ICON * .42f, 50f, 50f) {
+                        Box(Modifier.fillMaxSize().clip(CircleShape).background(look.chosen), contentAlignment = Alignment.Center) {
+                            Text(badge, look.onChosen, 30f, weight = FontWeight.Bold)
+                        }
                     }
                 }
-            }
-            Label(entry.label, x, y + HomePanel.ICON / 2 + 18f, 29f, look.air, HomePanel.CELL_W - 16f, FontWeight.Medium, lines = 2, shadow = true)
+                Label(entry.label, x, y + HomePanel.ICON / 2 + 18f, 29f, look.air, HomePanel.CELL_W - 16f, FontWeight.Medium, lines = 2, shadow = true)
         }
         if (state.searching) Keyboard(state, look)
         else if (state.pages > 1) PageDots(state, look)
+        }
     }
 
     @Composable
@@ -483,76 +503,84 @@ class HomePanelContent(private val panel: HomePanel) :
      */
     @Composable
     private fun Quick(state: HomePanel.Snapshot, look: Look) {
-        val context = LocalContext.current
-        var battery by remember { mutableStateOf(battery(context)) }
-        var wifi by remember { mutableStateOf(wifi(context)) }
-        var bluetooth by remember { mutableStateOf(bluetooth(context)) }
-        LaunchedEffect(Unit) { while (true) { delay(5_000); battery = battery(context); wifi = wifi(context); bluetooth = bluetooth(context) } }
-        @Composable
-        fun Tile(rect: RectF, hover: Boolean = false, active: Boolean = false, content: @Composable BoxScope.() -> Unit) {
-            In(rect) {
-                Box(
-                    Modifier.fillMaxSize()
-                        .shadow(px(12f), RoundedCornerShape(px(30f)), ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
-                        .clip(RoundedCornerShape(px(30f)))
-                        .background(if (active) look.chosenSoft else if (hover) look.cardHover else look.card)
-                        .border(Dp.Hairline, if (active) look.chosenLine else look.edge, RoundedCornerShape(px(30f))),
-                    content = content
-                )
+        val appear = remember { Animatable(0f) }
+        LaunchedEffect(Unit) { appear.animateTo(1f, tween(NextDesign.Motion.windowMs)) }
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                alpha = appear.value
+                translationY = (1f - appear.value) * 36f
             }
-        }
-        // Status: battery and the date.
-        Tile(HomePanel.QUICK_STATUS) {
-            val date = java.text.SimpleDateFormat("EEE, d MMMM yyyy", java.util.Locale.getDefault()).format(java.util.Date())
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(start = px(36f)), verticalAlignment = Alignment.CenterVertically) {
-                Text("🔋 ${battery.first}%" + if (battery.second) " ⚡" else "", look.ink, 30f, weight = FontWeight.Medium)
-                Box(Modifier.width(px(36f)))
-                Text(date.replaceFirstChar { it.uppercase() }, look.soft, 30f)
-            }
-        }
-        QuickTile(HomePanel.Quick.SETTINGS, state) { _ ->
-            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                Glyph(Icons.Rounded.Settings, look.ink, 38f)
-                Box(Modifier.width(px(12f)))
-                Text(tr("Settings"), look.ink, 30f, weight = FontWeight.Medium)
-            }
-        }
-        // Volume and brightness: white sliders with a round knob, as on Quest.
-        for ((slider, icon) in listOf(HomePanel.Slider.VOLUME to Icons.AutoMirrored.Rounded.VolumeUp, HomePanel.Slider.BRIGHTNESS to Icons.Rounded.LightMode)) {
-            val hover = state.hovered == HomePanel.Target.Slider(slider)
-            Tile(HomePanel.quickSliderTile(slider), hover) {}
-            val track = HomePanel.quickSlider(slider)
-            val value = state.sliders[slider.ordinal]
-            In(track) { Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.tile)) }
-            val fill = track.width() * value
-            At(track.left + fill / 2, track.centerY(), fill.coerceAtLeast(1f), track.height()) {
-                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.chosen))
-            }
-            // The reference's sliders are white with a round knob, whatever the accent is.
-            At(track.left + fill, track.centerY(), 64f, 64f) {
-                Box(Modifier.fillMaxSize().shadow(px(6f), CircleShape).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-                    Glyph(icon, Color(0xFF1B2338), 36f)
+        ) {
+            val context = LocalContext.current
+            var battery by remember { mutableStateOf(battery(context)) }
+            var wifi by remember { mutableStateOf(wifi(context)) }
+            var bluetooth by remember { mutableStateOf(bluetooth(context)) }
+            LaunchedEffect(Unit) { while (true) { delay(5_000); battery = battery(context); wifi = wifi(context); bluetooth = bluetooth(context) } }
+            @Composable
+            fun Tile(rect: RectF, hover: Boolean = false, active: Boolean = false, content: @Composable BoxScope.() -> Unit) {
+                In(rect) {
+                    Box(
+                        Modifier.fillMaxSize()
+                            .shadow(px(12f), RoundedCornerShape(px(30f)), ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
+                            .clip(RoundedCornerShape(px(30f)))
+                            .background(if (active) look.chosenSoft else if (hover) look.cardHover else look.card)
+                            .border(Dp.Hairline, if (active) look.chosenLine else look.edge, RoundedCornerShape(px(30f))),
+                        content = content
+                    )
                 }
             }
-        }
-        // Big tiles.
-        val big = listOf(
-            Triple(HomePanel.Quick.WIFI, Icons.Rounded.Wifi, if (wifi) tr("Connected") else tr("Not connected")),
-            Triple(HomePanel.Quick.BLUETOOTH, Icons.Rounded.Bluetooth, if (bluetooth) tr("On") else tr("Off")),
-            Triple(HomePanel.Quick.CAR, Icons.Rounded.DirectionsCar, if (state.car) tr("On") else tr("Off")),
-            Triple(HomePanel.Quick.DESKTOP, Icons.Rounded.Computer, tr("Stream from the computer")),
-        )
-        for ((item, icon, detail) in big) {
-            QuickTile(item, state, active = item == HomePanel.Quick.CAR && state.car) { _ ->
-                androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(start = px(28f)), verticalAlignment = Alignment.CenterVertically) {
-                    Glyph(icon, look.ink, 40f)
-                    Box(Modifier.width(px(20f)))
-                    androidx.compose.foundation.layout.Column {
-                        Text(tr(item.title), look.ink, 34f, weight = FontWeight.SemiBold)
-                        Text(detail, look.soft, 24f)
+            // Status: battery and the date.
+            Tile(HomePanel.QUICK_STATUS) {
+                val date = java.text.SimpleDateFormat("EEE, d MMMM yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(start = px(36f)), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔋 ${battery.first}%" + if (battery.second) " ⚡" else "", look.ink, 30f, weight = FontWeight.Medium)
+                    Box(Modifier.width(px(36f)))
+                    Text(date.replaceFirstChar { it.uppercase() }, look.soft, 30f)
+                }
+            }
+            QuickTile(HomePanel.Quick.SETTINGS, state) { _ ->
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Glyph(Icons.Rounded.Settings, look.ink, 38f)
+                    Box(Modifier.width(px(12f)))
+                    Text(tr("Settings"), look.ink, 30f, weight = FontWeight.Medium)
+                }
+            }
+            // Volume and brightness: white sliders with a round knob, as on Quest.
+            for ((slider, icon) in listOf(HomePanel.Slider.VOLUME to Icons.AutoMirrored.Rounded.VolumeUp, HomePanel.Slider.BRIGHTNESS to Icons.Rounded.LightMode)) {
+                val hover = state.hovered == HomePanel.Target.Slider(slider)
+                Tile(HomePanel.quickSliderTile(slider), hover) {}
+                val track = HomePanel.quickSlider(slider)
+                val value = state.sliders[slider.ordinal]
+                In(track) { Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.tile)) }
+                val fill = track.width() * value
+                At(track.left + fill / 2, track.centerY(), fill.coerceAtLeast(1f), track.height()) {
+                    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.chosen))
+                }
+                // The reference's sliders are white with a round knob, whatever the accent is.
+                At(track.left + fill, track.centerY(), 64f, 64f) {
+                    Box(Modifier.fillMaxSize().shadow(px(6f), CircleShape).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                        Glyph(icon, Color(0xFF1B2338), 36f)
                     }
                 }
             }
+            // Big tiles.
+            val big = listOf(
+                Triple(HomePanel.Quick.WIFI, Icons.Rounded.Wifi, if (wifi) tr("Connected") else tr("Not connected")),
+                Triple(HomePanel.Quick.BLUETOOTH, Icons.Rounded.Bluetooth, if (bluetooth) tr("On") else tr("Off")),
+                Triple(HomePanel.Quick.CAR, Icons.Rounded.DirectionsCar, if (state.car) tr("On") else tr("Off")),
+                Triple(HomePanel.Quick.DESKTOP, Icons.Rounded.Computer, tr("Stream from the computer")),
+            )
+            for ((item, icon, detail) in big) {
+                QuickTile(item, state, active = item == HomePanel.Quick.CAR && state.car) { _ ->
+                    androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(start = px(28f)), verticalAlignment = Alignment.CenterVertically) {
+                        Glyph(icon, look.ink, 40f)
+                        Box(Modifier.width(px(20f)))
+                        androidx.compose.foundation.layout.Column {
+                            Text(tr(item.title), look.ink, 34f, weight = FontWeight.SemiBold)
+                            Text(detail, look.soft, 24f)
+                        }
+                    }
+                }
         }
         // Buttons: icons only; the accent when on.
         val on = mapOf(HomePanel.Quick.PASSTHROUGH to state.passthrough, HomePanel.Quick.DND to state.dnd)
@@ -563,6 +591,7 @@ class HomePanelContent(private val panel: HomePanel) :
         for ((item, icon) in small) {
             val active = on[item] == true
             QuickTile(item, state, active = active) { _ -> Glyph(icon, if (active) look.chosen else look.ink, 44f) }
+        }
         }
     }
 
@@ -590,94 +619,106 @@ class HomePanelContent(private val panel: HomePanel) :
 
     @Composable
     private fun Dock(state: HomePanel.Snapshot, look: Look) {
-        val s = HomePanel.DOCK_SCALE
-        val cy = HomePanel.DOCK_CY
-        // The reference's dock: a slate-blue capsule with a lit top edge, not a plain glass bar.
-        val bar = RoundedCornerShape(px(HomePanel.DOCK_H * .38f))
-        At(HomePanel.WIDTH / 2f, cy, HomePanel.DOCK_W, HomePanel.DOCK_H) {
-            Box(
-                Modifier.fillMaxSize()
-                    .shadow(px(26f), bar, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
-                    .clip(bar)
-                    .background(if (state.dark) NextDesign.dockBrush else look.top)
-                    .border(Dp.Hairline, Color(NextDesign.dockStroke), bar)
-            )
+        // The reference's dock rises into place once, when the home arrives.
+        val appear = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            appear.animateTo(1f, tween(NextDesign.Motion.dockMs, easing = CubicBezierEasing(.2f, .75f, .2f, 1f)))
         }
-        // The hairline of light that runs along the top of the reference's dock.
-        At(HomePanel.WIDTH / 2f, HomePanel.DOCK_TOP + 2f, HomePanel.DOCK_W - 48f * s, 3f) {
-            Box(Modifier.fillMaxSize().background(NextDesign.dockHighlightBrush))
-        }
-        fun x(design: Float) = HomePanel.dockX(design)
-
-        @Composable
-        fun Round(at: Float, target: HomePanel.Target, selected: Boolean = false, content: @Composable () -> Unit) {
-            val hover = state.hovered == target
-            At(x(at), cy, 46f * s, 46f * s) {
+        Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                alpha = appear.value
+                translationY = (1f - appear.value) * 60f
+            }
+        ) {
+            val s = HomePanel.DOCK_SCALE
+            val cy = HomePanel.DOCK_CY
+            // The reference's dock: a slate-blue capsule with a lit top edge, not a plain glass bar.
+            val bar = RoundedCornerShape(px(HomePanel.DOCK_H * .38f))
+            At(HomePanel.WIDTH / 2f, cy, HomePanel.DOCK_W, HomePanel.DOCK_H) {
                 Box(
-                    Modifier.fillMaxSize().clip(CircleShape)
-                        .background(if (selected) look.chosenSoft else if (hover) look.hover else Color.Transparent)
-                        .then(if (selected) Modifier.border(Dp.Hairline, look.chosenLine, CircleShape) else Modifier),
-                    contentAlignment = Alignment.Center
-                ) { content() }
+                    Modifier.fillMaxSize()
+                        .shadow(px(26f), bar, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
+                        .clip(bar)
+                        .background(if (state.dark) NextDesign.dockBrush else look.top)
+                        .border(Dp.Hairline, Color(NextDesign.dockStroke), bar)
+                )
             }
-        }
-
-        // Profile, with the green "online" dot.
-        Round(HomePanel.AVATAR_AT, HomePanel.Target.Control(HomePanel.Control.PROFILE)) {
-            Avatar(44f * s, look)
-        }
-        At(x(HomePanel.AVATAR_AT + 15f), cy + 15f * s, 13f * s, 13f * s) {
-            // The reference rings the online dot in the colour of the dock behind it.
-            Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(NextDesign.dockBottom)).padding(px(2f * s)).clip(CircleShape).background(look.online))
-        }
-
-        // Status: time, Wi‑Fi, battery (opens quick settings).
-        val statusHover = state.hovered == HomePanel.Target.Control(HomePanel.Control.STATUS)
-        if (statusHover || state.mode == HomePanel.Mode.QUICK) At((x(HomePanel.STATUS_FROM) + x(HomePanel.STATUS_TO)) / 2, cy, x(HomePanel.STATUS_TO) - x(HomePanel.STATUS_FROM), 46f * s) {
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.hover))
-        }
-        Status(look)
-
-        Round(HomePanel.BELL_AT, HomePanel.Target.Control(HomePanel.Control.NOTIFICATIONS)) {
-            Glyph(Icons.Rounded.Notifications, look.soft, 24f * s)
-        }
-        if (state.alerts > 0) At(x(HomePanel.BELL_AT + 9f), cy - 9f * s, 16f * s, 16f * s) {
-            Box(Modifier.fillMaxSize().clip(CircleShape).background(look.danger), contentAlignment = Alignment.Center) {
-                Text(state.alerts.coerceAtMost(9).toString(), Color.White, 11f * s, weight = FontWeight.Bold)
+            // The hairline of light that runs along the top of the reference's dock.
+            At(HomePanel.WIDTH / 2f, HomePanel.DOCK_TOP + 2f, HomePanel.DOCK_W - 48f * s, 3f) {
+                Box(Modifier.fillMaxSize().background(NextDesign.dockHighlightBrush))
             }
-        }
-        Round(HomePanel.SEARCH_AT, HomePanel.Target.Control(HomePanel.Control.SEARCH), selected = state.searching) {
-            Glyph(Icons.Rounded.Search, if (state.searching) look.chosen else look.soft, 25f * s)
-        }
-        // Passthrough: the room through the camera or the chosen world.
-        Round(HomePanel.PASSTHROUGH_AT, HomePanel.Target.Control(HomePanel.Control.PASSTHROUGH), selected = !state.passthrough) {
-            Glyph(Icons.Rounded.Vrpano, if (!state.passthrough) look.chosen else look.soft, 25f * s)
-        }
+            fun x(design: Float) = HomePanel.dockX(design)
 
-        // The reference separates the dock's groups with a hairline that fades at both ends.
-        val dividerBrush = Brush.verticalGradient(
-            listOf(Color(NextDesign.divider.copy(alpha = 0f)), Color(NextDesign.divider), Color(NextDesign.divider.copy(alpha = 0f)))
-        )
-        for (divider in HomePanel.DIVIDERS) At(x(divider), cy, 2f * s / 1.5f, 38f * s) {
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(dividerBrush))
-        }
-
-        @Composable
-        fun App(at: Float, entry: HomePanel.Entry) {
-            val hover = state.hovered == HomePanel.Target.App(entry)
-            val size = 44f * s * (if (hover) (if (state.pressed) .95f else 1.1f) else 1f)
-            At(x(at), cy, size, size) {
-                // The reference lifts a dock tile towards the user under the pointer; in VR that
-                // reads as a slightly larger icon, which is what the size above already does.
-                Box(Modifier.shadow(px(8f), RoundedCornerShape(px(size * .28f)))) { Tile(entry, size, state.dark) }
+            @Composable
+            fun Round(at: Float, target: HomePanel.Target, selected: Boolean = false, content: @Composable () -> Unit) {
+                val hover = state.hovered == target
+                At(x(at), cy, 46f * s, 46f * s) {
+                    Box(
+                        Modifier.fillMaxSize().clip(CircleShape)
+                            .background(if (selected) look.chosenSoft else if (hover) look.hover else Color.Transparent)
+                            .then(if (selected) Modifier.border(Dp.Hairline, look.chosenLine, CircleShape) else Modifier),
+                        contentAlignment = Alignment.Center
+                    ) { content() }
+                }
             }
-        }
-        state.pinned.forEachIndexed { i, entry -> App(HomePanel.PINNED_AT + i * HomePanel.SLOT, entry) }
-        state.recent.forEachIndexed { i, entry -> App(HomePanel.RECENT_AT + i * HomePanel.SLOT, entry) }
 
-        val libraryOpen = state.library && !state.searching && state.mode != HomePanel.Mode.STORE && state.mode != HomePanel.Mode.MENU
-        Round(HomePanel.LIBRARY_AT, HomePanel.Target.Library, selected = libraryOpen) {
-            Glyph(Icons.Rounded.Interests, if (libraryOpen) look.chosen else look.soft, 28f * s)
+            // Profile, with the green "online" dot.
+            Round(HomePanel.AVATAR_AT, HomePanel.Target.Control(HomePanel.Control.PROFILE)) {
+                Avatar(44f * s, look)
+            }
+            At(x(HomePanel.AVATAR_AT + 15f), cy + 15f * s, 13f * s, 13f * s) {
+                // The reference rings the online dot in the colour of the dock behind it.
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(NextDesign.dockBottom)).padding(px(2f * s)).clip(CircleShape).background(look.online))
+            }
+
+            // Status: time, Wi‑Fi, battery (opens quick settings).
+            val statusHover = state.hovered == HomePanel.Target.Control(HomePanel.Control.STATUS)
+            if (statusHover || state.mode == HomePanel.Mode.QUICK) At((x(HomePanel.STATUS_FROM) + x(HomePanel.STATUS_TO)) / 2, cy, x(HomePanel.STATUS_TO) - x(HomePanel.STATUS_FROM), 46f * s) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.hover))
+            }
+            Status(look)
+
+            Round(HomePanel.BELL_AT, HomePanel.Target.Control(HomePanel.Control.NOTIFICATIONS)) {
+                Glyph(Icons.Rounded.Notifications, look.soft, 24f * s)
+            }
+            if (state.alerts > 0) At(x(HomePanel.BELL_AT + 9f), cy - 9f * s, 16f * s, 16f * s) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(look.danger), contentAlignment = Alignment.Center) {
+                    Text(state.alerts.coerceAtMost(9).toString(), Color.White, 11f * s, weight = FontWeight.Bold)
+                }
+            }
+            Round(HomePanel.SEARCH_AT, HomePanel.Target.Control(HomePanel.Control.SEARCH), selected = state.searching) {
+                Glyph(Icons.Rounded.Search, if (state.searching) look.chosen else look.soft, 25f * s)
+            }
+            // Passthrough: the room through the camera or the chosen world.
+            Round(HomePanel.PASSTHROUGH_AT, HomePanel.Target.Control(HomePanel.Control.PASSTHROUGH), selected = !state.passthrough) {
+                Glyph(Icons.Rounded.Vrpano, if (!state.passthrough) look.chosen else look.soft, 25f * s)
+            }
+
+            // The reference separates the dock's groups with a hairline that fades at both ends.
+            val dividerBrush = Brush.verticalGradient(
+                listOf(Color(NextDesign.divider.copy(alpha = 0f)), Color(NextDesign.divider), Color(NextDesign.divider.copy(alpha = 0f)))
+            )
+            for (divider in HomePanel.DIVIDERS) At(x(divider), cy, 2f * s / 1.5f, 38f * s) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(dividerBrush))
+            }
+
+            @Composable
+            fun App(at: Float, entry: HomePanel.Entry) {
+                val hover = state.hovered == HomePanel.Target.App(entry)
+                val size = 44f * s * (if (hover) (if (state.pressed) .95f else 1.1f) else 1f)
+                At(x(at), cy, size, size) {
+                    // The reference lifts a dock tile towards the user under the pointer; in VR that
+                    // reads as a slightly larger icon, which is what the size above already does.
+                    Box(Modifier.shadow(px(8f), RoundedCornerShape(px(size * .28f)))) { Tile(entry, size, state.dark) }
+                }
+            }
+            state.pinned.forEachIndexed { i, entry -> App(HomePanel.PINNED_AT + i * HomePanel.SLOT, entry) }
+            state.recent.forEachIndexed { i, entry -> App(HomePanel.RECENT_AT + i * HomePanel.SLOT, entry) }
+
+            val libraryOpen = state.library && !state.searching && state.mode != HomePanel.Mode.STORE && state.mode != HomePanel.Mode.MENU
+            Round(HomePanel.LIBRARY_AT, HomePanel.Target.Library, selected = libraryOpen) {
+                Glyph(Icons.Rounded.Interests, if (libraryOpen) look.chosen else look.soft, 28f * s)
+            }
         }
     }
 
