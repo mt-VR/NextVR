@@ -538,7 +538,7 @@ class HomePanelContent(private val panel: HomePanel) :
                     Text(date.replaceFirstChar { it.uppercase() }, look.soft, 30f)
                 }
             }
-            QuickTile(HomePanel.Quick.SETTINGS, state) { _ ->
+            QuickTile(HomePanel.Quick.SETTINGS, state, look) { _ ->
                 androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     Glyph(Icons.Rounded.Settings, look.ink, 38f)
                     Box(Modifier.width(px(12f)))
@@ -571,7 +571,7 @@ class HomePanelContent(private val panel: HomePanel) :
                 Triple(HomePanel.Quick.DESKTOP, Icons.Rounded.Computer, tr("Stream from the computer")),
             )
             for ((item, icon, detail) in big) {
-                QuickTile(item, state, active = item == HomePanel.Quick.CAR && state.car) { _ ->
+                QuickTile(item, state, look, active = item == HomePanel.Quick.CAR && state.car) { _ ->
                     androidx.compose.foundation.layout.Row(Modifier.fillMaxSize().padding(start = px(28f)), verticalAlignment = Alignment.CenterVertically) {
                         Glyph(icon, look.ink, 40f)
                         Box(Modifier.width(px(20f)))
@@ -590,14 +590,14 @@ class HomePanelContent(private val panel: HomePanel) :
         )
         for ((item, icon) in small) {
             val active = on[item] == true
-            QuickTile(item, state, active = active) { _ -> Glyph(icon, if (active) look.chosen else look.ink, 44f) }
+            QuickTile(item, state, look, active = active) { _ -> Glyph(icon, if (active) look.chosen else look.ink, 44f) }
         }
         }
     }
 
     /** A tile of the control centre: lighter under the pointer, the accent wash when it is on. */
     @Composable
-    private fun QuickTile(item: HomePanel.Quick, state: HomePanel.Snapshot, active: Boolean = false, content: @Composable (Boolean) -> Unit) {
+    private fun QuickTile(item: HomePanel.Quick, state: HomePanel.Snapshot, look: Look, active: Boolean = false, content: @Composable (Boolean) -> Unit) {
         val hover = state.hovered == HomePanel.Target.Quick(item)
         In(HomePanel.quickRect(item)) {
             Box(
@@ -639,7 +639,7 @@ class HomePanelContent(private val panel: HomePanel) :
                     Modifier.fillMaxSize()
                         .shadow(px(26f), bar, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
                         .clip(bar)
-                        .background(if (state.dark) NextDesign.dockBrush else look.top)
+                        .background(if (state.dark) NextDesign.dockBrush else Brush.verticalGradient(listOf(look.top, look.bottom)))
                         .border(Dp.Hairline, Color(NextDesign.dockStroke), bar)
                 )
             }
@@ -696,7 +696,7 @@ class HomePanelContent(private val panel: HomePanel) :
 
             // The reference separates the dock's groups with a hairline that fades at both ends.
             val dividerBrush = Brush.verticalGradient(
-                listOf(Color(NextDesign.divider.copy(alpha = 0f)), Color(NextDesign.divider), Color(NextDesign.divider.copy(alpha = 0f)))
+                listOf(NextDesign.dividerColor.copy(alpha = 0f), NextDesign.dividerColor, NextDesign.dividerColor.copy(alpha = 0f))
             )
             for (divider in HomePanel.DIVIDERS) At(x(divider), cy, 2f * s / 1.5f, 38f * s) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(dividerBrush))
