@@ -197,6 +197,10 @@ add_library(vins_jni SHARED
     ${VINS_UPSTREAM}/vins_estimator/src/initial/solve_5pts.cpp
     ${VINS_UPSTREAM}/vins_estimator/src/utility/utility.cpp
 
+    # OpenCV for Android has no highgui, which is what upstream's debug-preview call sites need; the
+    # two entry points are defined away here so that file stays as upstream wrote it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/shim/opencv_highgui_no_window.cpp
+
     # This module's own code: the two nodes without ROS, the configuration, and the JNI bindings.
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/vins_config.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/vins_queue.cpp
