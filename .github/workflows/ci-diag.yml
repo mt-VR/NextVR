@@ -87,13 +87,13 @@ jobs:
           n=0
           for f in diag-out/ee*; do
             n=$((n+1)); [ "$n" -gt 9 ] && break
-            echo "::error title=e$n::$(enc "$f")"
+            echo "::error title=e$n::$(enc < "$f")"
           done
           tail -n +1 diag-out/errors.md | tail -c 6000 > diag-out/tt
           split -C 1150 -a 2 -d diag-out/tt diag-out/ww
           m=0
           for f in diag-out/ww*; do
             m=$((m+1)); [ "$m" -gt 6 ] && break
-            echo "::warning title=w$m::$(enc "$f")"
+            echo "::warning title=w$m::$(enc < "$f")"
           done
-          echo "::notice title=toolchain::$(enc diag-out/toolchain.md)"
+          echo "::notice title=toolchain::$(enc < diag-out/toolchain.md)"
