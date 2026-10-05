@@ -257,13 +257,10 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         super.onCreate(savedInstanceState)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         L10n.init(this)
-        // The VR home, too, is only for a signed-in user — except the first setup, which signs in
-        // (or creates the account) itself.
-        if (Account.current(this) == null && Settings.setupDone(this)) {
-            startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
-            finish()
-            return
-        }
+        // An account is optional, so the VR home is never gated on one: a local profile (the name
+        // from setup, and everything in settings) is enough to run the whole headset. Previously a
+        // signed-out user was bounced back to the phone app, which opened the required sign-in, and
+        // anyone who had said "Later" during setup landed in that loop on every launch.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -291,13 +288,19 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         if (!Settings.setupDone(this)) onboarding = Onboarding(this, onboardingHost)
         // BE has no camera to show the room: a black space around the windows.
         if (BuildConfig.BE) setEnvironment("black")
-        // 6DoF: the chosen tracker follows the room through the camera (walking, the room scan, the
-        // table); where nothing runs (None, a phone with neither ARCore nor the VINS-Mono core, a car
-        // that moves the room itself) a neck model stands in: the eyes swing around the neck as the
-        // head turns and tilts. Integrating the accelerometer drifted away within seconds.
+        // 6DoF: the chosen tracker follows the room through the camera; where nothing runs at all
+        // (None, a phone with neither ARCore nor the VINS-Mono core, a car that moves the room
+        // itself) a neck model stands in: the eyes swing around the neck as the head turns and
+        // tilts. Integrating the accelerometer drifted away within seconds.
+        //
+        // The neck model is a stand-in for *no tracker*, not for "the tracker has not solved a frame
+        // yet". It moves the world by a rotation-dependent offset, so while a tracker was starting
+        // up — or had lost the room — every turn of the head swam the whole scene around, and the
+        // switch back to a solved pose was a jump. A tracker that exists owns the position, and the
+        // head simply stays where tracking began until the first pose arrives.
         sixMode = Settings.sixDofMode(this)
         six = startSixDof(sixMode)
-        neckModel = sixMode != Settings.SixDofMode.NONE && !Settings.travelMode(this)
+        neckModel = six == null && !Settings.travelMode(this)
         remote.start()
         if (!BuildConfig.BE) trackingExecutor.execute {
             handTracker = runCatching { HandTracker(this, useGpu = true, onResult = ::onHands) }
@@ -429,7 +432,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         if (old != null) { old.pause(); old.close() }
         synchronized(headPosition) { headPosition.fill(0f) }
         six = startSixDof(mode)
-        neckModel = mode != Settings.SixDofMode.NONE && !Settings.travelMode(this)
+        neckModel = six == null && !Settings.travelMode(this)
         cameraProvider?.unbindAll()
         if (six?.ownsCamera != true && !BuildConfig.BE &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -2626,10 +2629,10 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             followWithPanel()
             if (BuildConfig.BE) gaze()
             val tracker6 = six
-            if (tracker6 != null) {
-                updateSixDof(tracker6)
-                if (!tracker6.tracking && neckModel && !carMode) neck()
-            } else if (neckModel && !carMode) neck()
+            if (tracker6 != null) updateSixDof(tracker6)
+            // The neck model only stands in when no tracker exists at all. A tracker that is merely
+            // unsolved keeps the last pose, which does not swim the scene around on every head turn.
+            if (neckModel && !carMode) neck()
             if (redraw.getAndSet(false)) {
                 // The layout (where each target is) and the compose-hig panel's state, which redraws itself.
                 synchronized(panel) { panel.draw(hoveredPanel, pressing) }

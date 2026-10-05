@@ -494,11 +494,9 @@ class MainActivity : ComponentActivity() {
         ipd = Settings.ipdMm(this)
         // The permission result can also trigger onResume; keep showing the countdown until VR starts.
         if (needsSetup) return
-        // NextVR opens only with an account (BE has no friends or calls, so no account either).
-        if (!BuildConfig.BE && Account.current(this) == null) {
-            startActivity(Intent(this, AccountActivity::class.java).putExtra(AccountActivity.EXTRA_REQUIRED, true))
-            return
-        }
+        // An account is optional. Friends, calls and the store need one; the rest of NextVR — the
+        // headset, the windows, 6DoF, every setting — runs on the profile stored on this phone, so
+        // there is no sign-in to gate the app on. Settings -> Account still opens it when wanted.
         resumes++
         androidApps = BuildConfig.LITE || AndroidAppsContent.enabled(this)
         if (BuildConfig.LITE) AndroidAppsContent.setEnabled(this, true)

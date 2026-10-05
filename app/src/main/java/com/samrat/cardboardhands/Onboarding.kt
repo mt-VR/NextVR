@@ -374,7 +374,10 @@ class Onboarding(private val context: Context, private val host: Host) {
         languageArtwork(t)
         if (t > .6f) {
             button(RectF(600f, 852f, 1000f, 932f), tr("Continue")) {
-                go(if (Account.current(context) == null) Step.ACCOUNT else Step.HANDS)
+                // Setup does not stop at an account. One is needed for friends, calls and the
+                // store, and can be created at any time from Settings -> Account; making it a step
+                // here is what sent people who said "Later" straight back to a sign-in screen.
+                go(Step.HANDS)
             }
         }
     }
