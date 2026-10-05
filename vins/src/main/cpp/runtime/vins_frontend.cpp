@@ -19,6 +19,7 @@ namespace {
 FeatureTracker trackerData[NUM_OF_CAM];
 double firstImageTime = 0;
 double lastImageTime = 0;
+constexpr double kFrameStreamDiscontinuityTimeoutSeconds = 3.0;
 int pubCount = 1;
 bool firstImageFlag = true;
 bool initPub = false;
@@ -81,9 +82,9 @@ void trackFrame(const cv::Mat &gray, double tSec) {
         lastImageTime = tSec;
         return;
     }
-    // A long pause or a clock that jumped back leaves the tracker holding points of a room that is
-    // gone: both halves start again, which is what upstream signals on its "restart" topic.
-    if (tSec - lastImageTime > 1.0 || tSec < lastImageTime) {
+    // Allow brief camera/UI stalls during head turns; a long pause or a clock that jumped back can
+    // leave the tracker holding points from a stale stream, so both halves still start again then.
+    if (tSec - lastImageTime > kFrameStreamDiscontinuityTimeoutSeconds || tSec < lastImageTime) {
         ROS_WARN("image stream discontinued, resetting the feature tracker");
         firstImageFlag = true;
         lastImageTime = 0;

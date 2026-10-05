@@ -8,8 +8,8 @@ Robotics Group, copied from
 
     https://github.com/HKUST-Aerial-Robotics/VINS-Mono        commit 90dabb5ec79946ae42fd2e1e91d4e69aabe1e25d
 
-and left as it is upstream except where an Android build forces a change. `src/main/cpp/upstream/
-COPYING` is its licence text; read the note at the end of this file before shipping a build with it.
+with the Android and headset-specific edits listed below. `src/main/cpp/upstream/COPYING` is its
+licence text; read the note at the end of this file before shipping a build with it.
 
 Which parts are needed, and which were left out
 -----------------------------------------------
@@ -38,6 +38,9 @@ Touched, and why
                                      declaration of the same two variables. Upstream keeps them in two
                                      nodes that never meet; on a phone they share one process, and the
                                      linker only tolerates one definition of each.
+  vins_estimator/src/estimator.cpp   The vertical-motion failure threshold is raised to 5 m for
+                                     room-scale headset use, and the relative-rotation quaternion is
+                                     normalized and clamped before `acos` to avoid round-off NaNs.
   everything else                    untouched. ROS is not patched out of the sources but shimmed
                                      next to them, in `src/main/cpp/shim/`: `ros/ros.h`,
                                      `ros/console.h`, `ros/assert.h`, `std_msgs/Header.h`,
@@ -49,6 +52,8 @@ Touched, and why
                                      against upstream's own headers, and a future resync is a copy.
 
 Written here (all of it NextVR's, not upstream's): `src/main/cpp/runtime/` and `src/main/cpp/jni/`.
+The runtime normalizes the propagated IMU quaternion and tolerates frame-stream gaps up to three
+seconds before restarting the tracker.
 
 Licence
 -------

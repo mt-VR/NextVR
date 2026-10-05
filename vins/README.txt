@@ -89,7 +89,8 @@ Limits found while putting it in
      notices within a second (the pose's age), shows its neck model, and takes the position back when
      the tracker finds the walls again.
   7. A game holds the camera. While an OpenXR game runs, NextVR's tracking service has the camera and
-     the home gets no frames, so VINS-Mono loses the room after a second and the home falls back to its
-     neck model until the game is put down. ARCore is in the same position; nothing here is worse.
+     the home gets no frames, so the pose goes stale after a second and the home falls back to its
+     neck model. If the frame stream is still absent after three seconds, VINS-Mono restarts its
+     estimator when frames resume. ARCore is in the same position; nothing here is worse.
   8. GPL-3.0. Read the note at the end of UPSTREAM.txt: an APK with this module in it carries
      copyleft obligations for the whole app. `-Pvins.enabled=false` builds without them.
