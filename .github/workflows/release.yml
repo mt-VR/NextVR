@@ -1,23 +1,22 @@
 # Tests, build and release for PhoneXR.
 #
-# * push to main — the version in app/build.gradle.kts is bumped and committed back, the unit
-#   tests run, the APKs (full, lite, BE) and the SDK are built, and everything is published
-#   into the single "latest" release: its files are overwritten, so the links to them never
-#   change while the release itself always holds the freshest build (a normal release, not a
-#   pre-release).
+# * push to main — the unit tests run, the APKs (full, lite, BE) and the SDK are built, and
+#   everything is published into the single "latest" release: its files are overwritten, so the
+#   links to them never change while the release itself always holds the freshest build (a
+#   normal release, not a pre-release). The version is never bumped: it stays pinned at 2.0.1
+#   in app/build.gradle.kts, and every build is told apart by its commit — the commit number
+#   stands next to the version in the release title and inside the app itself
+#   ("Version 2.0.1 (abc1234)", baked in at build time).
 # * push of a v* tag — the same run, but a versioned release: PhoneXR-<version>.apk and so on.
-#   The version is not bumped: a tag publishes the version that is already in the file.
-# * pull request to main — the same tests and build, but nothing is published and the version
-#   is not bumped: visible before merging.
+# * pull request to main — the same tests and build, but nothing is published.
 # * Manual run (Actions → Run workflow) — a versioned release when a tag is given,
 #   otherwise just a fresh build into the latest release.
 #
-# Why the version is bumped on every merge: the latest release is a rolling pointer, so its
-# date is written once, when it is first published, and GitHub never moves it again — a merge
-# changes the files, the title and the notes, but the Releases tab still shows the date of the
-# very first build. Without a version, nothing on that page tells you the APKs are new. The
-# version is the signal: it is in the title, in the notes and in the file name of the run
-# artifact, and it moves on every merge.
+# Why the commit number instead of a moving version: the latest release is a rolling pointer,
+# so its date is written once, when it is first published, and GitHub never moves it again —
+# a merge changes the files, the title and the notes, but the Releases tab still shows the
+# date of the very first build. The commit next to the pinned version is the signal: it is in
+# the title, in the notes and in the run artifact name, and it moves on every merge.
 name: Tests, build and release
 
 on:
@@ -29,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Version tag, for example v2.0.2 (empty — the latest release)"
+        description: "Version tag, for example v2.0.1 (empty — the latest release)"
         required: false
         default: ""
 
@@ -89,44 +88,9 @@ jobs:
           elif command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses >/dev/null 2>&1 || true
           fi
-      - name: Bump the version and commit it back
-        # Only a merge into main moves the version. A pull request is not a release yet, and a
-        # v* tag must publish the version that is already written in the file.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          FILE=app/build.gradle.kts
-          OLD_NAME=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' "$FILE" | head -1)
-          OLD_CODE=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' "$FILE" | head -1)
-          if [ -z "$OLD_NAME" ] || [ -z "$OLD_CODE" ]; then
-            echo "::error::could not read versionName/versionCode from $FILE"
-            exit 1
-          fi
-          # The patch number is what moves: a merge is not a breaking or a feature change.
-          IFS=. read -r MAJOR MINOR PATCH <<<"$OLD_NAME"
-          NEW_NAME="${MAJOR:-0}.${MINOR:-0}.$(( ${PATCH:-0} + 1 ))"
-          NEW_CODE=$(( OLD_CODE + 1 ))
-          sed -i "s/^\([[:space:]]*versionName = \)\"\([^\"]*\)\"/\1\"$NEW_NAME\"/" "$FILE"
-          sed -i "s/^\([[:space:]]*versionCode = \)[0-9][0-9]*/\1$NEW_CODE/" "$FILE"
-          # The landing page shows the version in its title and its header; keep both in step with
-          # the build. Matching on the element, not on "NextVR x.y.z", leaves "NextVR SDK 2.0.0"
-          # and the rest of the page alone.
-          sed -i "s|<title>NextVR [0-9][0-9.]* —|<title>NextVR $NEW_NAME —|" index.html
-          sed -i "s|<div class=\"head\">NextVR [0-9][0-9.]*<|<div class=\"head\">NextVR $NEW_NAME<|" index.html
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILE" index.html
-          git commit -m "Bump the version: $OLD_NAME -> $NEW_NAME [skip ci]"
-          # Pushed with GITHUB_TOKEN, which does not start another run, so the bump can never
-          # feed itself. [skip ci] is the belt and braces, in case a PAT is used instead.
-          # Done before the build so that the commit, the built APKs and the tag all name the
-          # same tree: if this push fails, the job stops and no release is published at all.
-          git push origin HEAD:main
-          {
-            echo "### Version"
-            echo ""
-            echo "- \`$OLD_NAME\` -> **$NEW_NAME** (versionCode $OLD_CODE -> $NEW_CODE)"
-          } >> "$GITHUB_STEP_SUMMARY"
+      # No version bump: the version in app/build.gradle.kts stays pinned at 2.0.1 and the
+      # builds are told apart by the commit they were built from, which the build bakes into
+      # the APKs and which the release title carries next to the version.
       - name: Build the APKs (full, lite, BE) and the SDK
         run: ./gradlew :app:assembleFullDebug :app:assembleLiteDebug :app:assembleBeDebug :sdk:build --no-daemon --stacktrace
       - name: File names
@@ -135,8 +99,7 @@ jobs:
           set -euo pipefail
           VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
           SHA=$(git rev-parse --short HEAD)
-          # The full head, which is the version bump commit when one was just pushed, and the
-          # commit the release and the latest tag must both point at.
+          # The commit the release and the latest tag must both point at.
           HEAD_SHA=$(git rev-parse HEAD)
           mkdir -p dist/latest dist/versioned sdk-zip/PhoneXR-SDK
           # Stable names: the links of the latest release stay the same from build to build.
@@ -158,7 +121,8 @@ jobs:
       - name: APKs as run artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nextvr-${{ steps.files.outputs.version }}
+          # The version is pinned, so the commit is what tells the run artifacts apart.
+          name: nextvr-${{ steps.files.outputs.version }}-${{ steps.files.outputs.sha }}
           path: dist/latest/*
           retention-days: 14
       - name: Publish the release
@@ -180,22 +144,22 @@ jobs:
           if [ -n "$TAG" ]; then
             # A version: a v* tag or a manual run with a tag.
             gh release view "$TAG" >/dev/null 2>&1 \
-              || gh release create "$TAG" --target "$GITHUB_SHA" --title "PhoneXR ${TAG#v}" --generate-notes
+              || gh release create "$TAG" --target "$GITHUB_SHA" --title "PhoneXR ${TAG#v} ($SHA)" --generate-notes
             gh release upload "$TAG" dist/versioned/* --clobber
             echo "Release $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
           else
             # Push to main: a single normal latest release. Its files are overwritten, so the
             # release is always fresh while the links to it stay constant; the latest tag is
             # moved onto the commit that was built. A pre-release becomes a normal one.
-            # The title carries the version, because the date next to this release is the date it
-            # was first published and never moves again. The version is what says "newer".
-            TITLE="NextVR $VERSION — latest build"
+            # The version is pinned, so the date GitHub shows beside the release (the date it
+            # was first published, never moved again) is paired with the commit number: it is
+            # what says "newer" in the release list.
+            TITLE="NextVR $VERSION ($SHA) — latest build"
             NOTES="Automatic build of \`${GITHUB_REF_NAME}\`: version **$VERSION**, commit \`$SHA\`, built $BUILT.
 
           This release rolls forward: every merge to \`main\` overwrites the files below, so the
           date GitHub shows beside the release is the date of the first build and does not
-          change. The version and the commit above are the authoritative record of what these
-          APKs contain."
+          change. The commit above is the authoritative record of what these APKs contain."
             if gh release view latest >/dev/null 2>&1; then
               gh release edit latest \
                 --title "$TITLE" --notes "$NOTES"
