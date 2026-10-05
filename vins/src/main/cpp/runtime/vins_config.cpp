@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "camodocal/camera_models/PinholeCamera.h"
 #include "ros/ros.h"
 
 // --- feature tracker (upstream feature_tracker/src/parameters.cpp) -----------------------------
@@ -52,7 +53,17 @@ std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
 double TD, TR;
 
+namespace {
+
+// The camera model the front end undistorts its features with, built from the config file's own
+// numbers the moment they are read (see loadParameters and calibrationCamera below).
+camodocal::CameraPtr gCamera;
+
+}  // namespace
+
 namespace vins {
+
+camodocal::CameraPtr calibrationCamera() { return gCamera; }
 
 bool loadParameters(const std::string &configPath, std::string *error) {
     cv::FileStorage settings(configPath, cv::FileStorage::READ);
@@ -60,6 +71,14 @@ bool loadParameters(const std::string &configPath, std::string *error) {
         if (error != nullptr) *error = "cannot open " + configPath;
         return false;
     }
+
+    // These three are globals and they are appended to below, and a load happens on every start and
+    // every restart — so they must start from nothing, here, before anything is pushed. Clearing
+    // them later in the function wipes what this very call added, and an empty RIC leaves
+    // setParameter() indexing element 0 of an empty vector with no calibration behind it.
+    RIC.clear();
+    TIC.clear();
+    CAM_NAMES.clear();
 
     // Topics have no meaning without ROS; the names are kept for the log line, as upstream does.
     settings["imu_topic"] >> IMU_TOPIC;
@@ -70,6 +89,16 @@ bool loadParameters(const std::string &configPath, std::string *error) {
     MIN_DIST = settings["min_dist"];
     ROW = settings["image_height"];
     COL = settings["image_width"];
+    // The lens itself, read here while the file is still open: upstream leaves this to the front
+    // end's own second read of the file, and this build hands the front end a model instead.
+    const double camK1 = settings["distortion_parameters"]["k1"];
+    const double camK2 = settings["distortion_parameters"]["k2"];
+    const double camP1 = settings["distortion_parameters"]["p1"];
+    const double camP2 = settings["distortion_parameters"]["p2"];
+    const double camFx = settings["projection_parameters"]["fx"];
+    const double camFy = settings["projection_parameters"]["fy"];
+    const double camCx = settings["projection_parameters"]["cx"];
+    const double camCy = settings["projection_parameters"]["cy"];
     FREQ = settings["freq"];
     F_THRESHOLD = settings["F_threshold"];
     SHOW_TRACK = settings["show_track"];
@@ -85,12 +114,20 @@ bool loadParameters(const std::string &configPath, std::string *error) {
         FISHEYE = 0;
     }
     PUB_THIS_FRAME = false;
-    CAM_NAMES.push_back(configPath);  // readIntrinsicParameter() reads the camera out of this file
+    // Upstream's own list of calibration files, kept filled so anything upstream that still reads
+    // it sees one entry. The front end no longer opens it: it takes the model built at the end of
+    // this function instead, which is what removed the second file read that used to fail.
+    CAM_NAMES.push_back(configPath);
     // A key the app does not write reads back as a zero, and a zero there means a front end that
     // never tracks: answer the ordinary figures of upstream's EuRoC config instead.
     if (MAX_CNT <= 0) MAX_CNT = 150;
     if (MIN_DIST <= 0) MIN_DIST = 30;
     if (F_THRESHOLD <= 0) F_THRESHOLD = 1.0;
+    // `equalize` is the one key whose zero is a real choice, so it cannot be told apart from a
+    // missing line by the value alone: ask FileStorage whether the key was there at all, and fall
+    // back to upstream's EuRoC figure (on) rather than to a front end that finds no features in a
+    // dim room.
+    if (settings["equalize"].empty()) EQUALIZE = 1;
     if (EQUALIZE != 0 && EQUALIZE != 1) EQUALIZE = 1;
 
     // The estimator: how hard to solve, and how noisy the sensors are. The same rule: whatever the
@@ -153,6 +190,26 @@ bool loadParameters(const std::string &configPath, std::string *error) {
         if (error != nullptr) *error = "the config has no image size";
         return false;
     }
+    if (!(camFx > 0) || !(camFy > 0)) {
+        if (error != nullptr) *error = "the config has no usable focal length";
+        return false;
+    }
+    // The camera the front end projects and undistorts with, assembled from the numbers above.
+    //
+    // Upstream builds this the long way round: the config's path goes into the global CAM_NAMES,
+    // the front end calls generateCameraFromYamlFile() on it, and the file is opened a second
+    // time. That second open is what failed on the device this was written for — the path came
+    // back as three bytes of rubbish (logcat, 10-05 18:19:22, "reading paramerter of camera" with
+    // rubbish where the path should be), the model stayed null, and every single start ended in
+    // "the camera calibration in the config file could not be read". With the model never built
+    // the estimator never ran, no camera frame and no IMU reading was ever accepted, and the
+    // headset sat on 3DoF and the neck model — which is exactly the "everything is trying to
+    // escape from us" it was reported as. Building it from the numbers already in hand removes the
+    // second open, the global string and the dangling reference all at once.
+    gCamera = camodocal::PinholeCameraPtr(new camodocal::PinholeCamera(
+        "camera", COL, ROW, camK1, camK2, camP1, camP2, camFx, camFy, camCx, camCy));
+    ROS_INFO("VINS-Mono camera: %dx%d, fx=%.1f fy=%.1f cx=%.1f cy=%.1f, k=[%.4f %.4f %.4f %.4f]",
+             COL, ROW, camFx, camFy, camCx, camCy, camK1, camK2, camP1, camP2);
     ROS_INFO("VINS-Mono configured for %dx%d, %d features, %d Hz", COL, ROW, MAX_CNT, FREQ);
     return true;
 }

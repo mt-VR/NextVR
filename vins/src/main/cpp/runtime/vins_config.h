@@ -12,9 +12,21 @@
 
 #include <string>
 
+#include "camodocal/camera_models/Camera.h"
+
 namespace vins {
 
 /** Reads the YAML at [configPath] into the global parameters of both nodes. False when it cannot. */
 bool loadParameters(const std::string &configPath, std::string *error);
+
+/**
+ * The camera model [loadParameters] built out of the config file, for the front end to use.
+ *
+ * Upstream hands this over the other way round: the config's path goes into the global CAM_NAMES
+ * and the feature tracker opens that file itself, a second time. That second open is what this
+ * build could not do — see the note in vins_config.cpp — so the model travels as a model.
+ * Null until a load has succeeded.
+ */
+camodocal::CameraPtr calibrationCamera();
 
 }  // namespace vins

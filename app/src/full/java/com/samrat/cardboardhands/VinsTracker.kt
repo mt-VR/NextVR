@@ -56,6 +56,14 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     /** Scratch, only used when a camera's Y plane is not one byte per pixel. */
     private var scratch: ByteBuffer? = null
 
+    // Counters for the health line, and the window they are counted over. Without them a logcat
+    // says nothing about whether the estimator is running, which is how a mode that had never once
+    // solved a frame looked the same as one that was tracking.
+    private var imuCount = 0
+    private var frameCount = 0
+    private var windowStartNs = 0L
+    private var lastHealthNs = 0L
+
     /** The frame size the estimator was configured for; the config is written once, from the first frame. */
     private var configuredWidth = 0
     private var configuredHeight = 0
@@ -128,7 +136,32 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         synchronized(position) { System.arraycopy(aligner.position, 0, position, 0, 3) }
 
         tracking = pose.ageSeconds < LOST_AFTER_SECONDS
+        health(x.toFloat(), y.toFloat(), z.toFloat())
         return null
+    }
+
+    /**
+     * One line every two seconds, so a logcat shows what the estimator is doing without being
+     * flooded: where the camera is in its own world, how fast it is said to be moving, how old the
+     * solved frame is, and the two rates that decide whether the window can converge at all.
+     */
+    private fun health(x: Float, y: Float, z: Float) {
+        val now = SystemClock.elapsedRealtimeNanos()
+        if (now - lastHealthNs < HEALTH_PERIOD_NS) return
+        val elapsed = (now - windowStartNs).coerceAtLeast(1L)
+        val imuHz = imuCount * 1e9 / elapsed
+        val framesHz = frameCount * 1e9 / elapsed
+        imuCount = 0
+        frameCount = 0
+        windowStartNs = now
+        lastHealthNs = now
+        val speed = kotlin.math.sqrt(pose.vx * pose.vx + pose.vy * pose.vy + pose.vz * pose.vz)
+        Log.i(
+            TAG,
+            "pose=[%.3f %.3f %.3f] speed=%.2f m/s age=%.2f s solving=%b enough=%b imu=%.0f Hz frames=%.0f Hz".format(
+                x, y, z, speed, pose.ageSeconds, pose.solving, pose.featuresEnough, imuHz, framesHz,
+            ),
+        )
     }
 
     override fun resume(): Boolean {
@@ -167,6 +200,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         if (plane == null || !plane.isDirect) return
         // The frame's own exposure time, on the monotonic clock (elapsedRealtimeNanos); what is
         // left of the difference is taken up by VINS-Mono's online temporal calibration (estimate_td).
+        frameCount++
         VinsCore.pushFrame(plane, width, height, if (tight) rowStride else width, timestampNs)
     }
 
@@ -208,10 +242,26 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         if (started) VinsCore.stop()
         val optics = readCameraOptics(appContext, width, height)
         config.parentFile?.mkdirs()
-        runCatching { config.writeText(configText(width, height, optics)) }
-            .onFailure { failure = "the calibration file could not be written"; Log.w(TAG, "VINS config", it); return }
+        runCatching {
+            config.writeText(
+                VinsConfig.text(
+                    width, height, optics,
+                    "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+                ),
+            )
+        }.onFailure { failure = "the calibration file could not be written"; Log.w(TAG, "VINS config", it); return }
         configuredWidth = width
         configuredHeight = height
+        // What was written, in one line: the lens numbers decide the world scale and the extrinsic
+        // decides whether it is a world at all, and neither was ever in the log before.
+        Log.i(
+            TAG,
+            "config ${width}x$height fx=%.1f fy=%.1f cx=%.1f cy=%.1f k=[%.4f %.4f %.4f %.4f] RIC=%s at %s".format(
+                optics.fx, optics.fy, optics.cx, optics.cy,
+                optics.k1, optics.k2, optics.p1, optics.p2,
+                optics.extrinsicRotation.joinToString(","), config.absolutePath,
+            ),
+        )
 
         val error = runCatching { VinsCore.start(config.absolutePath) }.getOrElse {
             started = false
@@ -225,78 +275,13 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         }
         started = true
         failure = null
+        // A fresh run must not count frames and readings from the one before it.
+        imuCount = 0
+        frameCount = 0
+        windowStartNs = SystemClock.elapsedRealtimeNanos()
+        lastHealthNs = 0L
         startSensors()
-        Log.i(TAG, "VINS-Mono started on a ${width}x${height} stream")
-    }
-
-    /** Upstream's config file, in its own shape, filled with what this phone's camera reports. */
-    private fun configText(width: Int, height: Int, optics: Optics): String = buildString {
-        append("%YAML:1.0\n")
-        append("# Written by NextVR for ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}.\n")
-        append("# The keys and their meaning are VINS-Mono's (vins/config/euroc/euroc_config.yaml);\n")
-        append("# the numbers are this phone's own, from the camera characteristics and the sensors.\n")
-        append("imu_topic: imu\n")
-        append("image_topic: image\n")
-        append("\n#camera calibration: the pinhole model of the frame the tracker is fed\n")
-        append("model_type: PINHOLE\n")
-        append("camera_name: camera\n")
-        append("image_width: $width\n")
-        append("image_height: $height\n")
-        append("distortion_parameters:\n")
-        append("   k1: ${optics.k1}\n")
-        append("   k2: ${optics.k2}\n")
-        append("   p1: ${optics.p1}\n")
-        append("   p2: ${optics.p2}\n")
-        append("projection_parameters:\n")
-        append("   fx: ${optics.fx}\n")
-        append("   fy: ${optics.fy}\n")
-        append("   cx: ${optics.cx}\n")
-        append("   cy: ${optics.cy}\n")
-        append("\n# the camera-to-IMU extrinsic parameters: estimate_extrinsic = 1 refines the initial estimate online\n")
-        append("estimate_extrinsic: 1\n")
-        append("extrinsicRotation: !!opencv-matrix\n")
-        append("   rows: 3\n")
-        append("   cols: 3\n")
-        append("   dt: d\n")
-        append("   data: [ ${optics.extrinsicRotation[0]}, ${optics.extrinsicRotation[1]}, ${optics.extrinsicRotation[2]},\n")
-        append("           ${optics.extrinsicRotation[3]}, ${optics.extrinsicRotation[4]}, ${optics.extrinsicRotation[5]},\n")
-        append("           ${optics.extrinsicRotation[6]}, ${optics.extrinsicRotation[7]}, ${optics.extrinsicRotation[8]} ]\n")
-        append("extrinsicTranslation: !!opencv-matrix\n")
-        append("   rows: 3\n")
-        append("   cols: 1\n")
-        append("   dt: d\n")
-        append("   data: [ 0.0, 0.0, 0.0 ]\n")
-        append("\n# feature tracker\n")
-        append("max_cnt: 150\n")
-        append("min_dist: 25\n")
-        // Upstream's reference runs the front end at 10 Hz. Every extra frame here is a KLT pass
-        // competing with 90 Hz VR rendering and the hand tracker on the same cores, and the
-        // estimator gains nothing from them: between solved frames the head rides the IMU
-        // propagation, which is drift-free over a tenth of a second.
-        append("freq: 10\n")
-        append("F_threshold: 2.0\n")
-        append("show_track: 0\n")
-        append("equalize: 1\n")
-        append("fisheye: 0\n")
-        append("\n# optimisation: upstream's EuRoC reference values, not tighter ones. An 11-frame\n")
-        append("# window cannot converge in four iterations, and a solve cut short returns a biased\n")
-        append("# pose every time - which reads as drift, and keeps the estimator in INITIAL forever.\n")
-        append("max_solver_time: 0.04\n")
-        append("max_num_iterations: 8\n")
-        append("keyframe_parallax: 10.0\n")
-        append("\n# IMU noise, the ordinary MEMS figures of a phone (upstream's EuRoC ones are tighter)\n")
-        append("acc_n: 0.1\n")
-        append("acc_w: 0.001\n")
-        append("gyr_n: 0.01\n")
-        append("gyr_w: 1.0e-4\n")
-        append("g_norm: 9.81\n")
-        append("\n# the pose graph is not built into this APK, so no loop closure and no map reuse\n")
-        append("loop_closure: 0\n")
-        append("\n# the camera's clock and the IMU's are not one clock on Android: follow the offset\n")
-        append("estimate_td: 1\n")
-        append("td: 0.0\n")
-        append("\nrolling_shutter: 0\n")
-        append("rolling_shutter_tr: 0\n")
+        Log.i(TAG, "VINS-Mono started on a ${width}x$height stream")
     }
 
     // --- the IMU, which is what makes a monocular camera into a 6DoF tracker ---------------------
@@ -357,24 +342,18 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val stamp = event.timestamp
         if (stamp <= lastPushNs) return
         lastPushNs = stamp
+        imuCount++
         VinsCore.pushImu(stamp, latestAccel, latestGyro)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
-
-    /** What the phone's own camera reports about its lens, at the size the tracker is fed. */
-    private class Optics(
-        val fx: Double, val fy: Double, val cx: Double, val cy: Double,
-        val k1: Double, val k2: Double, val p1: Double, val p2: Double,
-        val extrinsicRotation: DoubleArray,
-    )
 
     /**
      * The intrinsics of the analysis stream. Android publishes a camera's focal length in millimetres
      * and its sensor in millimetres too, which is enough for a pinhole model at any read-out size;
      * where the phone carries a factory lens calibration, its distortion coefficients come with it.
      */
-    private fun readCameraOptics(context: Context, width: Int, height: Int): Optics {
+    private fun readCameraOptics(context: Context, width: Int, height: Int): VinsConfig.Optics {
         val fallback = fallbackOptics(width, height)
         val manager = context.getSystemService(CameraManager::class.java) ?: return fallback
         // The main camera is the one CameraX opens for DEFAULT_BACK_CAMERA, and it is the back-facing
@@ -410,7 +389,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             val fxFraction = intrinsic[0].toDouble() / preCorrection.width()
             val fyFraction = intrinsic[1].toDouble() / preCorrection.height()
             if (fxFraction in 0.2..2.5 && fyFraction in 0.2..2.5) {
-                return Optics(
+                return VinsConfig.Optics(
                     fxFraction * width, fyFraction * height, width / 2.0, height / 2.0,
                     distortion[0], distortion[1], distortion[2], distortion[3],
                     extrinsic,
@@ -418,7 +397,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             }
         }
         if (focalMm == null || sensor == null || array == null || array.width() <= 0 || sensor.width <= 0f) {
-            return Optics(
+            return VinsConfig.Optics(
                 fallback.fx, fallback.fy, fallback.cx, fallback.cy,
                 distortion[0], distortion[1], distortion[2], distortion[3],
                 extrinsic,
@@ -429,7 +408,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         if (pixelMm <= 0f) return fallback
         val scale = width.toFloat() / array.width()
         val focal = focalMm / pixelMm
-        return Optics(
+        return VinsConfig.Optics(
             fx = focal.toDouble() * scale,
             // The pixels are square, so the vertical focal length is the same number of pixels.
             fy = focal.toDouble() * scale,
@@ -459,9 +438,9 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     }
 
     /** No published lens data: a phone's main camera sees about 65° across, so take that. */
-    private fun fallbackOptics(width: Int, height: Int): Optics {
+    private fun fallbackOptics(width: Int, height: Int): VinsConfig.Optics {
         val focal = width / 2.0 / tan(Math.toRadians(HORIZONTAL_DEGREES / 2.0))
-        return Optics(
+        return VinsConfig.Optics(
             focal, focal * height / width, width / 2.0, height / 2.0,
             0.0, 0.0, 0.0, 0.0,
             // The commonest mount, and the one that cannot be read: most main cameras sit at 90°.
@@ -477,6 +456,8 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         private const val HORIZONTAL_DEGREES = 65.0
         /** A second without a solved frame is the tracker losing the room, not the head moving. */
         private const val LOST_AFTER_SECONDS = 1.0
+        /** How often the health line is written: often enough to see a trend, rarely enough to read. */
+        private const val HEALTH_PERIOD_NS = 2_000_000_000L
 
         /** Whether the native estimator is in this build of the app at all. */
         val available get() = VinsCore.available

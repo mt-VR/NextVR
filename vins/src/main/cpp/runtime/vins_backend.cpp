@@ -45,7 +45,9 @@ Eigen::Vector3d tmpBg;
 Eigen::Vector3d acc0;
 Eigen::Vector3d gyr0;
 bool initImu = true;
-double lastImuT = 0;
+// Written by the sensor thread's pushImu() before it takes any lock, and reset by a start or a
+// restart, so it needs to be atomic rather than a plain double to stay defined.
+std::atomic<double> lastImuT{0};
 
 std::atomic<bool> isRunning{false};
 std::thread processThread;
@@ -265,7 +267,7 @@ bool startTracker(const std::string &configPath, std::string *error) {
         pose = Pose();
     }
     currentTime = -1;
-    lastImuT = 0;
+    lastImuT.store(0);
     initImu = true;
     isRunning.store(true);
     processThread = std::thread(process);
@@ -283,11 +285,11 @@ void stopTracker() {
 
 void pushImu(double tSec, double ax, double ay, double az, double gx, double gy, double gz) {
     if (!isRunning.load()) return;
-    if (tSec <= lastImuT) {
+    if (tSec <= lastImuT.load()) {
         ROS_WARN("imu message out of order, dropped");
         return;
     }
-    lastImuT = tSec;
+    lastImuT.store(tSec);
 
     sensor_msgs::ImuPtr imu(new sensor_msgs::Imu);
     imu->header.stamp.fromSec(tSec);
@@ -333,18 +335,38 @@ void restartTracker() {
         queue.imu.clear();
     }
     {
-        std::lock_guard<std::mutex> lock(mEstimator);
+        // Two locks, in the order process() takes them: the estimator's thread owns currentTime
+        // under mEstimator while it works, and the sensor thread owns the IMU propagation under
+        // mState. Zeroing either set of state outside its lock meant a restart could slip between
+        // the batch finishing and this - the thread would go on integrating from a currentTime
+        // that had just been rewound to -1 under it, or predict() could read half of an Eigen
+        // vector on its way to zero.
+        std::lock_guard<std::mutex> estimatorLock(mEstimator);
         estimator.clearState();
         estimator.setParameter();
+        currentTime = -1;
+        {
+            std::lock_guard<std::mutex> stateLock(mState);
+            lastImuT.store(0);
+            initImu = true;
+            latestTime = 0;
+            // The propagation starts from the origin too. Left at the pre-restart pose it would
+            // carry the old room forward through publishPropagated() until the first solve landed,
+            // which is the one window this mode is allowed to show after a recentre.
+            tmpP = Eigen::Vector3d::Zero();
+            tmpV = Eigen::Vector3d::Zero();
+            tmpQ = Eigen::Quaterniond::Identity();
+            tmpBa = Eigen::Vector3d::Zero();
+            tmpBg = Eigen::Vector3d::Zero();
+            acc0 = Eigen::Vector3d::Zero();
+            gyr0 = Eigen::Vector3d::Zero();
+        }
     }
     resetFrontend();
     {
         std::lock_guard<std::mutex> lock(mPose);
         pose = Pose();
     }
-    currentTime = -1;
-    lastImuT = 0;
-    initImu = true;
     ROS_WARN("VINS-Mono restarted: the room ahead becomes the room again");
 }
 

@@ -8,6 +8,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "feature_tracker.h"
+#include "runtime/vins_config.h"
 #include "runtime/vins_queue.h"
 #include "runtime/vins_runtime.h"
 #include "sensor_msgs/PointCloud.h"
@@ -49,13 +50,17 @@ bool timeForAFrame(double t) {
 }  // namespace
 
 bool prepareFrontend(std::string *error) {
-    for (int i = 0; i < NUM_OF_CAM; i++) {
-        trackerData[i].readIntrinsicParameter(CAM_NAMES[i]);
-        if (!trackerData[i].m_camera) {
-            if (error != nullptr) *error = "the camera calibration in the config file could not be read";
-            return false;
-        }
+    // The camera model, handed over by loadParameters() rather than read here. Upstream has the
+    // front end open the config file a second time through the path in CAM_NAMES, and that second
+    // open is what could not be done on a phone: the path came back as garbage, the model stayed
+    // null, and every start ended in "the camera calibration in the config file could not be read"
+    // with the estimator never running. See the note in vins_config.cpp.
+    camodocal::CameraPtr camera = calibrationCamera();
+    if (!camera) {
+        if (error != nullptr) *error = "the config named no camera calibration to read";
+        return false;
     }
+    for (int i = 0; i < NUM_OF_CAM; i++) trackerData[i].m_camera = camera;
     cameraReady = true;
     return true;
 }
@@ -150,6 +155,12 @@ void trackFrame(const cv::Mat &gray, double tSec) {
     {
         std::lock_guard<std::mutex> lock(queue.mutex);
         queue.features.push_back(features);
+        // A solve on a phone can overrun the 100 ms the front end hands frames over at, and a
+        // backlog then only grows: each solve works through frames captured seconds ago, every
+        // projection factor staler, and the pose published later than the head has moved. Upstream
+        // never sees this because its ROS subscriber drops the same way. Two seconds of frames is
+        // far more than the 11-frame window needs.
+        while (queue.features.size() > 20) queue.features.pop_front();
     }
     queue.ready.notify_one();
 }

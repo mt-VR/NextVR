@@ -78,24 +78,36 @@ Limits found while putting it in
      phones that report none. The crop CameraX chooses is not always the one the characteristics
      describe, so the optical centre is taken as the middle of the frame. A mis-set focal length is
      mostly a wrong *scale*: the room is a bit bigger or smaller than it is. The camera-to-IMU
-     rotation is derived from the sensor's mount angle (VinsExtrinsics, checked by a unit test):
-     the estimator refines it online, but a starting guess half a turn off about the optical axis
-     is one its visual-inertial alignment cannot walk back from, so the axes are derived, not
-     guessed. The file it all comes from is `files/vins/vins_config.yaml`, rewritten from the frame
-     size and the characteristics at every start; a phone that is properly calibrated can keep its
-     own numbers there for the tracker to find.
-  4. Camera and IMU clocks are not one clock. The frame's exposure stamp is moved onto the clock the
-     sensors read are stamped with, and the rest is left to VINS-Mono's online temporal calibration
-     (`estimate_td: 1`), which is what it exists for.
+     rotation is derived from the sensor's mount angle (VinsExtrinsics, checked by a unit test) and
+     the estimator is told to trust it (`estimate_extrinsic: 0`), which is what a derived-from-
+     first-principles rotation deserves. Estimating it online instead puts seven more free
+     parameters into a Ceres solve that is already given only `max_solver_time` for an 11-frame
+     window, on cores shared with the render loop; the solve is cut short, every pose is biased and
+     the estimator does not leave INITIAL. Upstream's own EuRoC config ships `estimate_extrinsic: 0`
+     for the same reason it trusts its own measured matrix. The file it all comes from is
+     `files/vins/vins_config.yaml`, rewritten from the frame size and the characteristics at every
+     start; a phone that is properly calibrated can keep its own numbers there for the tracker to
+     find. The numbers that are not this phone's own are pinned by `VinsConfigTest`.
+  4. There is no camera-to-IMU clock offset to find. `ImageInfo.timestamp` and `SensorEvent.timestamp`
+     are both nanoseconds on `SystemClock.elapsedRealtimeNanos()`, so `estimate_td` is 0 and `td` is
+     0.0. Switching the online temporal calibration on would add `para_Td` as a free parameter to
+     the same short solve and replace every `ProjectionFactor` with a `ProjectionTdFactor`, which
+     can only cost convergence.
   5. The analysis stream is asked for 640×480 while VINS-Mono runs, which is also the picture the
      passthrough shows and the hands are read from: the room is followed better at a modest size than
      the phone is drawn in high definition. On a weak phone the home may render at fewer frames a
      second — the estimator shares those cores with the render and the hand tracker.
+     The `keyframe_parallax` written into the config is 4 px of median feature flow per frame, not
+     upstream's 10. Upstream's figure assumes a hand-held camera waved in front of the user; below
+     that threshold VINS-Mono's own `solveOdometry` throws good frames out of the window on purpose,
+     and a camera on a headset sees far less translation than that.
   6. It needs to see. Turning off the lights, a blank wall or a fast swing loses the room; the home
-     notices within a second (the pose's age), shows its neck model, and takes the position back when
-     the tracker finds the walls again.
+     notices within a second (the pose's age) and says so in Settings. The last pose is held while
+     the tracker looks for the room again — deliberately *not* the neck model, which would swing the
+     whole scene around on every turn of the head. The neck model is a stand-in for having no tracker
+     at all, not for not having solved a frame yet.
   7. A game holds the camera. While an OpenXR game runs, NextVR's tracking service has the camera and
-     the home gets no frames, so VINS-Mono loses the room after a second and the home falls back to its
-     neck model until the game is put down. ARCore is in the same position; nothing here is worse.
+     the home gets no frames, so VINS-Mono loses the room after a second and the home holds its last
+     pose until the game is put down. ARCore is in the same position; nothing here is worse.
   8. GPL-3.0. Read the note at the end of UPSTREAM.txt: an APK with this module in it carries
      copyleft obligations for the whole app. `-Pvins.enabled=false` builds without them.
