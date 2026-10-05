@@ -43,3 +43,7 @@ gearvr-shim/third_party/
 gearvr-shim/build32/
 app/src/main/assets/daydream/
 __pycache__/
+
+# Local workspace scratch: agent state and debug logs, not source
+.freebuff/
+reports/
