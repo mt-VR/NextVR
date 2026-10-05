@@ -51,9 +51,34 @@ class SixDofAlignerTest {
     }
 
     /**
-     * A tracker that snaps to a corrected map is not the user walking: the room must stay where it was
-     * put, so a jump of more than half a metre in one frame moves the origin with it.
+     * Walking steadily is the case the filter used to get wrong, and it is a steady case, not a
+     * jump: a step response looks fine, because the cutoff is briefly opened wide by a huge
+     * derivative estimate, but a constant 1 m/s settles at a steady lag. The old 1 Hz / 2.5 left the
+     * head 56 mm behind where it had walked; in a headset that reads as the movement being weakened
+     * rather than merely late.
      */
+    @Test
+    fun walkingForwardDoesNotLagTheHead() {
+        val aligner = SixDofAligner()
+        // Frame 1 only sets the origin the walk is measured from; the filter needs a non-zero
+        // timestamp before it starts running, which is what frame 2 onwards gives it.
+        step(aligner, yaw = 0f, x = 0f, y = 0f, z = 0f, frame = 1)
+        // 1 m/s forward, sampled at the 40 Hz the filter is fed at.
+        val speed = 1f / WALK_SECONDS
+        var walked = 0f
+        var shown = 0f
+        // Three seconds: a first-order lag, and the derivative estimate behind it, both need about
+        // a second to settle, so what is measured at the end is the lag and not the approach to it.
+        for (frame in 2..(1 + (WALK_SECONDS * FRAME_HZ).toInt())) {
+            walked += speed
+            shown = -step(aligner, yaw = 0f, x = 0f, y = 0f, z = -walked, frame = frame)[2]
+        }
+        val lag = walked - shown
+        assertTrue("the head lagged ${lag}m behind where it walked", lag < MAX_LAG)
+        assertTrue("the head ran ${-lag}m ahead of where it walked", lag > -MAX_LAG)
+    }
+
+    /** A tracker that snaps to a corrected map is not the user walking: the room must stay put. */
     @Test
     fun aSnapOfTheTrackerDoesNotThrowTheRoomAcrossTheHouse() {
         val aligner = SixDofAligner()
@@ -86,5 +111,17 @@ class SixDofAlignerTest {
     private companion object {
         /** A frame every 25 ms: the filter's idea of how fast the head is moving. */
         const val FRAME_NS = 25_000_000L
+        const val FRAME_HZ = 40.0
+
+        /** Seconds of walking, and the speed: about as fast as anyone walks indoors. */
+        const val WALK_SECONDS = 3f
+
+        /**
+         * How far behind the walk the head may fall. The perception threshold for positional lag in
+         * a headset is around 20 ms, which is 2 cm at 1 m/s; the current settings measure 1.8 cm and
+         * the previous ones measured 5.6 cm, so this sits between the two and fails if the bandwidth
+         * is loosened or tightened back towards the old filter.
+         */
+        const val MAX_LAG = .03f
     }
 }

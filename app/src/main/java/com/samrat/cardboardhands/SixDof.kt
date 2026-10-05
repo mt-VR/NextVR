@@ -46,6 +46,14 @@ interface SixDof {
     /** Texture coordinates of the passthrough quad (per eye), when this tracker draws the camera. */
     val passthroughUv: FloatBuffer? get() = null
 
+    // --- the room scan, which is ARCore's alone ---------------------------------------------------------------
+    //
+    // A room scan needs a backend that knows what a *surface* is: ARCore fits planes to the room and
+    // says which are floors, tables and walls. VINS-Mono tracks features, not geometry, so it can
+    // follow where the head is but never what the walls are — it therefore answers `false` here and
+    // the defaults below stand for it. The capability is declared on the shared interface so the home
+    // and the settings screen can ask either tracker the same question and branch on the answer.
+
     /** What the room scan found in the home's world: floor, table, walls, drawn as a grid. */
     val surfaces: List<RoomScan.Surface> get() = emptyList()
 
@@ -205,6 +213,16 @@ object SixDofSupport {
  * rather than the user walking, and the rest is smoothed with the same One Euro filter the hands use:
  * calm while the head rests, quick when it moves.
  *
+ * The filter's bandwidth is set by what it is fed, not by the hands: a tracker's position arrives
+ * already smoothed and already at sensor rate — VINS-Mono hands over its IMU-propagated pose at
+ * 200 Hz, ARCore a pose it has filtered itself. So this only has to take the edge off, and it used
+ * to be set for a noisier signal than either one is. At a 1 m/s walk the old settings (1 Hz floor,
+ * 2.5 speed gain) left the head **56 mm behind where it had walked**, measured by
+ * `walkingForwardDoesNotLagTheHead`; the numbers below leave it 18 mm, which is inside what a
+ * headset shows. That gap is the whole difference between "my movement carried" and "my movement
+ * was weakened": the world visibly drags behind the head, and the head-bob at 1.5-2 Hz comes out
+ * attenuated on top of it.
+ *
  * [update] wants the camera-to-world transform in the head tracker's own convention (y up, straight
  * ahead along -z); ARCore's `displayOrientedPose` is already that way, and VINS-Mono's z-up world is
  * turned before it gets here.
@@ -218,7 +236,9 @@ class SixDofAligner {
     /** The heading of the tracker's world, measured in the head's; NaN before the first fix. */
     var alignYaw = Float.NaN
         private set
-    private val smooth = Array(3) { HandGestures.OneEuro(minCutoff = 1.0f, beta = 2.5f, deadZone = .003f) }
+    private val smooth = Array(3) {
+        HandGestures.OneEuro(minCutoff = SMOOTH_CUTOFF_HZ, beta = SMOOTH_BETA, deadZone = .003f)
+    }
     private val lastRaw = FloatArray(3)
     private var hasLast = false
 
@@ -276,5 +296,16 @@ class SixDofAligner {
         while (a > Math.PI) a -= (2 * Math.PI).toFloat()
         while (a < -Math.PI) a += (2 * Math.PI).toFloat()
         return a
+    }
+
+    private companion object {
+        /**
+         * The position filter's floor and its speed gain, in One Euro's terms: the cutoff is
+         * `SMOOTH_CUTOFF_HZ + SMOOTH_BETA * |d(position)/dt|`, so a standing head is held at 3 Hz and
+         * a 1 m/s walk opens it to 13 Hz. `walkingForwardDoesNotLagTheHead` measures what that costs:
+         * 18 mm of lag at 1 m/s, against the 56 mm the previous 1 Hz / 2.5 gave.
+         */
+        const val SMOOTH_CUTOFF_HZ = 3.0f
+        const val SMOOTH_BETA = 10.0f
     }
 }
