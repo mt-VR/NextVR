@@ -69,7 +69,9 @@ void resetFrontend() {
 }
 
 void trackFrame(const cv::Mat &gray, double tSec) {
-    if (!cameraReady) return;
+    // Not while the estimator is down: a frame pushed between a stop and the next start would
+    // otherwise be tracked into nobody — and, on a reconfigure, race the front end's own setup.
+    if (!running() || !cameraReady) return;
     if (gray.type() != CV_8UC1 || gray.cols != COL || gray.rows != ROW) {
         ROS_WARN("frame %dx%d does not match the configured %dx%d, dropping it", gray.cols, gray.rows, COL, ROW);
         return;

@@ -86,11 +86,22 @@ bool loadParameters(const std::string &configPath, std::string *error) {
     }
     PUB_THIS_FRAME = false;
     CAM_NAMES.push_back(configPath);  // readIntrinsicParameter() reads the camera out of this file
+    // A key the app does not write reads back as a zero, and a zero there means a front end that
+    // never tracks: answer the ordinary figures of upstream's EuRoC config instead.
+    if (MAX_CNT <= 0) MAX_CNT = 150;
+    if (MIN_DIST <= 0) MIN_DIST = 30;
+    if (F_THRESHOLD <= 0) F_THRESHOLD = 1.0;
+    if (EQUALIZE != 0 && EQUALIZE != 1) EQUALIZE = 1;
 
-    // The estimator: how hard to solve, and how noisy the sensors are.
+    // The estimator: how hard to solve, and how noisy the sensors are. The same rule: whatever the
+    // file does not say takes the value upstream's own config ships, so a hand-edited file that
+    // loses a line degrades gracefully instead of silently solving with zero noise or no time.
     SOLVER_TIME = settings["max_solver_time"];
     NUM_ITERATIONS = settings["max_num_iterations"];
     MIN_PARALLAX = settings["keyframe_parallax"];
+    if (SOLVER_TIME <= 0) SOLVER_TIME = 0.04;
+    if (NUM_ITERATIONS <= 0) NUM_ITERATIONS = 8;
+    if (MIN_PARALLAX <= 0) MIN_PARALLAX = 10.0;
     MIN_PARALLAX = MIN_PARALLAX / 460.0;  // upstream divides by its FOCAL_LENGTH constant
 
     ACC_N = settings["acc_n"];
@@ -98,6 +109,11 @@ bool loadParameters(const std::string &configPath, std::string *error) {
     GYR_N = settings["gyr_n"];
     GYR_W = settings["gyr_w"];
     G.z() = settings["g_norm"];
+    if (ACC_N <= 0) ACC_N = 0.1;
+    if (ACC_W <= 0) ACC_W = 0.001;
+    if (GYR_N <= 0) GYR_N = 0.01;
+    if (GYR_W <= 0) GYR_W = 1.0e-4;
+    if (G.z() <= 0) G.z() = 9.8;
 
     ESTIMATE_EXTRINSIC = settings["estimate_extrinsic"];
     if (ESTIMATE_EXTRINSIC == 2) {

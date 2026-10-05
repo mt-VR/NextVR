@@ -9,6 +9,8 @@ import android.hardware.SensorManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.opengl.Matrix
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
 import com.samrat.vins.VinsCore
@@ -137,6 +139,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         stopSensors()
         if (started) VinsCore.stop()
         started = false
+        sensorThread.quitSafely()
     }
 
     override fun recenter() {
@@ -297,11 +300,17 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             fail("no accelerometer and gyroscope to fuse")
             return
         }
-        // The estimator's own rate: VINS-Mono integrates at whatever the sensors give, faster is better.
-        sensors.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST)
-        sensors.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_FASTEST)
+        // The estimator's own rate: VINS-Mono integrates at whatever the sensors give, faster is
+        // better. The readings arrive on a thread of this tracker's own — the render thread, which
+        // is what they would land on otherwise, must not take the estimator's locks hundreds of
+        // times a second.
+        sensors.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST, sensorHandler)
+        sensors.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_FASTEST, sensorHandler)
         sensorsRegistered = true
     }
+
+    private val sensorThread = HandlerThread("PhoneXR-VINS-sensors").apply { start() }
+    private val sensorHandler = Handler(sensorThread.looper)
 
     private fun stopSensors() {
         if (!sensorsRegistered) return
@@ -313,9 +322,11 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private var lastPushNs = 0L
 
     /**
-     * One reading. The estimator takes acceleration and rotation as a pair per instant, so the newest
-     * gyroscope sample travels with each accelerometer one: 200 Hz of pairs, the rate a phone really
-     * has, and neither sensor is asked to wait for the other.
+     * One reading. The estimator takes acceleration and rotation as a pair per instant, so every
+     * sample carries the newest of the other sensor with it — a hold of a millisecond or two, far
+     * under what the estimator can see. Pushing on *both* sensors' events keeps the gyroscope, the
+     * one that carries the head's turn, integrated at its full rate (often twice the
+     * accelerometer's) instead of pacing the rotation to the other sensor's clock.
      */
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
@@ -327,7 +338,6 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             Sensor.TYPE_GYROSCOPE, Sensor.TYPE_GYROSCOPE_UNCALIBRATED -> {
                 latestGyro[0] = event.values[0]; latestGyro[1] = event.values[1]; latestGyro[2] = event.values[2]
                 haveGyro = true
-                return
             }
 
             else -> return
@@ -345,37 +355,62 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private class Optics(
         val fx: Double, val fy: Double, val cx: Double, val cy: Double,
         val k1: Double, val k2: Double, val p1: Double, val p2: Double,
-        val extrinsicRotation: DoubleArray = doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0),
+        val extrinsicRotation: DoubleArray,
     )
 
     /**
      * The intrinsics of the analysis stream. Android publishes a camera's focal length in millimetres
-     * and its sensor in millimetres too, which is enough for a pinhole model at any read-out size; the
-     * distortion coefficients come from the lens profile where the platform has one.
+     * and its sensor in millimetres too, which is enough for a pinhole model at any read-out size;
+     * where the phone carries a factory lens calibration, its distortion coefficients come with it.
      */
     private fun readCameraOptics(context: Context, width: Int, height: Int): Optics {
         val fallback = fallbackOptics(width, height)
         val manager = context.getSystemService(CameraManager::class.java) ?: return fallback
+        // The main camera is the one CameraX opens for DEFAULT_BACK_CAMERA, and it is the back-facing
+        // sensor with the most silicon: the first back camera in the list is sometimes the
+        // ultra-wide instead, and intrinsics read off the wrong lens are a wrong world scale.
         val characteristics = runCatching {
-            manager.cameraIdList.firstOrNull { id ->
-                manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
-            }?.let { manager.getCameraCharacteristics(it) }
+            manager.cameraIdList
+                .mapNotNull { id ->
+                    val candidate = manager.getCameraCharacteristics(id)
+                    if (candidate.get(CameraCharacteristics.LENS_FACING) != CameraCharacteristics.LENS_FACING_BACK) null
+                    else candidate.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                        ?.let { candidate to it.width() * it.height() }
+                }
+                .maxByOrNull { it.second }?.first
         }.getOrNull() ?: return fallback
         val focalMm = runCatching { characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() }.getOrNull()
         val sensor = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) }.getOrNull()
         val array = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) }.getOrNull()
+        val intrinsic = runCatching { characteristics.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION) }.getOrNull()
+        val preCorrection = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE) }.getOrNull()
         val sensorOrientation = runCatching { characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) }.getOrNull() ?: 90
-        val rot = when (sensorOrientation) {
-            270 -> doubleArrayOf(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
-            180 -> doubleArrayOf(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0)
-            0 -> doubleArrayOf(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0)
-            else -> doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+        // The camera-to-IMU rotation of the raw, unrotated buffer this tracker is fed — the axes the
+        // estimator's projection factors must agree with. Derived, not guessed: VinsExtrinsics.
+        val extrinsic = VinsExtrinsics.cameraFromImu(sensorOrientation)
+        val distortion = platformDistortion(characteristics)
+        // The factory's own pinhole model, when the phone carries one (DEPTH-capable modules do):
+        // focal length measured in pixels of the pre-correction array. The distortion coefficients
+        // above are normalised by exactly this focal length, so the two belong together — a better
+        // scale than the millimetre derivation below whenever both exist.
+        if (intrinsic != null && intrinsic.size >= 4 && preCorrection != null &&
+            preCorrection.width() > 0 && preCorrection.height() > 0
+        ) {
+            val fxFraction = intrinsic[0].toDouble() / preCorrection.width()
+            val fyFraction = intrinsic[1].toDouble() / preCorrection.height()
+            if (fxFraction in 0.2..2.5 && fyFraction in 0.2..2.5) {
+                return Optics(
+                    fxFraction * width, fyFraction * height, width / 2.0, height / 2.0,
+                    distortion[0], distortion[1], distortion[2], distortion[3],
+                    extrinsic,
+                )
+            }
         }
         if (focalMm == null || sensor == null || array == null || array.width() <= 0 || sensor.width <= 0f) {
             return Optics(
                 fallback.fx, fallback.fy, fallback.cx, fallback.cy,
-                0.0, 0.0, 0.0, 0.0,
-                rot,
+                distortion[0], distortion[1], distortion[2], distortion[3],
+                extrinsic,
             )
         }
         // Millimetres per pixel on the whole array, then the same lens at the read-out size.
@@ -383,20 +418,33 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         if (pixelMm <= 0f) return fallback
         val scale = width.toFloat() / array.width()
         val focal = focalMm / pixelMm
-        // No distortion coefficients: Android's lens profile (CameraCharacteristics.LENS_DISTORTION)
-        // is not readable from an ordinary app, and VINS-Mono's pinhole camera model runs on zeros —
-        // a phone's main camera is close enough at the 640x480 analysis size, and the estimator only
-        // needs the features to land where the model says they should, frame after frame. The scale
-        // that is not measured is the honest weakness of this mode, and it is in vins/README.txt.
         return Optics(
             fx = focal.toDouble() * scale,
             // The pixels are square, so the vertical focal length is the same number of pixels.
             fy = focal.toDouble() * scale,
             cx = width / 2.0,
             cy = height / 2.0,
-            k1 = 0.0, k2 = 0.0, p1 = 0.0, p2 = 0.0,
-            extrinsicRotation = rot,
+            k1 = distortion[0], k2 = distortion[1], p1 = distortion[2], p2 = distortion[3],
+            extrinsicRotation = extrinsic,
         )
+    }
+
+    /**
+     * The lens distortion the phone itself reports, as the four coefficients VINS-Mono's pinhole
+     * model takes (k1, k2, p1, p2): zeros where the phone has no factory calibration to report.
+     * `LENS_DISTORTION` is [kappa_1..kappa_5] — three radial, then two tangential — in the same
+     * normalised units VINS-Mono's model works in (a HAL with no calibration to report answers all
+     * zeros, which is what the check below turns away). The tangential pair maps onto OpenCV's p1
+     * and p2 in order (kappa_4 → p1, kappa_5 → p2, same equations); the third radial term has no
+     * place in the four-coefficient model, so it is dropped.
+     */
+    private fun platformDistortion(characteristics: CameraCharacteristics): DoubleArray {
+        val coefficients = runCatching { characteristics.get(CameraCharacteristics.LENS_DISTORTION) }.getOrNull()
+            ?: return doubleArrayOf(0.0, 0.0, 0.0, 0.0)
+        if (coefficients.size < 5) return doubleArrayOf(0.0, 0.0, 0.0, 0.0)
+        val (k1, k2, k3, p1, p2) = coefficients.map { it.toDouble() }
+        if (k1 == 0.0 && k2 == 0.0 && k3 == 0.0 && p1 == 0.0 && p2 == 0.0) return doubleArrayOf(0.0, 0.0, 0.0, 0.0)
+        return doubleArrayOf(k1, k2, p1, p2)
     }
 
     /** No published lens data: a phone's main camera sees about 65° across, so take that. */
@@ -405,7 +453,8 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         return Optics(
             focal, focal * height / width, width / 2.0, height / 2.0,
             0.0, 0.0, 0.0, 0.0,
-            doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0),
+            // The commonest mount, and the one that cannot be read: most main cameras sit at 90°.
+            VinsExtrinsics.cameraFromImu(90),
         )
     }
 

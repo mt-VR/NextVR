@@ -129,6 +129,7 @@ object SixDofSupport {
         if (!VinsTracker.available) return Availability.MISSING
         if (BuildConfig.BE) return Availability.MISSING
         if (!hasImu(context)) return Availability.MISSING
+        if (!hasCamera(context)) return Availability.MISSING
         return Availability.READY
     }
 

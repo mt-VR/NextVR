@@ -52,9 +52,11 @@ Nothing else changes, and no APK gains a dependency it did not ask for.
 Hardware requirements
 ---------------------
   - A rear camera the app may open while it renders (any phone NextVR runs on has one; BE does not
-    bind a camera at all, so the mode is not offered there).
-  - An accelerometer and a gyroscope. Both are asked for: the gyroscope alone gives no scale, the
-    accelerometer alone drifts at once. `SixDofSupport.hasImu` checks it and the settings row says
+    bind a camera at all, so the mode is not offered there).  - An accelerometer and a gyroscope. Both are asked for, and both are read at their full rate on a
+    thread of the tracker's own: every reading carries the newest of the other sensor, so the
+    gyroscope — the one that carries the head's turn — is integrated at everything it gives. The
+    gyroscope alone gives no scale, the accelerometer alone drifts at once. `SixDofSupport.hasImu`
+    checks it and the settings row says
     "Needs a gyroscope and an accelerometer" when one is missing.
   - No ARCore, no Google Play Services for AR, no depth sensor, no external tracking: that is the
     point of the mode.
@@ -70,14 +72,18 @@ Limits found while putting it in
      so nothing corrects the drift of a long walk: return to where you started after a few minutes and
      "there" is a few centimetres away. Recentering (a tap) restarts the window where the head is.
   3. Intrinsics are estimated, not measured. Android does publish a camera's focal length and sensor
-     size, and NextVR derives a pinhole model from them. No distortion is applied at all: the lens
-     profile in CameraCharacteristics is not readable by an ordinary app, so the four coefficients in
-     the config are zeros (upstream's own mobile ports calibrate them per device, which NextVR cannot
-     do for a thousand phones). The crop CameraX chooses is not always the one the characteristics
+     size, and NextVR derives a pinhole model from them; where a phone carries a factory lens
+     calibration it also reports distortion coefficients (LENS_DISTORTION with a calibration
+     priority above UNPROCESSED), and those are written into the config too — zeros on the many
+     phones that report none. The crop CameraX chooses is not always the one the characteristics
      describe, so the optical centre is taken as the middle of the frame. A mis-set focal length is
-     mostly a wrong *scale*: the room is a bit bigger or smaller than it is. The file it comes from is
-     `files/vins/vins_config.yaml`, rewritten from the frame size and the characteristics at every
-     start; a phone that is properly calibrated can keep its own numbers there for the tracker to find.
+     mostly a wrong *scale*: the room is a bit bigger or smaller than it is. The camera-to-IMU
+     rotation is derived from the sensor's mount angle (VinsExtrinsics, checked by a unit test):
+     the estimator refines it online, but a starting guess half a turn off about the optical axis
+     is one its visual-inertial alignment cannot walk back from, so the axes are derived, not
+     guessed. The file it all comes from is `files/vins/vins_config.yaml`, rewritten from the frame
+     size and the characteristics at every start; a phone that is properly calibrated can keep its
+     own numbers there for the tracker to find.
   4. Camera and IMU clocks are not one clock. The frame's exposure stamp is moved onto the clock the
      sensors read are stamped with, and the rest is left to VINS-Mono's online temporal calibration
      (`estimate_td: 1`), which is what it exists for.
