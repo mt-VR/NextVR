@@ -46,6 +46,8 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private val quaternion = FloatArray(4)
     private val rotationMatrix = FloatArray(9)
     private val cameraRotation = FloatArray(16)
+    /** Scratch for the remapped position: [raw] cannot be both the input and the output of a multiply. */
+    private val remapped = FloatArray(4)
 
     private val latestAccel = FloatArray(3)
     private val latestGyro = FloatArray(3)
@@ -65,9 +67,10 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     @Volatile override var tracking = false
         private set
 
-    // VINS-Mono's world is z up; the home's is y up with straight ahead along -z. This turns a
-    // vector from one to the other, and [cameraRotation] carries the head's turn with it.
-    private val upRemap = floatArrayOf(1f, 0f, 0f, 0f, 0f, 0f, -1f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f)
+    // VINS-Mono's world is z up; the home's is y up with straight ahead along -z. [VinsWorld] is that
+    // turn (a quarter turn about x) and the test that keeps it a rotation; [cameraRotation] carries
+    // the head's turn with it.
+    private val upRemap = VinsWorld.REMAP
 
     override val ownsCamera get() = false
     override val supportsRoomScan get() = false
@@ -113,11 +116,13 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         for (row in 0..2) for (col in 0..2) cameraRotation[col * 4 + row] = rotationMatrix[row * 3 + col]
         cameraRotation[3] = 0f; cameraRotation[7] = 0f; cameraRotation[11] = 0f; cameraRotation[15] = 1f
         raw[0] = x.toFloat(); raw[1] = y.toFloat(); raw[2] = z.toFloat(); raw[3] = 1f
-        Matrix.multiplyMV(raw, 0, upRemap, 0, raw, 0)
+        // The position goes through its own output array: multiplyMV may not write a result over
+        // the vector it is reading from, and doing so left the depth axis undefined.
+        Matrix.multiplyMV(remapped, 0, upRemap, 0, raw, 0)
         Matrix.multiplyMM(cameraRotation, 0, upRemap, 0, cameraRotation, 0)
-        cameraRotation[12] = raw[0].toFloat()
-        cameraRotation[13] = raw[1].toFloat()
-        cameraRotation[14] = raw[2].toFloat()
+        cameraRotation[12] = remapped[0]
+        cameraRotation[13] = remapped[1]
+        cameraRotation[14] = remapped[2]
         val atNs = ((if (usePropagated) pose.stampSeconds + pose.ageSeconds else pose.stampSeconds) * 1e9).toLong()
         aligner.update(cameraRotation, sensorHead, atNs)
         synchronized(position) { System.arraycopy(aligner.position, 0, position, 0, 3) }
@@ -264,14 +269,20 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         append("\n# feature tracker\n")
         append("max_cnt: 150\n")
         append("min_dist: 25\n")
-        append("freq: 30\n")
+        // Upstream's reference runs the front end at 10 Hz. Every extra frame here is a KLT pass
+        // competing with 90 Hz VR rendering and the hand tracker on the same cores, and the
+        // estimator gains nothing from them: between solved frames the head rides the IMU
+        // propagation, which is drift-free over a tenth of a second.
+        append("freq: 10\n")
         append("F_threshold: 2.0\n")
         append("show_track: 0\n")
         append("equalize: 1\n")
         append("fisheye: 0\n")
-        append("\n# optimisation: a phone has fewer cores to spare than the drones this was written for\n")
-        append("max_solver_time: 0.02\n")
-        append("max_num_iterations: 4\n")
+        append("\n# optimisation: upstream's EuRoC reference values, not tighter ones. An 11-frame\n")
+        append("# window cannot converge in four iterations, and a solve cut short returns a biased\n")
+        append("# pose every time - which reads as drift, and keeps the estimator in INITIAL forever.\n")
+        append("max_solver_time: 0.04\n")
+        append("max_num_iterations: 8\n")
         append("keyframe_parallax: 10.0\n")
         append("\n# IMU noise, the ordinary MEMS figures of a phone (upstream's EuRoC ones are tighter)\n")
         append("acc_n: 0.1\n")
