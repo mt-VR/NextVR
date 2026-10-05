@@ -574,7 +574,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
         override fun sixDofMode(): Settings.SixDofMode = sixMode
 
-        override fun canScanRoom(): Boolean = six is ArTracker
+        override fun canScanRoom(): Boolean = six?.supportsRoomScan == true
 
         override fun sixDofModeReason(mode: Settings.SixDofMode): String? =
             SixDofSupport.unavailableReason(this@VrHomeActivity, mode)
@@ -2626,8 +2626,10 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             followWithPanel()
             if (BuildConfig.BE) gaze()
             val tracker6 = six
-            if (tracker6 != null) updateSixDof(tracker6)
-            else if (neckModel && !carMode) neck()
+            if (tracker6 != null) {
+                updateSixDof(tracker6)
+                if (!tracker6.tracking && neckModel && !carMode) neck()
+            } else if (neckModel && !carMode) neck()
             if (redraw.getAndSet(false)) {
                 // The layout (where each target is) and the compose-hig panel's state, which redraws itself.
                 synchronized(panel) { panel.draw(hoveredPanel, pressing) }
