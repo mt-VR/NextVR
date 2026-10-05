@@ -23,7 +23,6 @@ std::string FISHEYE_MASK;
 std::vector<std::string> CAM_NAMES;
 int MAX_CNT;
 int MIN_DIST;
-int WINDOW_SIZE;
 int FREQ;
 double F_THRESHOLD;
 int SHOW_TRACK;
@@ -77,7 +76,6 @@ bool loadParameters(const std::string &configPath, std::string *error) {
     EQUALIZE = settings["equalize"];
     FISHEYE = settings["fisheye"];
     STEREO_TRACK = 0;            // a phone has one camera to the rear
-    WINDOW_SIZE = 20;            // upstream's own constant for the tracker
     FOCAL_LENGTH = 460;          // upstream's, used to scale the undistorted plane for RANSAC
     if (FREQ == 0) FREQ = 10;
     if (FISHEYE == 1) {

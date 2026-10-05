@@ -467,7 +467,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     }
 
     private val onboardingHost = object : Onboarding.Host {
-        override val sixDof get() = six is ArTracker
+        override val sixDof get() = six != null
         override fun tableFound() = RoomScan.table != null
         override fun finish() {
             onboarding = null
@@ -1371,7 +1371,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
      * does not report the camera's own projection (VINS-Mono, whose passthrough stays the 3DoF one) is
      * measured by the view it actually draws, which is why the projection and not the tracker decides.
      */
-    private val distanceScale get() = if (six?.projection != null) SIX_DOF_DISTANCE else THREE_DOF_DISTANCE
+    private val distanceScale get() = if (six != null) SIX_DOF_DISTANCE else THREE_DOF_DISTANCE
     private val windowRadius get() = VrWindow.RADIUS * distanceScale
     private val panelRadius get() = PANEL_RADIUS * distanceScale
     private val keyboardRadius get() = KEYBOARD_RADIUS * distanceScale
@@ -3824,7 +3824,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                 vec2 d = abs(vLocal) - (uHalf - vec2(uRadius));
                 float edge = length(max(d, 0.0)) - uRadius;
                 float alpha = 1.0 - smoothstep(-0.003, 0.0, edge);
-                gl_FragColor = vec4(texture2D(uTexture, vUv).rgb, alpha);
+                vec4 color = texture2D(uTexture, vUv);
+                gl_FragColor = vec4(color.rgb, color.a * alpha);
             }"""
         private const val COLOR_VERTEX = """
             uniform mat4 uMvp;
