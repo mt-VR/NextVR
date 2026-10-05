@@ -250,9 +250,9 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         append("   rows: 3\n")
         append("   cols: 3\n")
         append("   dt: d\n")
-        append("   data: [ ${optics.rot00}, ${optics.rot01}, ${optics.rot02},\n")
-        append("           ${optics.rot10}, ${optics.rot11}, ${optics.rot12},\n")
-        append("           ${optics.rot20}, ${optics.rot21}, ${optics.rot22} ]\n")
+        append("   data: [ ${optics.extrinsicRotation[0]}, ${optics.extrinsicRotation[1]}, ${optics.extrinsicRotation[2]},\n")
+        append("           ${optics.extrinsicRotation[3]}, ${optics.extrinsicRotation[4]}, ${optics.extrinsicRotation[5]},\n")
+        append("           ${optics.extrinsicRotation[6]}, ${optics.extrinsicRotation[7]}, ${optics.extrinsicRotation[8]} ]\n")
         append("extrinsicTranslation: !!opencv-matrix\n")
         append("   rows: 3\n")
         append("   cols: 1\n")
@@ -345,9 +345,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private class Optics(
         val fx: Double, val fy: Double, val cx: Double, val cy: Double,
         val k1: Double, val k2: Double, val p1: Double, val p2: Double,
-        val rot00: Double = 0.0, val rot01: Double = 1.0, val rot02: Double = 0.0,
-        val rot10: Double = 1.0, val rot11: Double = 0.0, val rot12: Double = 0.0,
-        val rot20: Double = 0.0, val rot21: Double = 0.0, val rot22: Double = -1.0,
+        val extrinsicRotation: DoubleArray = doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0),
     )
 
     /**
@@ -367,17 +365,17 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val sensor = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) }.getOrNull()
         val array = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) }.getOrNull()
         val sensorOrientation = runCatching { characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) }.getOrNull() ?: 90
-        val (r00, r01, r02, r10, r11, r12, r20, r21, r22) = when (sensorOrientation) {
-            270 -> listOf(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
-            180 -> listOf(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0)
-            0 -> listOf(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0)
-            else -> listOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+        val rot = when (sensorOrientation) {
+            270 -> doubleArrayOf(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+            180 -> doubleArrayOf(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0)
+            0 -> doubleArrayOf(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0)
+            else -> doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
         }
         if (focalMm == null || sensor == null || array == null || array.width() <= 0 || sensor.width <= 0f) {
             return Optics(
                 fallback.fx, fallback.fy, fallback.cx, fallback.cy,
                 0.0, 0.0, 0.0, 0.0,
-                r00, r01, r02, r10, r11, r12, r20, r21, r22,
+                rot,
             )
         }
         // Millimetres per pixel on the whole array, then the same lens at the read-out size.
@@ -397,9 +395,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             cx = width / 2.0,
             cy = height / 2.0,
             k1 = 0.0, k2 = 0.0, p1 = 0.0, p2 = 0.0,
-            rot00 = r00, rot01 = r01, rot02 = r02,
-            rot10 = r10, rot11 = r11, rot12 = r12,
-            rot20 = r20, rot21 = r21, rot22 = r22,
+            extrinsicRotation = rot,
         )
     }
 
@@ -409,7 +405,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         return Optics(
             focal, focal * height / width, width / 2.0, height / 2.0,
             0.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0,
+            doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0),
         )
     }
 
