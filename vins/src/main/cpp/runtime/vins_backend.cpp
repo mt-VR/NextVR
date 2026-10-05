@@ -38,7 +38,7 @@ std::mutex mEstimator;
 double currentTime = -1;
 double latestTime = 0;
 Eigen::Vector3d tmpP;
-Eigen::Quaterniond tmpQ;
+Eigen::Quaterniond tmpQ = Eigen::Quaterniond::Identity();
 Eigen::Vector3d tmpV;
 Eigen::Vector3d tmpBa;
 Eigen::Vector3d tmpBg;
@@ -70,6 +70,9 @@ void predict(const sensor_msgs::ImuConstPtr &imu) {
     Eigen::Vector3d unAcc0 = tmpQ * (acc0 - tmpBa) - estimator.g;
     Eigen::Vector3d unGyr = 0.5 * (gyr0 + angularVelocity) - tmpBg;
     tmpQ = tmpQ * Utility::deltaQ(unGyr * dt);
+    // Utility::deltaQ is a first-order approximation; repeated products otherwise drift from unit
+    // length, corrupting both the propagated orientation and the acceleration rotation.
+    tmpQ.normalize();
     Eigen::Vector3d unAcc1 = tmpQ * (linearAcceleration - tmpBa) - estimator.g;
     Eigen::Vector3d unAcc = 0.5 * (unAcc0 + unAcc1);
 
@@ -265,6 +268,7 @@ bool startTracker(const std::string &configPath, std::string *error) {
         pose = Pose();
     }
     currentTime = -1;
+    tmpQ.setIdentity();
     lastImuT = 0;
     initImu = true;
     isRunning.store(true);

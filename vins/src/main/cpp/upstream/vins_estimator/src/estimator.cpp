@@ -1,5 +1,7 @@
 #include "estimator.h"
 
+#include <algorithm>
+
 Estimator::Estimator(): f_manager{Rs}
 {
     ROS_INFO("init begins");
@@ -648,7 +650,8 @@ bool Estimator::failureDetection()
         ROS_INFO(" big translation");
         return true;
     }
-    if (abs(tmp_P.z() - last_P.z()) > 1)
+    // A headset can move vertically much farther than a drone-mounted camera during normal use.
+    if (abs(tmp_P.z() - last_P.z()) > 5)
     {
         ROS_INFO(" big z translation");
         return true; 
@@ -656,8 +659,9 @@ bool Estimator::failureDetection()
     Matrix3d tmp_R = Rs[WINDOW_SIZE];
     Matrix3d delta_R = tmp_R.transpose() * last_R;
     Quaterniond delta_Q(delta_R);
+    const double delta_q_w = std::max(-1.0, std::min(1.0, delta_Q.normalized().w()));
     double delta_angle;
-    delta_angle = acos(delta_Q.w()) * 2.0 / 3.14 * 180.0;
+    delta_angle = acos(delta_q_w) * 2.0 / 3.14 * 180.0;
     if (delta_angle > 50)
     {
         ROS_INFO(" big delta_angle ");
