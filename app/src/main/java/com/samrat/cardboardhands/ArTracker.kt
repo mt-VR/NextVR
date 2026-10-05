@@ -77,6 +77,7 @@ class ArTracker private constructor(private val session: Session) : SixDof {
     }
 
     override val ownsCamera get() = true
+    // ARCore fits planes to the room, so this is the one backend that can scan it.
     override val supportsRoomScan get() = true
 
     override fun copyPosition(out: FloatArray) = synchronized(aligner.position) {
@@ -105,6 +106,8 @@ class ArTracker private constructor(private val session: Session) : SixDof {
         val camera = frame.camera
         tracking = camera.trackingState == TrackingState.TRACKING
         if (tracking) {
+            // The planes the scan is made of: tracked, and not already folded into a bigger one
+            // (ARCore retires a plane once a larger one subsumes it).
             val planes = session.getAllTrackables(Plane::class.java).filter {
                 it.trackingState == TrackingState.TRACKING && it.subsumedBy == null
             }
@@ -113,14 +116,14 @@ class ArTracker private constructor(private val session: Session) : SixDof {
             lastPlanes = planes
         }
         synchronized(projectionMatrix) { camera.getProjectionMatrix(projectionMatrix, 0, .05f, 100f) }
-        synchronized(projectionMatrix) { camera.getProjectionMatrix(projectionMatrix, 0, .05f, 100f) }
         if (tracking) {
             // ARCore's world and the head's hang from the same gravity; the aligner follows the
             // heading, drops the jump of a relocalisation and smooths the rest.
             val ar = FloatArray(16).also { camera.displayOrientedPose.toMatrix(it, 0) }
             aligner.update(ar, sensorHead, frame.timestamp)
         }
-        // The scanned surfaces, a few times a second (their outlines grow slowly).
+        // The scanned surfaces, a few times a second (their outlines grow slowly). Only once the
+        // aligner has a world to map them into, so the grids land where the windows do.
         if (tracking && aligner.origin != null && !aligner.alignYaw.isNaN() && frames++ % 10 == 0) {
             surfaces = lastPlanes.mapNotNull { plane ->
                 runCatching { RoomScan.surface(plane) { x, y, z -> aligner.transformPoint(x, y, z) } }.getOrNull()

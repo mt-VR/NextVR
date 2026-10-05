@@ -71,10 +71,10 @@ class SettingsContent(
         fun sixDofModeReason(mode: Settings.SixDofMode): String? = null
         /** Picks another tracker; the home closes the one that ran before starting this one. */
         fun setSixDofMode(mode: Settings.SixDofMode) = Unit
-        /** Whether the tracker in charge can see walls and a table at all (ARCore can, VINS-Mono cannot). */
-        fun canScanRoom(): Boolean = false
         /** Opens Avaturn (or VRoid Hub) in a window; a model downloaded there becomes the avatar. */
         fun avatarWeb(vroid: Boolean)
+        /** Whether the tracker in charge can see walls and a table at all (ARCore can, VINS-Mono cannot). */
+        fun canScanRoom(): Boolean = false
         fun startRoomScan()
         fun roomText(): String
         fun openSystemSettings()
@@ -362,6 +362,8 @@ class SettingsContent(
                     detailColor = NextDesign.warnColor)
             }
 
+            // The scan is ARCore's alone: VINS-Mono follows the head but not the geometry, so say so
+            // rather than showing a scan screen that would sit empty forever.
             !host.canScanRoom() -> HigSection {
                 HigRow("No room scan", "VINS-Mono follows where the head is, not what the walls are: the grid, the table and the boundary need ARCore.",
                     detailColor = NextDesign.warnColor)
