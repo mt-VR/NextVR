@@ -66,6 +66,8 @@ abstract class ComposeContent(
             }
             if (transparent) shown.window?.apply {
                 setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+                decorView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 setFormat(android.graphics.PixelFormat.TRANSLUCENT)
             }
             shown.setContentView(view)

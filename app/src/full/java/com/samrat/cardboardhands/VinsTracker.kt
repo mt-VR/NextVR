@@ -157,10 +157,9 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val tight = pixelStride == 1 && gray.isDirect
         val plane = if (tight) gray else pack(gray, width, height, rowStride, pixelStride)
         if (plane == null || !plane.isDirect) return
-        // The frame's own exposure time, moved onto the clock the IMU reads are stamped with; what is
+        // The frame's own exposure time, on the monotonic clock (elapsedRealtimeNanos); what is
         // left of the difference is taken up by VINS-Mono's online temporal calibration (estimate_td).
-        val elapsedNs = timestampNs - (System.nanoTime() - SystemClock.elapsedRealtimeNanos())
-        VinsCore.pushFrame(plane, width, height, if (tight) rowStride else width, elapsedNs)
+        VinsCore.pushFrame(plane, width, height, if (tight) rowStride else width, timestampNs)
     }
 
     /** Rows the sensor interleaved (a stride wider than the line, or one byte per N pixels). */
@@ -245,9 +244,20 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         append("   fy: ${optics.fy}\n")
         append("   cx: ${optics.cx}\n")
         append("   cy: ${optics.cy}\n")
-        append("\n# the camera-to-IMU turn is not published by Android: let the estimator find it,\n")
-        append("# which is what estimate_extrinsic: 2 means, and why a little rotation helps at first\n")
-        append("estimate_extrinsic: 2\n")
+        append("\n# the camera-to-IMU extrinsic parameters: estimate_extrinsic = 1 refines the initial estimate online\n")
+        append("estimate_extrinsic: 1\n")
+        append("extrinsicRotation: !!opencv-matrix\n")
+        append("   rows: 3\n")
+        append("   cols: 3\n")
+        append("   dt: d\n")
+        append("   data: [ ${optics.extrinsicRotation[0]}, ${optics.extrinsicRotation[1]}, ${optics.extrinsicRotation[2]},\n")
+        append("           ${optics.extrinsicRotation[3]}, ${optics.extrinsicRotation[4]}, ${optics.extrinsicRotation[5]},\n")
+        append("           ${optics.extrinsicRotation[6]}, ${optics.extrinsicRotation[7]}, ${optics.extrinsicRotation[8]} ]\n")
+        append("extrinsicTranslation: !!opencv-matrix\n")
+        append("   rows: 3\n")
+        append("   cols: 1\n")
+        append("   dt: d\n")
+        append("   data: [ 0.0, 0.0, 0.0 ]\n")
         append("\n# feature tracker\n")
         append("max_cnt: 150\n")
         append("min_dist: 25\n")
@@ -335,6 +345,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private class Optics(
         val fx: Double, val fy: Double, val cx: Double, val cy: Double,
         val k1: Double, val k2: Double, val p1: Double, val p2: Double,
+        val extrinsicRotation: DoubleArray = doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0),
     )
 
     /**
@@ -353,7 +364,20 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val focalMm = runCatching { characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() }.getOrNull()
         val sensor = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) }.getOrNull()
         val array = runCatching { characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) }.getOrNull()
-        if (focalMm == null || sensor == null || array == null || array.width() <= 0 || sensor.width <= 0f) return fallback
+        val sensorOrientation = runCatching { characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) }.getOrNull() ?: 90
+        val rot = when (sensorOrientation) {
+            270 -> doubleArrayOf(0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+            180 -> doubleArrayOf(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0)
+            0 -> doubleArrayOf(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0)
+            else -> doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+        }
+        if (focalMm == null || sensor == null || array == null || array.width() <= 0 || sensor.width <= 0f) {
+            return Optics(
+                fallback.fx, fallback.fy, fallback.cx, fallback.cy,
+                0.0, 0.0, 0.0, 0.0,
+                rot,
+            )
+        }
         // Millimetres per pixel on the whole array, then the same lens at the read-out size.
         val pixelMm = sensor.width / array.width()
         if (pixelMm <= 0f) return fallback
@@ -371,13 +395,18 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             cx = width / 2.0,
             cy = height / 2.0,
             k1 = 0.0, k2 = 0.0, p1 = 0.0, p2 = 0.0,
+            extrinsicRotation = rot,
         )
     }
 
     /** No published lens data: a phone's main camera sees about 65° across, so take that. */
     private fun fallbackOptics(width: Int, height: Int): Optics {
         val focal = width / 2.0 / tan(Math.toRadians(HORIZONTAL_DEGREES / 2.0))
-        return Optics(focal, focal * height / width, width / 2.0, height / 2.0, 0.0, 0.0, 0.0, 0.0)
+        return Optics(
+            focal, focal * height / width, width / 2.0, height / 2.0,
+            0.0, 0.0, 0.0, 0.0,
+            doubleArrayOf(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0),
+        )
     }
 
     companion object {

@@ -121,9 +121,10 @@ object VinsCore {
         into.propagatedX = raw[10]; into.propagatedY = raw[11]; into.propagatedZ = raw[12]
         into.propagatedQx = raw[13]; into.propagatedQy = raw[14]; into.propagatedQz = raw[15]; into.propagatedQw = raw[16]
         into.stampSeconds = raw[17]
-        into.tracked = raw[18] >= 1.0
-        into.solving = raw[18] >= 2.0
-        into.featuresEnough = raw[18] >= 4.0
+        val flags = raw[18].toLong()
+        into.tracked = (flags and 1L) != 0L
+        into.solving = (flags and 2L) != 0L
+        into.featuresEnough = (flags and 4L) != 0L
         into.ageSeconds = raw[19]
         into.timeOffsetSeconds = raw[20]
         return fresh
