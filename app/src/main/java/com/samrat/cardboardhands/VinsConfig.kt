@@ -1,5 +1,7 @@
 package com.samrat.cardboardhands
 
+import kotlin.math.tan
+
 /**
  * The YAML the VINS-Mono estimator reads: upstream's own config file, in upstream's own shape, filled
  * with what this phone reports about its lens and its sensors.
@@ -19,6 +21,33 @@ object VinsConfig {
         /** The camera-from-IMU rotation, row-major, as `extrinsicRotation` wants it. */
         val extrinsicRotation: DoubleArray,
     )
+
+    /**
+     * Fallback pinhole calibration for a camera that publishes no usable intrinsics. With square
+     * pixels, focal length is the same in x and y; scaling fy by the image aspect ratio distorts the
+     * camera model (for a 640x480 frame it used to be 25% too short vertically).
+     */
+    fun fallbackOptics(
+        width: Int,
+        height: Int,
+        horizontalFovDegrees: Double,
+        extrinsicRotation: DoubleArray,
+    ): Optics {
+        require(width > 0 && height > 0) { "image dimensions must be positive" }
+        require(horizontalFovDegrees in 1.0..179.0) { "horizontal FOV must be between 1 and 179 degrees" }
+        val focalPixels = width / 2.0 / tan(Math.toRadians(horizontalFovDegrees / 2.0))
+        return Optics(
+            fx = focalPixels,
+            fy = focalPixels,
+            cx = width / 2.0,
+            cy = height / 2.0,
+            k1 = 0.0,
+            k2 = 0.0,
+            p1 = 0.0,
+            p2 = 0.0,
+            extrinsicRotation = extrinsicRotation,
+        )
+    }
 
     /**
      * Upstream's config file for the frame the tracker is fed, at the size the camera delivers.

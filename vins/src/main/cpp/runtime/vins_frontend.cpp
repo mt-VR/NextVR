@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 #include <set>
 #include <vector>
 
@@ -18,6 +19,9 @@ namespace vins {
 namespace {
 
 FeatureTracker trackerData[NUM_OF_CAM];
+// CameraX, stop/restart, and native start can meet while a frame is being tracked. A recursive mutex
+// lets a timestamp-discontinuity restart reset the front end from inside trackFrame() safely.
+std::recursive_mutex frontendMutex;
 double firstImageTime = 0;
 double lastImageTime = 0;
 int pubCount = 1;
@@ -50,6 +54,7 @@ bool timeForAFrame(double t) {
 }  // namespace
 
 bool prepareFrontend(std::string *error) {
+    std::lock_guard<std::recursive_mutex> lock(frontendMutex);
     // The camera model, handed over by loadParameters() rather than read here. Upstream has the
     // front end open the config file a second time through the path in CAM_NAMES, and that second
     // open is what could not be done on a phone: the path came back as garbage, the model stayed
@@ -66,14 +71,26 @@ bool prepareFrontend(std::string *error) {
 }
 
 void resetFrontend() {
+    std::lock_guard<std::recursive_mutex> lock(frontendMutex);
     firstImageFlag = true;
     firstImageTime = 0;
     lastImageTime = 0;
     pubCount = 1;
     initPub = false;
+
+    // Resetting only the timestamps left KLT holding points from the previous room/session. After a
+    // camera pause or recenter it would try to match those old points against unrelated pixels, then
+    // feed bad tracks into a newly-cleared estimator. Keep the calibrated camera model, but discard
+    // every frame/point/id and start optical flow cleanly.
+    for (int i = 0; i < NUM_OF_CAM; i++) {
+        camodocal::CameraPtr camera = trackerData[i].m_camera;
+        trackerData[i] = FeatureTracker();
+        trackerData[i].m_camera = camera;
+    }
 }
 
 void trackFrame(const cv::Mat &gray, double tSec) {
+    std::lock_guard<std::recursive_mutex> lock(frontendMutex);
     // Not while the estimator is down: a frame pushed between a stop and the next start would
     // otherwise be tracked into nobody — and, on a reconfigure, race the front end's own setup.
     if (!running() || !cameraReady) return;

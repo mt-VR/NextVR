@@ -32,6 +32,7 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Stop
@@ -1041,6 +1042,15 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     ?: android.util.Size(if (BuildConfig.LITE) 960 else 1280, if (BuildConfig.LITE) 540 else 720))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
+            provider.unbindAll()
+            val boundCamera = runCatching {
+                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, analysis)
+            }.onFailure { toast("The camera is busy in another app") }.getOrNull() ?: return@addListener
+            // Calibrate VINS against the lens CameraX actually opened. Set the analyzer only after
+            // this callback so its first frame cannot race the camera-id handoff.
+            (six as? SixDofCameraFeed)?.onCameraSelected(
+                runCatching { Camera2CameraInfo.from(boundCamera.cameraInfo).cameraId }.getOrNull(),
+            )
             analysis.setAnalyzer(cameraExecutor) { image ->
                 try {
                     // The raw plane first, while the frame is still the camera's: the tracker of the room
@@ -1068,9 +1078,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     image.close()
                 }
             }
-            provider.unbindAll()
-            runCatching { provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, analysis) }
-                .onFailure { toast("The camera is busy in another app") }
         }, ContextCompat.getMainExecutor(this))
     }
 
