@@ -102,6 +102,12 @@ interface SixDof {
  */
 interface SixDofCameraFeed {
     /**
+     * The actual CameraX camera selected for this stream. A visual-inertial tracker must calibrate
+     * against this lens, not whichever back camera happens to have the largest sensor in CameraManager.
+     */
+    fun onCameraSelected(cameraId: String?) = Unit
+
+    /**
      * One frame's Y plane, as the sensor reads it (unrotated), on the analysis thread. The tracker
      * copies what it needs and returns; [timestampNs] is CameraX's own stamp for the exposure.
      */
@@ -255,15 +261,34 @@ class SixDofAligner {
      * One step. [cameraToWorld] is the tracker's camera pose in the head's convention, [sensorHead]
      * the head tracker's rotation, and [timestampNs] the frame's time (for the filter's rate).
      */
-    fun update(cameraToWorld: FloatArray, sensorHead: FloatArray, timestampNs: Long) {
+    fun update(
+        cameraToWorld: FloatArray,
+        sensorHead: FloatArray,
+        timestampNs: Long,
+        preservePosition: Boolean = false,
+    ) {
         // Both worlds have gravity along y; only the heading differs. Follow it slowly.
         val yawTracker = atan2(cameraToWorld[8], cameraToWorld[10])
         val yawSensor = atan2(sensorHead[8], sensorHead[10])
         val delta = wrap(yawSensor - yawTracker)
         alignYaw = if (alignYaw.isNaN()) delta else alignYaw + wrap(delta - alignYaw) * .05f
+        val hadOrigin = origin != null
         val start = origin ?: floatArrayOf(cameraToWorld[12], cameraToWorld[13], cameraToWorld[14]).also { origin = it }
-        // A tracker that snaps to a corrected map moves the origin with it, so the room does not lurch.
-        if (hasLast) {
+        if (preservePosition && hadOrigin) {
+            // VINS can integrate translation poorly while visual features are missing. On reacquisition,
+            // keep the last trusted head position and make the recovered estimate its new origin; this
+            // drops the unobserved excursion without snapping the room or moving the room's origin.
+            val c = kotlin.math.cos(alignYaw)
+            val s = kotlin.math.sin(alignYaw)
+            synchronized(position) {
+                val dx = c * position[0] - s * position[2]
+                val dz = s * position[0] + c * position[2]
+                start[0] = cameraToWorld[12] - dx
+                start[1] = cameraToWorld[13] - position[1]
+                start[2] = cameraToWorld[14] - dz
+            }
+        } else if (hasLast) {
+            // A tracker that snaps to a corrected map moves the origin with it, so the room does not lurch.
             val jx = cameraToWorld[12] - lastRaw[0]
             val jy = cameraToWorld[13] - lastRaw[1]
             val jz = cameraToWorld[14] - lastRaw[2]

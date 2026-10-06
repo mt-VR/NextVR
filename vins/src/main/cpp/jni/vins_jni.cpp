@@ -56,17 +56,18 @@ void VINS_JNI(nativePushFrame)(JNIEnv *env, jobject /*self*/, jobject gray, jint
 }
 
 /**
- * The newest pose into [out] (which must hold 21 doubles):
+ * The newest pose into [out] (which must hold 22 doubles):
  *   0..2 position, 3..6 rotation as x y z w, 7..9 velocity,
  *   10..12 and 13..16 the same pose propagated to the newest IMU reading,
- *   17 the frame's time in seconds, 18 flags (1 tracking, 2 solving), 19 age in seconds, 20 td.
+ *   17 the frame's time in seconds, 18 flags (1 tracking, 2 solving, 4 at least 12 features),
+ *   19 age in seconds, 20 td, 21 active feature count.
  * False when nothing has been solved yet.
  */
 jboolean VINS_JNI(nativePollPose)(JNIEnv *env, jobject /*self*/, jdoubleArray out) {
-    if (out == nullptr || env->GetArrayLength(out) < 21) return JNI_FALSE;
+    if (out == nullptr || env->GetArrayLength(out) < 22) return JNI_FALSE;
     vins::Pose pose;
     const bool fresh = vins::latestPose(&pose);
-    jdouble values[21] = {0};
+    jdouble values[22] = {0};
     for (int i = 0; i < 3; i++) {
         values[i] = pose.p[i];
         values[7 + i] = pose.v[i];
@@ -77,10 +78,12 @@ jboolean VINS_JNI(nativePollPose)(JNIEnv *env, jobject /*self*/, jdoubleArray ou
         values[13 + i] = pose.propagatedQ[i];
     }
     values[17] = pose.stamp;
-    values[18] = (pose.tracked ? 1.0 : 0.0) + (pose.solving ? 2.0 : 0.0) + (pose.features > 20 ? 4.0 : 0.0);
+    // Keep this diagnostic bit aligned with the Kotlin confidence gate's minimum stable track count.
+    values[18] = (pose.tracked ? 1.0 : 0.0) + (pose.solving ? 2.0 : 0.0) + (pose.features >= 12 ? 4.0 : 0.0);
     values[19] = pose.age;
     values[20] = pose.td;
-    env->SetDoubleArrayRegion(out, 0, 21, values);
+    values[21] = pose.features;
+    env->SetDoubleArrayRegion(out, 0, 22, values);
     return fresh ? JNI_TRUE : JNI_FALSE;
 }
 

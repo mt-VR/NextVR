@@ -17,7 +17,6 @@ import com.samrat.vins.VinsCore
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.tan
 
 /**
  * 6DoF without ARCore: VINS-Mono, reading the room through the phone's own camera and IMU.
@@ -39,6 +38,8 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private val sensors = appContext.getSystemService(SensorManager::class.java)!!
     private val pose = VinsCore.Pose()
     private val aligner = SixDofAligner()
+    private val poseGate = VinsTrackingGate()
+    private var reanchorAfterTrackingLoss = false
     private val config = File(appContext.filesDir, "vins/vins_config.yaml")
     /** Where the room is, metres, read by the render thread; [raw] is the same numbers as the sensors give. */
     private val position = FloatArray(3)
@@ -64,13 +65,14 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     private var windowStartNs = 0L
     private var lastHealthNs = 0L
 
-    /** The frame size the estimator was configured for; the config is written once, from the first frame. */
+    /** The frame size and CameraX lens the estimator was calibrated for. */
     private var configuredWidth = 0
     private var configuredHeight = 0
     private var attemptedWidth = 0
     private var attemptedHeight = 0
-    private var started = false
-    private var failure: String? = null
+    @Volatile private var selectedCameraId: String? = null
+    @Volatile private var started = false
+    @Volatile private var failure: String? = null
 
     @Volatile override var tracking = false
         private set
@@ -85,7 +87,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     override fun statusText(): String = when {
         failure != null -> "6DoF · VINS-Mono: ${failure}"
         !started -> "6DoF · VINS-Mono is waiting for the camera"
-        !tracking -> "6DoF · VINS-Mono is looking for the room…"
+        !tracking -> "6DoF · VINS-Mono is stabilizing; slowly look at detailed parts of the room"
         else -> "6DoF · VINS-Mono, the room is tracked"
     }
 
@@ -96,13 +98,31 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
      * taken from here — the camera belongs to CameraX in this mode — so no hand image comes back.
      */
     override fun update(sensorHead: FloatArray, wantImage: Boolean): (() -> ArTracker.CameraFrame?)? {
-        if (!started || !VinsCore.readPose(pose)) {
+        if (!started) {
             tracking = false
             return null
         }
-        if (!pose.tracked) {
-            // Initialising, or the room went out of sight: say so, and let the home's neck model carry
-            // the view until the estimator has the walls again.
+        if (!VinsCore.readPose(pose)) {
+            if (tracking) reanchorAfterTrackingLoss = true
+            poseGate.reset()
+            tracking = false
+            return null
+        }
+        val wasTracking = tracking
+        val stable = poseGate.update(
+            tracked = pose.tracked,
+            features = pose.features,
+            x = pose.x,
+            y = pose.y,
+            z = pose.z,
+            vx = pose.vx,
+            vy = pose.vy,
+            vz = pose.vz,
+            stampSeconds = pose.stampSeconds,
+            ageSeconds = pose.ageSeconds,
+        )
+        if (!stable) {
+            if (wasTracking) reanchorAfterTrackingLoss = true
             tracking = false
             return null
         }
@@ -132,7 +152,8 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         cameraRotation[13] = remapped[1]
         cameraRotation[14] = remapped[2]
         val atNs = ((if (usePropagated) pose.stampSeconds + pose.ageSeconds else pose.stampSeconds) * 1e9).toLong()
-        aligner.update(cameraRotation, sensorHead, atNs)
+        aligner.update(cameraRotation, sensorHead, atNs, preservePosition = reanchorAfterTrackingLoss)
+        reanchorAfterTrackingLoss = false
         synchronized(position) { System.arraycopy(aligner.position, 0, position, 0, 3) }
 
         tracking = pose.ageSeconds < LOST_AFTER_SECONDS
@@ -158,8 +179,8 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         val speed = kotlin.math.sqrt(pose.vx * pose.vx + pose.vy * pose.vy + pose.vz * pose.vz)
         Log.i(
             TAG,
-            "pose=[%.3f %.3f %.3f] speed=%.2f m/s age=%.2f s solving=%b enough=%b imu=%.0f Hz frames=%.0f Hz".format(
-                x, y, z, speed, pose.ageSeconds, pose.solving, pose.featuresEnough, imuHz, framesHz,
+            "pose=[%.3f %.3f %.3f] speed=%.2f m/s age=%.2f s solving=%b features=%d enough=%b imu=%.0f Hz frames=%.0f Hz".format(
+                x, y, z, speed, pose.ageSeconds, pose.solving, pose.features, pose.featuresEnough, imuHz, framesHz,
             ),
         )
     }
@@ -174,14 +195,20 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     }
 
     override fun close() {
-        stopSensors()
-        if (started) VinsCore.stop()
+        val wasStarted = started
         started = false
+        stopSensors()
+        if (wasStarted) VinsCore.stop()
+        poseGate.reset()
+        tracking = false
         sensorThread.quitSafely()
     }
 
     override fun recenter() {
         aligner.reset()
+        poseGate.reset()
+        reanchorAfterTrackingLoss = false
+        tracking = false
         VinsCore.reset()
     }
 
@@ -189,6 +216,39 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
 
     /** The size the estimator's calibration is written for, so the stream must be exactly this. */
     override val wantedFrame get() = FRAME_WIDTH to FRAME_HEIGHT
+
+    override fun onCameraSelected(cameraId: String?) {
+        val id = cameraId?.takeIf { it.isNotBlank() } ?: return
+        if (id == selectedCameraId) {
+            // A new CameraX binding is a new visual stream even when it is the same lens. Do not let
+            // KLT bridge a lifecycle pause and match old-room pixels against the resumed camera.
+            if (started) {
+                reanchorAfterTrackingLoss = reanchorAfterTrackingLoss || tracking
+                tracking = false
+                poseGate.reset()
+                VinsCore.reset()
+            }
+            return
+        }
+        selectedCameraId = id
+        // bindCamera calls this before enabling its analyzer. If CameraX picked another lens after a
+        // lifecycle restart, throw away the old calibration and estimator rather than carry its
+        // scale/extrinsics into frames from a different camera.
+        if (started) {
+            started = false
+            stopSensors()
+            VinsCore.stop()
+        }
+        configuredWidth = 0
+        configuredHeight = 0
+        attemptedWidth = 0
+        attemptedHeight = 0
+        failure = null
+        aligner.reset()
+        poseGate.reset()
+        reanchorAfterTrackingLoss = false
+        tracking = false
+    }
 
     override fun onGrayFrame(gray: ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int, timestampNs: Long) {
         // The estimator is configured for the stream it is given, and it reads the frame as the sensor
@@ -239,8 +299,16 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         if (width == attemptedWidth && height == attemptedHeight) return
         attemptedWidth = width
         attemptedHeight = height
-        if (started) VinsCore.stop()
-        val optics = readCameraOptics(appContext, width, height)
+        if (started) {
+            started = false
+            stopSensors()
+            VinsCore.stop()
+        }
+        aligner.reset()
+        poseGate.reset()
+        reanchorAfterTrackingLoss = false
+        tracking = false
+        val optics = readCameraOptics(appContext, width, height, selectedCameraId)
         config.parentFile?.mkdirs()
         runCatching {
             config.writeText(
@@ -314,7 +382,7 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         sensorsRegistered = false
     }
 
-    private var sensorsRegistered = false
+    @Volatile private var sensorsRegistered = false
     private var lastPushNs = 0L
 
     /**
@@ -353,13 +421,16 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
      * and its sensor in millimetres too, which is enough for a pinhole model at any read-out size;
      * where the phone carries a factory lens calibration, its distortion coefficients come with it.
      */
-    private fun readCameraOptics(context: Context, width: Int, height: Int): VinsConfig.Optics {
+    private fun readCameraOptics(context: Context, width: Int, height: Int, cameraId: String?): VinsConfig.Optics {
         val fallback = fallbackOptics(width, height)
         val manager = context.getSystemService(CameraManager::class.java) ?: return fallback
-        // The main camera is the one CameraX opens for DEFAULT_BACK_CAMERA, and it is the back-facing
-        // sensor with the most silicon: the first back camera in the list is sometimes the
-        // ultra-wide instead, and intrinsics read off the wrong lens are a wrong world scale.
-        val characteristics = runCatching {
+        // CameraX's default selector does not promise to choose the largest physical sensor. Use the
+        // exact camera it bound above; otherwise a wide/ultra-wide lens can inherit the main lens's
+        // focal length and extrinsics, turning a calibration error into metric-scale drift.
+        val selected = cameraId?.let { id ->
+            runCatching { manager.getCameraCharacteristics(id) }.getOrNull()
+        }
+        val characteristics = selected ?: runCatching {
             manager.cameraIdList
                 .mapNotNull { id ->
                     val candidate = manager.getCameraCharacteristics(id)
@@ -438,15 +509,13 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
     }
 
     /** No published lens data: a phone's main camera sees about 65° across, so take that. */
-    private fun fallbackOptics(width: Int, height: Int): VinsConfig.Optics {
-        val focal = width / 2.0 / tan(Math.toRadians(HORIZONTAL_DEGREES / 2.0))
-        return VinsConfig.Optics(
-            focal, focal * height / width, width / 2.0, height / 2.0,
-            0.0, 0.0, 0.0, 0.0,
-            // The commonest mount, and the one that cannot be read: most main cameras sit at 90°.
-            VinsExtrinsics.cameraFromImu(90),
-        )
-    }
+    private fun fallbackOptics(width: Int, height: Int): VinsConfig.Optics = VinsConfig.fallbackOptics(
+        width = width,
+        height = height,
+        horizontalFovDegrees = HORIZONTAL_DEGREES,
+        // The commonest mount, and the one that cannot be read: most main cameras sit at 90°.
+        extrinsicRotation = VinsExtrinsics.cameraFromImu(90),
+    )
 
     companion object {
         private const val TAG = "PhoneXR-VINS"

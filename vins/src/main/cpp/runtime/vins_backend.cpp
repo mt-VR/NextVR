@@ -44,12 +44,17 @@ Eigen::Vector3d tmpBa;
 Eigen::Vector3d tmpBg;
 Eigen::Vector3d acc0;
 Eigen::Vector3d gyr0;
+// The high-rate sensor thread must not read Estimator::g while the estimator is changing it during
+// visual-inertial alignment. This copy is protected by mState, just like the propagated pose.
+Eigen::Vector3d propagationGravity{0.0, 0.0, 9.8};
 bool initImu = true;
 // Written by the sensor thread's pushImu() before it takes any lock, and reset by a start or a
 // restart, so it needs to be atomic rather than a plain double to stay defined.
 std::atomic<double> lastImuT{0};
 
 std::atomic<bool> isRunning{false};
+// The sensor thread uses this to avoid reading estimator.solver_flag without mEstimator.
+std::atomic<bool> estimatorInitialized{false};
 std::thread processThread;
 
 std::mutex mPose;
@@ -69,10 +74,10 @@ void predict(const sensor_msgs::ImuConstPtr &imu) {
     Eigen::Vector3d linearAcceleration{imu->linear_acceleration.x, imu->linear_acceleration.y, imu->linear_acceleration.z};
     Eigen::Vector3d angularVelocity{imu->angular_velocity.x, imu->angular_velocity.y, imu->angular_velocity.z};
 
-    Eigen::Vector3d unAcc0 = tmpQ * (acc0 - tmpBa) - estimator.g;
+    Eigen::Vector3d unAcc0 = tmpQ * (acc0 - tmpBa) - propagationGravity;
     Eigen::Vector3d unGyr = 0.5 * (gyr0 + angularVelocity) - tmpBg;
     tmpQ = tmpQ * Utility::deltaQ(unGyr * dt);
-    Eigen::Vector3d unAcc1 = tmpQ * (linearAcceleration - tmpBa) - estimator.g;
+    Eigen::Vector3d unAcc1 = tmpQ * (linearAcceleration - tmpBa) - propagationGravity;
     Eigen::Vector3d unAcc = 0.5 * (unAcc0 + unAcc1);
 
     tmpP = tmpP + dt * tmpV + 0.5 * dt * dt * unAcc;
@@ -85,6 +90,9 @@ void predict(const sensor_msgs::ImuConstPtr &imu) {
 /** Upstream's `update()`: take the newest solved state and run the IMU that came after it. */
 void update() {
     latestTime = currentTime;
+    // process() calls update while holding mEstimator and mState, so the solver's refined gravity is
+    // copied atomically with the state that the sensor thread will propagate from.
+    propagationGravity = estimator.g;
     tmpP = estimator.Ps[WINDOW_SIZE];
     tmpQ = estimator.Rs[WINDOW_SIZE];
     tmpV = estimator.Vs[WINDOW_SIZE];
@@ -240,8 +248,11 @@ void process() {
 
         {
             std::lock_guard<std::mutex> stateLock(mState);
-            if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR) update();
+            const bool initialized = estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR;
+            if (initialized) update();
             publishPropagated(latestTime);
+            // Only announce readiness after update() has replaced the pre-initialization IMU state.
+            estimatorInitialized.store(initialized, std::memory_order_release);
         }
     }
 }
@@ -251,10 +262,16 @@ void process() {
 bool startTracker(const std::string &configPath, std::string *error) {
     if (isRunning.load()) return true;
     if (!loadParameters(configPath, error)) return false;
+    estimatorInitialized.store(false, std::memory_order_release);
     // A start after a stop begins from nothing: no window, no marginals, no drift carried over.
     estimator.clearState();
     estimator.setParameter();
+    // Upstream fills this during visual-inertial alignment but does not initialize it in the
+    // estimator constructor. The propagation path runs before that first solve, so give it the
+    // configured gravity rather than an uninitialized Eigen vector.
+    estimator.g = G;
     if (!prepareFrontend(error)) return false;
+    resetFrontend();
 
     {
         Buffers &queue = buffers();
@@ -267,8 +284,20 @@ bool startTracker(const std::string &configPath, std::string *error) {
         pose = Pose();
     }
     currentTime = -1;
-    lastImuT.store(0);
-    initImu = true;
+    {
+        std::lock_guard<std::mutex> stateLock(mState);
+        latestTime = 0;
+        lastImuT.store(0);
+        initImu = true;
+        propagationGravity = estimator.g;
+        tmpP = Eigen::Vector3d::Zero();
+        tmpV = Eigen::Vector3d::Zero();
+        tmpQ = Eigen::Quaterniond::Identity();
+        tmpBa = Eigen::Vector3d::Zero();
+        tmpBg = Eigen::Vector3d::Zero();
+        acc0 = Eigen::Vector3d::Zero();
+        gyr0 = Eigen::Vector3d::Zero();
+    }
     isRunning.store(true);
     processThread = std::thread(process);
     ROS_INFO("VINS-Mono estimator running");
@@ -315,7 +344,7 @@ void pushImu(double tSec, double ax, double ay, double az, double gx, double gy,
     {
         std::lock_guard<std::mutex> stateLock(mState);
         predict(imu);
-        if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR) publishPropagated(tSec);
+        if (estimatorInitialized.load(std::memory_order_acquire)) publishPropagated(tSec);
     }
 }
 
@@ -328,6 +357,7 @@ bool latestPose(Pose *out) {
 
 void restartTracker() {
     if (!isRunning.load()) return;
+    estimatorInitialized.store(false, std::memory_order_release);
     Buffers &queue = buffers();
     {
         std::lock_guard<std::mutex> lock(queue.mutex);
@@ -344,9 +374,11 @@ void restartTracker() {
         std::lock_guard<std::mutex> estimatorLock(mEstimator);
         estimator.clearState();
         estimator.setParameter();
+        estimator.g = G;
         currentTime = -1;
         {
             std::lock_guard<std::mutex> stateLock(mState);
+            propagationGravity = estimator.g;
             lastImuT.store(0);
             initImu = true;
             latestTime = 0;

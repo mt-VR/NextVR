@@ -1,5 +1,6 @@
 package com.samrat.cardboardhands
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +91,25 @@ class SixDofAlignerTest {
             "the room lurched on axis $axis: ${before.toList()} -> ${after.toList()}",
             kotlin.math.abs(after[axis] - before[axis]) < .3f,
         )
+    }
+
+    /**
+     * A VINS pose can wander while visual tracking is weak. Resuming should keep the last trusted
+     * position, discard that unobserved offset, and still apply subsequent real motion.
+     */
+    @Test
+    fun reacquiringAfterAVisualGapKeepsPositionContinuous() {
+        val aligner = SixDofAligner()
+        step(aligner, yaw = 0f, x = 0f, y = 0f, z = 0f, frame = 1)
+        val before = step(aligner, yaw = 0f, x = 0f, y = 0f, z = -.4f, frame = 2)
+        val recovered = yawed(yaw = 0f, x = 4f, y = .8f, z = -3f)
+        aligner.update(recovered, yawed(0f), FRAME_NS * 3, preservePosition = true)
+        val afterRecovery = aligner.position.copyOf()
+        assertArrayEquals(before, afterRecovery, .005f)
+
+        val moved = yawed(yaw = 0f, x = 4f, y = .8f, z = -3.1f)
+        aligner.update(moved, yawed(0f), FRAME_NS * 4)
+        assertTrue("recovery swallowed subsequent motion: ${aligner.position.toList()}", aligner.position[2] < afterRecovery[2] - .05f)
     }
 
     /** Recentering — a tap on the view — puts "here" and "straight ahead" back where the head is. */

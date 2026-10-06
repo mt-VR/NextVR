@@ -118,6 +118,19 @@ class VinsConfigTest {
         assertEquals(4.0, value("keyframe_parallax"), 1e-12)
     }
 
+    /**
+     * A fallback camera with square pixels has the same focal length in both axes. Multiplying fy by
+     * 480/640 made an otherwise ordinary room look vertically stretched to VINS and biased its pose.
+     */
+    @Test
+    fun fallbackIntrinsicsUseSquarePixels() {
+        val fallback = VinsConfig.fallbackOptics(640, 480, 65.0, VinsExtrinsics.cameraFromImu(90))
+        assertEquals(fallback.fx, fallback.fy, 1e-9)
+        assertEquals(640.0 / 2.0 / kotlin.math.tan(Math.toRadians(65.0 / 2.0)), fallback.fx, 1e-9)
+        assertEquals(320.0, fallback.cx, 0.0)
+        assertEquals(240.0, fallback.cy, 0.0)
+    }
+
     /** The rest is upstream's EuRoC file, unchanged, and the frame size the camera actually gave. */
     @Test
     fun theSolverAndFrontEndKeepUpstreamsFigures() {

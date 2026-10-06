@@ -69,18 +69,21 @@ Limits found while putting it in
      table for the keyboard to lie on, and no walls for room physics. `SixDof.supportsRoomScan` is the
      flag the home and the settings read, and the room-scan page says so instead of showing an empty list.
   2. No loop closure. Upstream's pose graph (`pose_graph/`, with a 58 MB BRIEF vocabulary) is not built,
-     so nothing corrects the drift of a long walk: return to where you started after a few minutes and
-     "there" is a few centimetres away. Recentering (a tap) restarts the window where the head is.
-  3. Intrinsics are estimated, not measured. Android does publish a camera's focal length and sensor
-     size, and NextVR derives a pinhole model from them; where a phone carries a factory lens
-     calibration it also reports distortion coefficients (LENS_DISTORTION with a calibration
-     priority above UNPROCESSED), and those are written into the config too — zeros on the many
-     phones that report none. The crop CameraX chooses is not always the one the characteristics
-     describe, so the optical centre is taken as the middle of the frame. A mis-set focal length is
-     mostly a wrong *scale*: the room is a bit bigger or smaller than it is. The camera-to-IMU
-     rotation is derived from the sensor's mount angle (VinsExtrinsics, checked by a unit test) and
-     the estimator is told to trust it (`estimate_extrinsic: 0`), which is what a derived-from-
-     first-principles rotation deserves. Estimating it online instead puts seven more free
+     so nothing globally corrects drift on a long walk; the amount depends on the phone, lighting and
+     motion, and can become noticeable before a session ends. The startup and weak-vision guards reduce
+     bad initial poses and runaway recovery, but cannot replace loop closure. Recentering (a tap)
+     restarts the window where the head is.
+  3. Intrinsics are estimated, not measured. Android publishes a camera's focal length and sensor
+     size, and NextVR derives a pinhole model from them; where the phone carries factory calibration,
+     it reports distortion coefficients too. The config now uses the CameraX-selected lens rather than
+     assuming the largest back sensor is the one streaming. When camera metadata is unavailable, the
+     fallback uses equal fx/fy for square pixels (an earlier aspect-ratio multiplier made fy 25% too
+     small at 640×480). The crop CameraX chooses is not always the one the characteristics describe,
+     so the optical centre is still taken as the middle of the frame. A mis-set focal length is mostly
+     a wrong *scale*: the room is a bit bigger or smaller than it is. The camera-to-IMU rotation is
+     derived from the sensor's mount angle (VinsExtrinsics, checked by a unit test) and the estimator
+     is told to trust it (`estimate_extrinsic: 0`), which is what a derived-from-first-principles
+     rotation deserves. Estimating it online instead puts seven more free
      parameters into a Ceres solve that is already given only `max_solver_time` for an 11-frame
      window, on cores shared with the render loop; the solve is cut short, every pose is biased and
      the estimator does not leave INITIAL. Upstream's own EuRoC config ships `estimate_extrinsic: 0`
@@ -101,11 +104,14 @@ Limits found while putting it in
      upstream's 10. Upstream's figure assumes a hand-held camera waved in front of the user; below
      that threshold VINS-Mono's own `solveOdometry` throws good frames out of the window on purpose,
      and a camera on a headset sees far less translation than that.
-  6. It needs to see. Turning off the lights, a blank wall or a fast swing loses the room; the home
-     notices within a second (the pose's age) and says so in Settings. The last pose is held while
-     the tracker looks for the room again — deliberately *not* the neck model, which would swing the
-     whole scene around on every turn of the head. The neck model is a stand-in for having no tracker
-     at all, not for not having solved a frame yet.
+  6. It needs to see. Turning off the lights, a blank wall or a fast swing loses the room; weak visual
+     updates are gated until enough distinct frames with stable features return; implausible velocity
+     and sudden position discontinuities are rejected even if the reported velocity looks small.
+     A short feature dip does not flicker tracking off; when the gate does close, the last trusted
+     position is held, and the recovered estimate is re-anchored to it rather than replaying
+     unobserved translation as a room jump. If vision remains unavailable, the home notices within
+     a second (the pose's age) and says so in Settings. It deliberately does not use the neck model,
+     which would swing the whole scene around on every turn of the head.
   7. A game holds the camera. While an OpenXR game runs, NextVR's tracking service has the camera and
      the home gets no frames, so VINS-Mono loses the room after a second and the home holds its last
      pose until the game is put down. ARCore is in the same position; nothing here is worse.

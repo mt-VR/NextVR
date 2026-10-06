@@ -45,7 +45,9 @@ object VinsCore {
         var tracked = false
         /** True while the estimator is solving rather than initialising. */
         var solving = false
-        /** Enough features to trust the frame: the front end found what it needs. */
+        /** Number of active feature tracks in the last solved frame. */
+        var features = 0
+        /** At least 12 active feature tracks: the minimum used by the confidence gate. */
         var featuresEnough = false
         /** Seconds since the last solved frame; tracking is lost when it grows. */
         var ageSeconds = 0.0
@@ -54,7 +56,7 @@ object VinsCore {
     }
 
     /** The pose in a flat array; the indices are the ones `vins_jni.cpp` writes. */
-    private val raw = DoubleArray(21)
+    private val raw = DoubleArray(22)
 
     /** Whether this APK carries the native core at all (it is missing when the module was switched off). */
     val available: Boolean by lazy {
@@ -127,6 +129,7 @@ object VinsCore {
         into.featuresEnough = (flags and 4L) != 0L
         into.ageSeconds = raw[19]
         into.timeOffsetSeconds = raw[20]
+        into.features = raw[21].toInt()
         return fresh
     }
 
