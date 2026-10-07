@@ -102,13 +102,19 @@ object VinsConfig {
         append("   dt: d\n")
         append("   data: [ 0.0, 0.0, 0.0 ]\n")
         append("\n# feature tracker\n")
-        append("max_cnt: 150\n")
-        append("min_dist: 30\n")
-        // Upstream's reference runs the front end at 10 Hz. Every extra frame here is a KLT pass
-        // competing with 90 Hz VR rendering and the hand tracker on the same cores, and the
-        // estimator gains nothing from them: between solved frames the head rides the IMU
-        // propagation, which is drift-free over a tenth of a second.
-        append("freq: 10\n")
+        // More tracked features = stronger multi-view geometry and less drift per frame. The front
+        // end is KLT-based and already throttled to [freq] Hz, so raising max_cnt from 150 to 220
+        // gives the solver more constraints without a proportional CPU cost, and 25 px minimum
+        // spacing keeps features spread across the frame (clustered features give a weak depth
+        // solution that reads as drift when the head translates).
+        append("max_cnt: 220\n")
+        append("min_dist: 25\n")
+        // 15 Hz visual fixes instead of 10. At 10 Hz the head can move 6-7 cm between solves during
+        // a quick turn, and the IMU propagation — which is unobservable for translation scale on
+        // its own — walks off until the next visual fix lands. 15 Hz (66 ms) keeps that gap small
+        // enough that the bias estimate cannot accumulate much error in between. It is still well
+        // within the budget every phone that ran 10 Hz could afford.
+        append("freq: 15\n")
         // Upstream's RANSAC threshold, in pixels. At the 2.0 that used to be written here the
         // front end kept enough outliers to spoil the five-point solve that initialisation starts
         // from, which showed up as the same "Not enough features or parallax" retry over and over.
@@ -116,43 +122,41 @@ object VinsConfig {
         append("show_track: 0\n")
         append("equalize: 1\n")
         append("fisheye: 0\n")
-        append("\n# optimisation: upstream's EuRoC reference values. An 11-frame window cannot\n")
-        append("# converge in four iterations, and a solve cut short returns a biased pose every\n")
-        append("# time - which reads as drift, and keeps the estimator in INITIAL forever.\n")
-        append("max_solver_time: 0.04\n")
-        append("max_num_iterations: 8\n")
+        append("\n# optimisation: give the solver enough of the frame budget to actually converge.\n")
+        append("# A half-converged pose is biased, and that biased pose is marginalised into the\n")
+        append("# prior on the next frame — the accumulated bias is slow drift that later frames\n")
+        append("# cannot undo. 60 ms and 10 iterations still fit between two 60 Hz frames and are\n")
+        append("# well under one 90 Hz frame on the cores the render loop leaves the estimator.\n")
+        append("max_solver_time: 0.06\n")
+        append("max_num_iterations: 10\n")
         // Keyframe selection, in pixels of median feature flow per frame (VINS-Mono divides this by
         // its 460 px reference focal length). Upstream's 10 is a hand-held camera waved in front of
         // the user. A camera on a headset sees far less translation, and below this threshold
         // solveOdometry throws good frames away on purpose ("bad solver, drop 1 to 2 frame"), which
-        // on a head that is mostly looking around is most of them. 4 px is ordinary head movement
-        // across a room, and still rejects a frame that only repeats the one before it.
-        append("keyframe_parallax: 4.0\n")
-        append("\n# IMU noise. These four are upstream's EuRoC figures, and they are not cosmetic:\n")
-        append("# they are how much the estimator is allowed to believe the sensors, and acc_w and\n")
-        append("# gyr_w are the random walk of the accelerometer and gyroscope biases it estimates.\n")
+        // on a head that is mostly looking around is most of them. 3 px at 15 Hz is ordinary head
+        // movement across a room — it still rejects a frame that only repeats the one before it,
+        // but keys in often enough that the IMU bias does not have time to walk off between fixes.
+        append("keyframe_parallax: 3.0\n")
+        append("\n# IMU noise. These numbers describe a MEMS IMU like the ones Android phones carry. They\n")
+        append("# tell the estimator how much to trust the sensors: smaller n = trust the reading,\n")
+        append("# smaller w = hold the estimated bias still between solves. Tightening acc_w / gyr_w\n")
+        append("# is what actually stops slow integration drift, because a bias that cannot drift\n")
+        append("# between visual fixes cannot soak up real acceleration when it integrates - which\n")
+        append("# was the cause of the head drifting more slowly than it actually walked.\n")
         append("#\n")
-        append("# failureDetection() throws the whole sliding window away and starts initialising\n")
-        append("# again when the accelerometer bias passes 2.5 or the gyroscope bias passes 1.0. At\n")
-        append("# the acc_w of 0.001 and gyr_w of 1.0e-4 that used to be written here - 25x and 50x\n")
-        append("# upstream - the accelerometer bias random-walks to that limit within seconds, so a\n")
-        append("# session fell back to INITIAL over and over and never settled. And that bias is\n")
-        // The same subtraction is in predict() in the runtime and in processIMU() upstream, and it
-        // is why the two complaints were one mis-tuning: a bias that has grown to soak up real
-        // acceleration takes that acceleration out of the pose too, so the head drifted out more
-        // slowly than it actually moved, which reads as a weakened movement rather than as noise.
-        append("# subtracted from the accelerometer before it is integrated, so it also eats the\n")
-        append("# real acceleration the head moved with.\n")
+        append("# failureDetection() throws the sliding window away and restarts initialisation when\n")
+        append("# the accelerometer bias passes 2.5 or the gyroscope bias passes 1.0, so these must\n")
+        append("# stay well below those limits.\n")
         append("acc_n: 0.08\n")
-        append("acc_w: 0.00004\n")
+        append("acc_w: 0.00002\n")
         append("gyr_n: 0.004\n")
-        append("gyr_w: 0.000002\n")
+        append("gyr_w: 0.000001\n")
         append("g_norm: 9.81007\n")
         append("\n# the pose graph is not built into this APK, so no loop closure and no map reuse\n")
         append("loop_closure: 0\n")
         // Both ImageInfo.timestamp and SensorEvent.timestamp are nanoseconds on
         // SystemClock.elapsedRealtimeNanos(), so there is no camera-to-IMU offset here to find.
-        // estimate_td: 1 would add para_Td as a ninth free parameter to the same 40 ms solve and
+        // estimate_td: 1 would add para_Td as a ninth free parameter to the same short solve and
         // swap every ProjectionFactor for a ProjectionTdFactor, so it can only cost convergence.
         append("\n# The camera's clock and the IMU's ARE one clock on Android, so there is no offset\n")
         append("# here for the estimator to find. Upstream's EuRoC file ships 0 for the same reason.\n")

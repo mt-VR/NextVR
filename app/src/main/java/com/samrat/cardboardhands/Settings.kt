@@ -110,13 +110,9 @@ object Settings {
             val code = key.toIntOrNull() ?: return@mapNotNull null
             code to (Action.entries.firstOrNull { it.name == action } ?: return@mapNotNull null)
         }?.toMap() ?: DEFAULT_BINDINGS
-        val trackingMode = prefs.getString(KEY_SIX_DOF_MODE, null)?.let { stored ->
-            SixDofMode.entries.firstOrNull { it.name == stored }
-        } ?: if (prefs.contains(KEY_SIX_DOF) && !prefs.getBoolean(KEY_SIX_DOF, true)) {
-            SixDofMode.NONE
-        } else {
-            preferredSixDofMode(context)
-        }
+        // Always-on 6DoF policy: resolve the stored setting through sixDofMode() so that legacy
+        // "off" flags and stored-NONE states are upgraded to the best available backend.
+        val trackingMode = sixDofMode(context)
         return State(
             sixDofMode = trackingMode,
             handMode = HandMode.valueOf(prefs.getString(KEY_HAND_MODE, HandMode.CONTROLLERS.name)!!),
@@ -154,13 +150,31 @@ object Settings {
      * The mode as stored, or [preferredSixDofMode] when nobody has chosen yet. This one lives in the
      * owner's file and not in a guest's: which trackers this phone has is a fact about the phone, not
      * about the hand of the person holding it.
+     *
+     * 6DoF is "always on": the only way this returns NONE is if the phone genuinely lacks every
+     * backend (no ARCore, no VINS-Mono core or the camera/IMU to feed it). Fresh installs and the
+     * old boolean "off" flag default to the best available tracker, and even an explicit NONE only
+     * takes effect on hardware that actually cannot run anything else. The user can still pick NONE
+     * in Settings; that choice is remembered and the VR home shows it.
      */
     fun sixDofMode(context: Context): SixDofMode {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_SIX_DOF_MODE, null)?.let { stored ->
-            SixDofMode.entries.firstOrNull { it.name == stored }
-        } ?: if (prefs.contains(KEY_SIX_DOF) && !prefs.getBoolean(KEY_SIX_DOF, true)) SixDofMode.NONE
-        else preferredSixDofMode(context)
+        val bestAvailable = preferredSixDofMode(context)
+        // Phone with no backend at all: nothing to be on.
+        if (bestAvailable == SixDofMode.NONE) return SixDofMode.NONE
+        val stored = prefs.getString(KEY_SIX_DOF_MODE, null)?.let { saved ->
+            SixDofMode.entries.firstOrNull { it.name == saved }
+        }
+        if (stored != null && stored != SixDofMode.NONE) {
+            // A real backend was chosen; use it if it is actually runnable on this phone, else
+            // fall back to the best available (e.g. ARCore chosen where Play Services for AR is
+            // not installed → VINS-Mono).
+            return if (SixDofSupport.availability(context, stored) == SixDofSupport.Availability.READY) stored
+            else bestAvailable
+        }
+        // No explicit choice, or the legacy boolean switch. Default to the best this phone can do
+        // — never force the user into 3DoF on capable hardware.
+        return bestAvailable
     }
 
     fun setSixDofMode(context: Context, mode: SixDofMode) {

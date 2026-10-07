@@ -126,9 +126,14 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
             tracking = false
             return null
         }
-        // The solved frame's pose, or the IMU-propagated one when it is fresher: the same choice the
-        // AR demo made between "odometry" and "imu_propagate", with a shorter wait for the head.
-        val usePropagated = pose.ageSeconds < .25
+        // The solved frame's pose, or the IMU-propagated one when it is fresher. Prefer the
+        // propagated pose whenever the last solve is more than a frame old — the head rotates at
+        // 4-5 rad/s on a fast turn, and waiting for the next 15 Hz visual fix to publish rotation
+        // means the scene lags. The propagated pose uses the gyro (excellent short-term) and the
+        // last-solved bias, so it is rotation-true for up to about half a second. Beyond that the
+        // accelerometer integration starts to drift in translation, so fall back to the solved
+        // frame (position will then be held by the gate's age check rather than walking away).
+        val usePropagated = pose.ageSeconds in 0.0..POSE_PROPAGATION_WINDOW_SECONDS
         val x = if (usePropagated) pose.propagatedX else pose.x
         val y = if (usePropagated) pose.propagatedY else pose.y
         val z = if (usePropagated) pose.propagatedZ else pose.z
@@ -523,8 +528,20 @@ class VinsTracker private constructor(private val appContext: Context) : SixDof,
         private const val FRAME_WIDTH = 640
         private const val FRAME_HEIGHT = 480
         private const val HORIZONTAL_DEGREES = 65.0
-        /** A second without a solved frame is the tracker losing the room, not the head moving. */
-        private const val LOST_AFTER_SECONDS = 1.0
+        /**
+         * How long to trust IMU propagation between visual fixes. The gyro is near-perfect in the
+         * short term; accelerometer double-integration drifts in translation after a few hundred
+         * ms. Half a second is long enough to ride out a quick head snap or a brief glance at a
+         * blank wall, and short enough that translation drift does not show as a walking room.
+         */
+        private const val POSE_PROPAGATION_WINDOW_SECONDS = 0.5
+        /**
+         * Without a solved frame for this long the tracker admits the room is lost; the last
+         * trusted position is held, and a re-anchor is forced when vision recovers. Two seconds
+         * instead of one so a brief dark/blank-wall moment does not drop tracking in the UI even
+         * though the propagated pose was still good.
+         */
+        private const val LOST_AFTER_SECONDS = 2.0
         /** How often the health line is written: often enough to see a trend, rarely enough to read. */
         private const val HEALTH_PERIOD_NS = 2_000_000_000L
 

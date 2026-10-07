@@ -247,6 +247,12 @@ class SixDofAligner {
     }
     private val lastRaw = FloatArray(3)
     private var hasLast = false
+    /** When did the last non-trivial motion happen, for standing-still drift damping. */
+    private var lastMoveNs = 0L
+    /** Timestamp of the previous filter call, for per-frame dt. */
+    private var lastFrameNs = 0L
+    /** EWMA of |velocity| per axis, used to tell a drifting head from a standing one. */
+    private val ewmaSpeed = FloatArray(3)
 
     /** Makes the current spot the centre of the room again (with the head tracker's recenter). */
     fun reset() {
@@ -255,6 +261,9 @@ class SixDofAligner {
         hasLast = false
         smooth.forEach { it.reset() }
         position.fill(0f)
+        ewmaSpeed.fill(0f)
+        lastMoveNs = 0L
+        lastFrameNs = 0L
     }
 
     /**
@@ -267,11 +276,17 @@ class SixDofAligner {
         timestampNs: Long,
         preservePosition: Boolean = false,
     ) {
-        // Both worlds have gravity along y; only the heading differs. Follow it slowly.
+        // Both worlds have gravity along y; only the heading differs. Follow it slowly — the
+        // head tracker's yaw (from the gyro) is the authority on short timescales and the VIO
+        // heading drifts slowly (monocular VINS cannot observe global yaw). A faster pull here
+        // would let that slow drift swing the room on every fix, which reads as drift even when
+        // translation is correct. The 3% factor gives a ~30 s time constant, fast enough to
+        // correct an initial heading error and slow enough not to chase estimator noise.
         val yawTracker = atan2(cameraToWorld[8], cameraToWorld[10])
         val yawSensor = atan2(sensorHead[8], sensorHead[10])
         val delta = wrap(yawSensor - yawTracker)
-        alignYaw = if (alignYaw.isNaN()) delta else alignYaw + wrap(delta - alignYaw) * .05f
+        val yawAlpha = if (alignYaw.isNaN()) 1.0f else YAW_ALIGN_ALPHA
+        alignYaw = if (alignYaw.isNaN()) delta else alignYaw + wrap(delta - alignYaw) * yawAlpha
         val hadOrigin = origin != null
         val start = origin ?: floatArrayOf(cameraToWorld[12], cameraToWorld[13], cameraToWorld[14]).also { origin = it }
         if (preservePosition && hadOrigin) {
@@ -301,10 +316,50 @@ class SixDofAligner {
         val dz = cameraToWorld[14] - start[2]
         val c = kotlin.math.cos(alignYaw)
         val s = kotlin.math.sin(alignYaw)
+
+        // Transform into head-tracker coordinates.
+        val hx0 = c * dx + s * dz
+        val hy0 = dy
+        val hz0 = -s * dx + c * dz
+
+        // Apply One-Euro smoothing.
+        val fx = smooth[0].filter(hx0, timestampNs)
+        val fy = smooth[1].filter(hy0, timestampNs)
+        val fz = smooth[2].filter(hz0, timestampNs)
+
+        // Track how fast the smoothed position is moving per axis. When the head has been
+        // essentially still for several seconds, gently leak the reported position back toward
+        // the origin with a long time constant. This slowly dissolves any accumulated bias
+        // drift that shows up as a sub-cm/s walk while standing — the same idea as
+        // SensorSixDof returning its body home. It does NOT fight real motion: as soon as the
+        // smoothed speed rises above STILL_SPEED the leak turns off and lastMoveNs is refreshed,
+        // so walking a metre and stopping leaves the head a metre from origin.
+        val dtFilter = if (lastFrameNs == 0L) 0f else ((timestampNs - lastFrameNs) * 1e-9f).coerceIn(0f, 0.1f)
+        if (lastFrameNs == 0L) lastMoveNs = timestampNs
+        lastFrameNs = timestampNs
+        var moving = false
+        val px = position[0]; val py = position[1]; val pz = position[2]
+        for (i in 0..2) {
+            val prev = when (i) { 0 -> px; 1 -> py; else -> pz }
+            val curr = when (i) { 0 -> fx; 1 -> fy; else -> fz }
+            val instSpeed = if (dtFilter > 0f) kotlin.math.abs(curr - prev) / dtFilter else 0f
+            ewmaSpeed[i] = ewmaSpeed[i] * 0.95f + instSpeed * 0.05f
+            if (ewmaSpeed[i] > STILL_SPEED) moving = true
+        }
+        if (moving) lastMoveNs = timestampNs
+        val stillMs = (timestampNs - lastMoveNs) / 1_000_000L
+        // After the warm-up, leak toward zero with a ~5 s time constant (alpha ≈ dt/5). That is
+        // slow enough to be invisible while the user stands, and fast enough that any bias-drift
+        // offset built up over a minute decays back to zero within a few seconds of stillness.
+        val leak = if (stillMs > STILL_WARMUP_MS && dtFilter > 0f) {
+            val ramp = ((stillMs - STILL_WARMUP_MS).toFloat() / (STILL_DAMP_MS - STILL_WARMUP_MS)).coerceIn(0f, 1f)
+            ramp * (dtFilter / STILL_LEAK_TIME_S)
+        } else 0f
+
         synchronized(position) {
-            position[0] = smooth[0].filter(c * dx + s * dz, timestampNs)
-            position[1] = smooth[1].filter(dy, timestampNs)
-            position[2] = smooth[2].filter(-s * dx + c * dz, timestampNs)
+            position[0] = fx * (1f - leak)
+            position[1] = fy * (1f - leak)
+            position[2] = fz * (1f - leak)
         }
     }
 
@@ -332,5 +387,26 @@ class SixDofAligner {
          */
         const val SMOOTH_CUTOFF_HZ = 3.0f
         const val SMOOTH_BETA = 10.0f
+        /**
+         * How quickly the tracker's heading is pulled toward the head tracker's. The head tracker's
+         * yaw (gyro) is short-term-perfect; the VIO drifts slowly in yaw because global heading is
+         * unobservable for a monocular camera-IMU system. 3% per new visual frame (≈15 Hz) gives a
+         * ~30 s time constant — fast enough to erase a startup heading error within a few seconds,
+         * slow enough that estimator noise is rejected and the visual yaw drift is dissolved
+         * instead of rotating the room.
+         */
+        const val YAW_ALIGN_ALPHA = 0.03f
+        /** Below this smoothed speed (m/s), the head counts as standing still for drift damping. */
+        const val STILL_SPEED = 0.02f
+        /** After this many ms of standing still, the standing-drift return starts ramping in. */
+        const val STILL_WARMUP_MS = 3_000L
+        /** After this many ms, full damping is applied. */
+        const val STILL_DAMP_MS = 8_000L
+        /**
+         * Time constant (seconds) for the leak back to the origin once the head is judged still.
+         * 5 s means any position error decays by ~1 - e^(-t/5): a 10 cm drift is 3.7 cm after 5 s,
+         * invisible while the user stands and fast enough to dissolve accumulated bias walk.
+         */
+        const val STILL_LEAK_TIME_S = 5.0f
     }
 }
