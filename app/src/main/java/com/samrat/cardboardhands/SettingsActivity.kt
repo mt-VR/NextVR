@@ -73,8 +73,8 @@ class SettingsActivity : ComponentActivity() {
         HigPage(title = "Controls", onBack = ::finish) {
             HigSection(
                 title = "Tracking",
-                footer = "3DoF works on any phone. 6DoF adds moving around the room: through ARCore where the " +
-                    "phone has it, and through VINS-Mono (the camera and the IMU, no ARCore) where it does not."
+                footer = "3DoF works on any phone. 6DoF adds movement through the room when ARCore is " +
+                    "available; otherwise the headset keeps rotation tracking only."
             ) {
                 Settings.SixDofMode.entries.forEach { mode ->
                     val reason = SixDofSupport.unavailableReason(this@SettingsActivity, mode)

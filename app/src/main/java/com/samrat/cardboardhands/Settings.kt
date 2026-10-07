@@ -14,8 +14,7 @@ object Settings {
     /** The position-tracking backend used by the VR home. */
     enum class SixDofMode(val title: String, val description: String) {
         NONE("None", "Head rotation only"),
-        ARCORE("ARCore", "Room tracking through Google Play Services for AR"),
-        VINS_MONO("VINS-Mono", "Visual-inertial tracking using the camera and IMU")
+        ARCORE("ARCore", "Room tracking through Google Play Services for AR")
     }
 
     enum class HomeStyle(val title: String) { LARGE("Large"), COMPACT("Compact panel") }

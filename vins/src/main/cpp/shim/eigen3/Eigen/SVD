@@ -1,3 +1,0 @@
-// Upstream includes <eigen3/Eigen/SVD> (the Debian package path); see Dense next to this file.
-#pragma once
-#include <Eigen/SVD>
