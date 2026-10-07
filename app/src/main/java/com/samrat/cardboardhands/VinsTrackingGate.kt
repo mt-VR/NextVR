@@ -78,11 +78,19 @@ internal class VinsTrackingGate(
             badFrames = 0
             if (goodFrames >= stableFramesRequired) ready = true
         } else {
-            goodFrames = 0
-            badFrames++
-            // A physically impossible velocity is a single-frame outlier; low feature count gets a
-            // little hysteresis so one noisy image does not flicker 6DoF off.
-            if (!finitePose || speed > maxSpeedMetersPerSecond || badFrames >= badFramesToLose) ready = false
+            // A non-finite pose or an implausible velocity is a single-frame outlier: treat it
+            // as a momentary glitch rather than a multi-frame loss, so the gate recovers on the
+            // very next good frame instead of waiting out the hysteresis window. Sustained low
+            // feature counts still need badFramesToLose frames before reporting loss.
+            val outlier = !finitePose || speed > maxSpeedMetersPerSecond
+            if (outlier) {
+                goodFrames = 0
+                ready = false
+            } else {
+                goodFrames = 0
+                badFrames++
+                if (badFrames >= badFramesToLose) ready = false
+            }
         }
         return ready
     }
@@ -110,12 +118,26 @@ internal class VinsTrackingGate(
     }
 
     private companion object {
-        const val DEFAULT_MIN_FEATURES = 12
+        // A head-worn camera is closer to stationary than a hand-held one, so the minimum feature
+        // count for one frame to count as good is a little lower than upstream's 30 but the gate
+        // tolerates more bad frames in a row before reporting loss — brief dips (a blank wall
+        // glanced at for one frame, a fast pan that blurs KLT tracks) must not flicker 6DoF off.
+        const val DEFAULT_MIN_FEATURES = 10
         const val DEFAULT_STABLE_FRAMES = 3
-        const val DEFAULT_BAD_FRAMES_TO_LOSE = 3
-        const val DEFAULT_MAX_SPEED = 3.5
-        const val DEFAULT_MAX_AGE_SECONDS = 0.5
-        const val POSITION_STEP_SLACK_METERS = 0.1
+        // Five bad frames at 15 Hz ≈ 330 ms of weak vision before we admit tracking is gone, so a
+        // short glance at a textureless wall or a quick head snap does not drop position; on a
+        // real loss (lights out, camera covered) the ageSeconds check fires first anyway.
+        const val DEFAULT_BAD_FRAMES_TO_LOSE = 5
+        // A user walking fast in a small room peaks around 2 m/s; allow some head-bob overshoot
+        // without treating it as a pose discontinuity.
+        const val DEFAULT_MAX_SPEED = 4.0
+        // 700 ms without a solved frame is old. The IMU-propagated pose is still drawn, but the
+        // gate reports loss so the aligner can hold the last trusted position rather than follow
+        // pure integration for seconds.
+        const val DEFAULT_MAX_AGE_SECONDS = 0.7
+        // A little slack on the position-jump check: the estimator can correct 10 cm in one step
+        // when marginalising a bad frame, and that is a map update, not the user teleporting.
+        const val POSITION_STEP_SLACK_METERS = 0.15
         const val STAMP_EPSILON_SECONDS = 1e-6
     }
 }

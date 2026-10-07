@@ -37,15 +37,16 @@ class VinsConfigTest {
      *
      * `acc_w` and `gyr_w` are the random walk of the accelerometer and gyroscope biases the
      * estimator estimates, and `Estimator::failureDetection()` discards the entire sliding window
-     * once `|Ba|` passes 2.5 or `|Bg|` passes 1.0. An order of magnitude of extra walk there is
-     * not a tuning preference: it is the difference between a session that settles and one that
-     * restarts initialising every few seconds.
+     * once `|Ba|` passes 2.5 or `|Bg|` passes 1.0. Holding the bias walk tighter than upstream's
+     * EuRoC reference is what stops slow integration drift: a bias that cannot drift between
+     * visual fixes cannot eat real acceleration.
      */
     @Test
-    fun theImuBiasRandomWalkIsUpstreamsNotAHundredTimesItsOwn() {
-        assertEquals(4.0e-5, value("acc_w"), 1e-12)
-        assertEquals(2.0e-6, value("gyr_w"), 1e-12)
-        // The measurement noises are more forgiving but were still 2.5x and 1.25x too large.
+    fun theImuBiasRandomWalkIsTightEnoughToResistSlowDrift() {
+        assertEquals(2.0e-5, value("acc_w"), 1e-12)
+        assertEquals(1.0e-6, value("gyr_w"), 1e-12)
+        // The measurement noises match upstream — the accelerometer and gyro on a phone are
+        // comparable-grade MEMS to the ones in the EuRoC sensor rig.
         assertEquals(0.08, value("acc_n"), 1e-12)
         assertEquals(0.004, value("gyr_n"), 1e-12)
     }
@@ -112,10 +113,11 @@ class VinsConfigTest {
      * Keyframe selection is in pixels of median feature flow per frame. Upstream's 10 assumes a
      * hand-held camera waved in front of the user; below it `solveOdometry()` deliberately drops
      * frames from the window, which on a head that is mostly looking around is most frames.
+     * 3 px at 15 Hz keys in often enough to keep IMU bias from walking between fixes.
      */
     @Test
     fun keyframesAreReachableByAHeadThatOnlyLooksAround() {
-        assertEquals(4.0, value("keyframe_parallax"), 1e-12)
+        assertEquals(3.0, value("keyframe_parallax"), 1e-12)
     }
 
     /**
@@ -131,14 +133,18 @@ class VinsConfigTest {
         assertEquals(240.0, fallback.cy, 0.0)
     }
 
-    /** The rest is upstream's EuRoC file, unchanged, and the frame size the camera actually gave. */
+    /** The solver and front end are tuned for a head-worn camera, not upstream's hand-held drone. */
     @Test
-    fun theSolverAndFrontEndKeepUpstreamsFigures() {
-        assertEquals(150.0, value("max_cnt"), 1e-12)
-        assertEquals(30.0, value("min_dist"), 1e-12)
-        assertEquals(10.0, value("freq"), 1e-12)
-        assertEquals(0.04, value("max_solver_time"), 1e-12)
-        assertEquals(8.0, value("max_num_iterations"), 1e-12)
+    fun theSolverAndFrontEndAreTunedForAHeadset() {
+        // More features spread more evenly across the frame = tighter geometry = less drift.
+        assertEquals(220.0, value("max_cnt"), 1e-12)
+        assertEquals(25.0, value("min_dist"), 1e-12)
+        // 15 Hz visual fixes — fast enough that IMU propagation doesn't walk far between solves.
+        assertEquals(15.0, value("freq"), 1e-12)
+        // More solver budget so the sliding window actually converges instead of returning a
+        // half-converged biased pose that marginalises into drift.
+        assertEquals(0.06, value("max_solver_time"), 1e-12)
+        assertEquals(10.0, value("max_num_iterations"), 1e-12)
         assertEquals(9.81007, value("g_norm"), 1e-9)
         assertEquals(1.0, value("equalize"), 1e-12)
         assertEquals(640.0, value("image_width"), 1e-12)

@@ -301,7 +301,11 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         // head simply stays where tracking began until the first pose arrives.
         sixMode = Settings.sixDofMode(this)
         six = startSixDof(sixMode)
-        neckModel = six == null && !Settings.travelMode(this)
+        // 6DoF always-on: only fall back to the neck model when no backend can exist at all on
+        // this phone. A transient start failure (camera not yet ready, ARCore still checking) is
+        // retried from onResume, and the head holds at the origin in the meantime.
+        neckModel = six == null && SixDofSupport.bestMode(this) == Settings.SixDofMode.NONE &&
+            !Settings.travelMode(this)
         remote.start()
         if (!BuildConfig.BE) trackingExecutor.execute {
             handTracker = runCatching { HandTracker(this, useGpu = true, onResult = ::onHands) }
@@ -314,8 +318,15 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         DisplayRate.apply(this)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         stopService(Intent(this, HandTrackingService::class.java))
-        // ARCore owns the camera in 6DoF; if it cannot have it back, the home carries on without 6DoF.
-        if (six?.resume() == false) { six?.let { it.pause(); it.close() }; six = null; toast("6DoF unavailable: running 3DoF") }
+        // 6DoF is "always on": if the chosen tracker cannot resume yet (camera still held by another
+        // process, ARCore session not ready, sensors not yet available), don't drop it permanently —
+        // schedule a retry on the existing tracker. A brief inability to grab the camera is not
+        // "no 6DoF".
+        val resumed = six?.resume()
+        if (resumed == false) {
+            six?.pause()
+            retrySixDofLater(sixMode, attempt = 1)
+        }
         // The mode may have been changed in the phone's own app while the home was in the background.
         val wanted = Settings.sixDofMode(this)
         if (wanted != sixMode) applySixDofMode(wanted, announce = false)
@@ -328,12 +339,20 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         if (BuildConfig.BE) Unit
         else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) toast("Allow NextVR to use the camera")
         else {
-            val tracker = six
+            val tracker6 = six
             // A tracker that borrows the camera (VINS-Mono) needs the home's own stream; ARCore opens
             // one of its own, and with no tracker at all CameraX gives the 3DoF passthrough.
-            if (tracker == null || !tracker.ownsCamera) bindCamera()
-            // ARCore may still be checking Google Play Services for AR when the home opens.
-            if (tracker == null && sixMode == Settings.SixDofMode.ARCORE && !Settings.travelMode(this)) startArLater()
+            if (tracker6 == null || !tracker6.ownsCamera) bindCamera()
+            // If the tracker is not yet running (resume failed transiently, or ARCore is still
+            // checking Google Play Services), keep trying in the background rather than falling
+            // back to 3DoF neck-model permanently.
+            if (tracker6 == null && !Settings.travelMode(this)) {
+                when (sixMode) {
+                    Settings.SixDofMode.ARCORE -> if (!BuildConfig.LITE) startArLater()
+                    Settings.SixDofMode.VINS_MONO -> retrySixDofLater(sixMode, attempt = 1)
+                    else -> Unit
+                }
+            }
         }
         CinemaActivity.setJoyConPassthrough(this, false)
         loadApps()
@@ -433,7 +452,9 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         if (old != null) { old.pause(); old.close() }
         synchronized(headPosition) { headPosition.fill(0f) }
         six = startSixDof(mode)
-        neckModel = six == null && !Settings.travelMode(this)
+        // Only drop to neck model if this mode truly cannot run on the hardware; otherwise keep
+        // the head at the origin and retry, so 6DoF stays on.
+        neckModel = six == null && mode == Settings.SixDofMode.NONE && !Settings.travelMode(this)
         cameraProvider?.unbindAll()
         if (six?.ownsCamera != true && !BuildConfig.BE &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -465,9 +486,60 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     return
                 }
                 six = created
-                toast("6DoF on: you can walk around the room")
+                if (created != null) toast("6DoF on: you can walk around the room")
             }
         }
+    }
+
+    /**
+     * A 6DoF tracker may transiently fail to resume (camera still held by another surface, ARCore
+     * session not yet ready, sensors briefly unavailable). Instead of dropping to 3DoF neck-model
+     * forever, retry for a few seconds — 6DoF is always-on when the hardware can do it.
+     */
+    private fun retrySixDofLater(mode: Settings.SixDofMode, attempt: Int) {
+        if (isFinishing || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        if (mode != sixMode) return
+        // If a tracker is already up and running, stop the retry loop.
+        if (six?.tracking == true) return
+        if (attempt > 40) return  // ~10 s of retries at 250 ms
+        handler.postDelayed({
+            if (isFinishing || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@postDelayed
+            if (sixMode != mode) return@postDelayed
+            if (ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.CAMERA
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                retrySixDofLater(mode, attempt + 1)
+                return@postDelayed
+            }
+            val existing = six
+            // Try resuming the existing tracker first; only create a fresh one if resume fails
+            // again (e.g. the session never opened in the first place).
+            if (existing != null && existing.resume()) {
+                neckModel = false
+                if (existing.ownsCamera != true) {
+                    cameraProvider?.unbindAll()
+                    bindCamera()
+                }
+                toast("6DoF on: you can walk around the room")
+                return@postDelayed
+            }
+            // Tear down any failed tracker before trying to build a fresh one — we must not leak
+            // camera/sensor handles while waiting for retry.
+            existing?.let { it.pause(); it.close() }
+            six = null
+            cameraProvider?.unbindAll()
+            val created = startSixDof(mode)
+            if (created != null) {
+                six = created
+                neckModel = false
+                if (created.ownsCamera != true) bindCamera()
+                toast("6DoF on: you can walk around the room")
+            } else {
+                bindCamera()
+                retrySixDofLater(mode, attempt + 1)
+            }
+        }, 250)
     }
 
     private val onboardingHost = object : Onboarding.Host {
