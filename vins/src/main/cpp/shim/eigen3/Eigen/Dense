@@ -1,4 +1,0 @@
-// Upstream includes <eigen3/Eigen/Dense>, the path Debian's package installs. Here Eigen comes from
-// wherever Ceres and this build found it, so the include is forwarded under both names.
-#pragma once
-#include <Eigen/Dense>

@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- A library with nothing to declare: no components, and the camera and sensors are asked for by
-     NextVR itself, which is the only user of VinsCore. -->
-<manifest />

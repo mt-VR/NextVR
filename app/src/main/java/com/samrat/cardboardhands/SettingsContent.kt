@@ -73,7 +73,7 @@ class SettingsContent(
         fun setSixDofMode(mode: Settings.SixDofMode) = Unit
         /** Opens Avaturn (or VRoid Hub) in a window; a model downloaded there becomes the avatar. */
         fun avatarWeb(vroid: Boolean)
-        /** Whether the tracker in charge can see walls and a table at all (ARCore can, VINS-Mono cannot). */
+        /** Whether the active tracker can detect room planes such as walls and tables. */
         fun canScanRoom(): Boolean = false
         fun startRoomScan()
         fun roomText(): String
@@ -336,9 +336,8 @@ class SettingsContent(
         val current = host.sixDofMode()
         HigSection(
             title = "6DoF",
-            footer = "How NextVR finds the room. ARCore looks through the camera with Google Play Services " +
-                "for AR; VINS-Mono does the same with the phone's own camera and IMU, for the phones ARCore " +
-                "does not run on (Huawei, stripped ROMs). None keeps the head's rotation only."
+            footer = "How NextVR finds the room. ARCore uses the camera and inertial sensors through " +
+                "Google Play Services for AR. If ARCore is unavailable, NextVR keeps head rotation only."
         ) {
             Settings.SixDofMode.entries.forEach { mode ->
                 val reason = host.sixDofModeReason(mode)
@@ -362,10 +361,9 @@ class SettingsContent(
                     detailColor = NextDesign.warnColor)
             }
 
-            // The scan is ARCore's alone: VINS-Mono follows the head but not the geometry, so say so
-            // rather than showing a scan screen that would sit empty forever.
+            // A position estimate alone is not a room map; only a tracker with plane detection can scan.
             !host.canScanRoom() -> HigSection {
-                HigRow("No room scan", "VINS-Mono follows where the head is, not what the walls are: the grid, the table and the boundary need ARCore.",
+                HigRow("No room scan", "Room scanning needs ARCore plane detection for floors, tables and walls.",
                     detailColor = NextDesign.warnColor)
             }
 

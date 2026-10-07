@@ -666,7 +666,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 val best = SixDofSupport.bestMode(this@MainActivity)
                 if (best == Settings.SixDofMode.NONE) HigRow("No 6DoF on this phone",
-                    SixDofSupport.unavailableReason(this@MainActivity, Settings.SixDofMode.ARCORE) ?: "No ARCore and no VINS-Mono here",
+                    SixDofSupport.unavailableReason(this@MainActivity, Settings.SixDofMode.ARCORE) ?: "Google Play Services for AR is unavailable",
                     detailColor = NextDesign.warnColor)
                 else HigLink("Turn on ${best.title}") {
                     if (BuildConfig.LITE && best == Settings.SixDofMode.ARCORE) error = "6DoF is available in NextVR Full"
@@ -1091,9 +1091,9 @@ class MainActivity : ComponentActivity() {
             }
             HigSection(
                 title = "Head tracking",
-                footer = "3DoF tracks rotation. 6DoF sees the room through the camera, so you can walk and the boundary, " +
-                    "the walls and the table work. ARCore does that through Google Play Services for AR; VINS-Mono does " +
-                    "it with the phone's own camera and IMU, on the phones ARCore does not run on."
+                footer = "3DoF tracks rotation. 6DoF sees the room through ARCore and Google Play Services for AR, " +
+                    "so you can walk and use the boundary, walls and table. On phones without ARCore, tracking " +
+                    "stays rotation-only."
             ) {
                 val wanted = sixDofMode
                 Settings.SixDofMode.entries.forEach { mode ->

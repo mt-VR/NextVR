@@ -32,7 +32,6 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
-import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Stop
@@ -129,9 +128,9 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     /** The app launcher can be hidden from the two-button palm menu without closing app windows. */
     @Volatile private var panelVisible = true
     /**
-     * The 6DoF tracker the home asks for its head position: ARCore, VINS-Mono or nothing
-     * ([Settings.SixDofMode]). Never two at once, and the home never learns which one it is talking
-     * to (see [SixDof]). Null means rotation only.
+     * The 6DoF tracker the home asks for its head position: ARCore or nothing
+     * ([Settings.SixDofMode]). The home never learns which tracker it is talking to (see [SixDof]);
+     * null means rotation only.
      */
     @Volatile private var six: SixDof? = null
     /** The mode [six] was started for, so a change in the settings can be noticed and applied. */
@@ -290,7 +289,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         // BE has no camera to show the room: a black space around the windows.
         if (BuildConfig.BE) setEnvironment("black")
         // 6DoF: the chosen tracker follows the room through the camera; where nothing runs at all
-        // (None, a phone with neither ARCore nor the VINS-Mono core, a car that moves the room
+        // (None, a phone without ARCore, or a car that moves the room
         // itself) a neck model stands in: the eyes swing around the neck as the head turns and
         // tilts. Integrating the accelerometer drifted away within seconds.
         //
@@ -329,8 +328,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) toast("Allow NextVR to use the camera")
         else {
             val tracker = six
-            // A tracker that borrows the camera (VINS-Mono) needs the home's own stream; ARCore opens
-            // one of its own, and with no tracker at all CameraX gives the 3DoF passthrough.
+            // ARCore owns its camera stream; with no position tracker, CameraX supplies the 3DoF passthrough.
             if (tracker == null || !tracker.ownsCamera) bindCamera()
             // ARCore may still be checking Google Play Services for AR when the home opens.
             if (tracker == null && sixMode == Settings.SixDofMode.ARCORE && !Settings.travelMode(this)) startArLater()
@@ -398,8 +396,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
 
     /**
      * Starts the tracker of [mode], or null when this phone cannot run it. Nothing is held back on a
-     * failure: what the mode needs (Google Play Services for AR, the VINS-Mono core, the camera, the
-     * IMU) is checked by [SixDofSupport] and reported by the settings screens.
+     * failure: whether Google Play Services for AR is available is checked by [SixDofSupport] and
+     * reported by the settings screens.
      */
     private fun startSixDof(mode: Settings.SixDofMode): SixDof? {
         // Car mode is always 3DoF: in a moving car the room itself moves, and BE has no camera at all.
@@ -1034,31 +1032,17 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         future.addListener({
             val provider = future.get()
             cameraProvider = provider
-            // A 6DoF tracker that borrows the camera (VINS-Mono) is calibrated for one frame size and
-            // wants the frames small: it tracks features in every one of them.
-            val wanted = six?.wantedFrame
             val analysis = ImageAnalysis.Builder()
-                .setTargetResolution(wanted?.let { android.util.Size(it.first, it.second) }
-                    ?: android.util.Size(if (BuildConfig.LITE) 960 else 1280, if (BuildConfig.LITE) 540 else 720))
+                .setTargetResolution(android.util.Size(if (BuildConfig.LITE) 960 else 1280, if (BuildConfig.LITE) 540 else 720))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             provider.unbindAll()
-            val boundCamera = runCatching {
+            val cameraBound = runCatching {
                 provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, analysis)
-            }.onFailure { toast("The camera is busy in another app") }.getOrNull() ?: return@addListener
-            // Calibrate VINS against the lens CameraX actually opened. Set the analyzer only after
-            // this callback so its first frame cannot race the camera-id handoff.
-            (six as? SixDofCameraFeed)?.onCameraSelected(
-                runCatching { Camera2CameraInfo.from(boundCamera.cameraInfo).cameraId }.getOrNull(),
-            )
+            }.onFailure { toast("The camera is busy in another app") }.isSuccess
+            if (!cameraBound) return@addListener
             analysis.setAnalyzer(cameraExecutor) { image ->
                 try {
-                    // The raw plane first, while the frame is still the camera's: the tracker of the room
-                    // reads the light the sensor saw, before it is turned upright for the hands.
-                    (six as? SixDofCameraFeed)?.let { feed ->
-                        val plane = image.planes[0]
-                        feed.onGrayFrame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride, image.imageInfo.timestamp)
-                    }
                     val upright = image.toBitmap().rotate(image.imageInfo.rotationDegrees)
                     synchronized(frameLock) {
                         val old = frame
@@ -1377,9 +1361,9 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     /**
      * How far the home, the windows and the keyboard stand. In 6DoF the eye's view is the camera's,
      * narrower than the 90° of 3DoF, so the same distance looks much nearer there: 6DoF puts things
-     * a little further away and 3DoF a little nearer, and both look the same, in between. A tracker that
-     * does not report the camera's own projection (VINS-Mono, whose passthrough stays the 3DoF one) is
-     * measured by the view it actually draws, which is why the projection and not the tracker decides.
+     * a little further away and 3DoF a little nearer, and both look the same, in between. The active
+     * projection is the source of truth: ARCore supplies its camera projection; the 3DoF view uses its
+     * usual 90-degree perspective.
      */
     private val distanceScale get() = if (six != null) SIX_DOF_DISTANCE else THREE_DOF_DISTANCE
     private val windowRadius get() = VrWindow.RADIUS * distanceScale
@@ -2604,8 +2588,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         private fun updateSixDof(tracker6: SixDof) {
             tracker.copyHead(head)
             val job = tracker6.update(head, wantImage = !busy.get())
-            // The table, once a second: where it stands is remembered for the keyboard. Only a
-            // backend that sees geometry has any; VINS-Mono tracks features, not walls.
+            // The table, once a second: where it stands is remembered for the keyboard. ARCore is
+            // the only backend here that detects room geometry.
             if (tracker6.supportsRoomScan && ++scanFrames % 60 == 0) RoomScan.remember(this@VrHomeActivity, tracker6.surfaces)
             if (job != null && busy.compareAndSet(false, true)) {
                 trackingExecutor.execute {
@@ -2745,8 +2729,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                 GLES20.glViewport(index * eyeWidth, 0, eyeWidth, height)
                 // Passthrough fills each eye; the camera image is cropped to the eye's shape.
                 // A chosen place takes the room's stead and is drawn below, once the view is known.
-                // Only a tracker that owns the camera brings its own texture coordinates; VINS-Mono
-                // leaves the camera to CameraX and so draws the usual cropped frame.
+                // ARCore owns the camera and supplies texture coordinates; 3DoF uses CameraX's cropped frame.
                 val passthroughMap = tracker6?.passthroughUv
                 if (hasEnvironment) Unit
                 else if (passthroughMap != null) {

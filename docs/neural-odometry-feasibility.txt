@@ -1,0 +1,56 @@
+# Neural odometry for Cardboard on low-end Android
+
+**Assessment date:** 2026-10-07
+
+**Status:** feasibility review; no experimental pose model is enabled in the app.
+
+## Recommendation
+
+Do not ship inertial-only neural odometry as the headset's room-position tracker yet. Keep the current honest split:
+
+- **ARCore available:** metric 6DoF room tracking in the Full edition.
+- **ARCore unavailable:** 3DoF head rotation, using Android's game-rotation-vector sensor and the existing neck model. Do not synthesize room position by double-integrating the accelerometer.
+
+For a future no-Google-services experiment, a **small neural inertial model used as a low-rate, uncertainty-weighted aid to visual tracking** is more plausible than an IMU-only model controlling room-locked VR. RNIN-VIO is a useful research reference for that hybrid idea, but its public artifacts are not a drop-in Android tracker and its reported phone is not evidence for low-tier performance.
+
+## Why NIO alone is a poor VR position source
+
+A gyroscope/accelerometer can provide fast rotation and short-term motion cues, but it does not observe a fixed point in the room. Neural inertial odometry (NIO) replaces some inertial integration with a learned motion prior; it does not add an external position anchor. Its predictions are therefore tied to training motion and accumulate relative-position error. That is especially risky for Cardboard: head motion is usually small, arbitrary, and often stationary—not the continuous walking that dominates smartphone pedestrian-odometry datasets. A small bias that might be tolerable for coarse pedestrian dead reckoning can make a supposedly stationary VR room visibly drift.
+
+TinyOdom is an encouraging example of hardware-aware, compact temporal-convolutional NIO, but its paper reports **2.5–12 m error over 60 seconds across its application setups** while targeting ultra-resource-constrained processors. That is valuable for embedded navigation research, not a room-scale pose guarantee for VR. Smaller inference cost does not solve the accuracy/generalization requirement.
+
+## Candidate comparison
+
+| Approach | Why it is attractive | Main blocker for NextVR/Cardboard |
+|---|---|---|
+| **Pure NIO** (RoNIN/TLIO-style; TinyOdom for tiny targets) | Uses only phone sensors; avoids camera power and camera-lens calibration; a small TCN can be inexpensive. | No room observation or loop closure. Existing models learn pedestrian/device-motion priors, not the small head-mounted movements we need. Position drift and uncertainty must be measured on our own headset data. |
+| **Neural VIO** | Can use visual information to correct inertial drift, while a learned model can supply a motion prior or remain useful when image features are weak. | Still needs time-aligned camera/IMU input, a scale/geometry solution, and robust tracking. A neural model does not automatically remove sensor alignment or camera-model assumptions. Vision inference also competes with the camera, hand tracking, rendering, and battery budget. |
+| **Neural-aided visual-inertial filter** (RNIN-VIO-style) | Best research direction of the three: the network provides a relative-motion estimate and uncertainty; a filter combines it with camera features and high-rate IMU propagation. | Significant integration and data-collection work. RNIN-VIO's public repository describes itself as the inertial neural network code, not a complete Android application. Its paper's Android demo used a Huawei Mate 20 Pro, 30 Hz 512×384 images and 200 Hz IMU; the neural inertial module ran at about 2 Hz. This does not establish that it meets low-tier phone power, latency, or accuracy needs. |
+
+RoNIN's benchmark contains natural human motion and varied phone placement, and TLIO demonstrates uncertainty-aware neural displacement updates fused in a filter. Those are useful ideas, but neither dataset description is a substitute for recording phones fixed in a Cardboard headset and validating the motion we actually need.
+
+## Calibration reality
+
+If “no calibration” is a hard requirement, pure NIO avoids camera intrinsics and camera-to-IMU extrinsics—but gives up visual correction and cannot promise stable room position. A hybrid visual-inertial system still has to associate image measurements with the correct sensor axes and timestamps. Learning may make those assumptions more tolerant; it does not make the sensor relationship disappear.
+
+Android exposes camera intrinsic-calibration metadata through Camera2 on devices that provide it, and ARCore exposes per-session image intrinsics and camera poses. Availability and correctness of the Camera2 metadata vary by device, which is why a custom camera-based tracker should not silently assume factory calibration exists. ARCore is the supported path already doing that platform-specific work for the app.
+
+## Practical experiment if no-GMS 6DoF becomes a priority
+
+1. **Collect headset-mounted data first.** Record timestamped accelerometer and gyroscope samples, camera frames, device/model identifiers, and tracking dropouts across several budget phones. Include stationary head sway, small translations, quick turns, low light, blur, and camera occlusion—not only walking with a handheld phone. Use ARCore or external motion capture as ground truth where possible.
+2. **Prototype the learned part off the render thread.** Start with a compact causal TCN that predicts short-window relative displacement **and covariance**. Keep rotation and pose propagation at sensor/display rate; let a separate filter consume the slower learned updates. Treat low confidence as “translation unavailable,” not as a plausible-looking pose.
+3. **Use vision as the correction, not a large image network as the whole tracker.** If avoiding Google services is essential, first benchmark a small conventional feature front end on low-resolution frames, then test whether the learned inertial factor improves loss recovery enough to justify its CPU and battery cost. A fully learned VIO network should be a later comparison, not the first implementation.
+4. **Set a minimum-phone go/no-go gate before exposing a mode.** Measure stationary drift, translation error on repeatable head motions, relocalization jumps, end-to-end pose latency, CPU use, thermal throttling, and battery draw. Test CPU-only and any device accelerator separately; NNAPI/NPU support is not uniform. Until the prototype meets predeclared room-stability and latency limits on the slowest supported phone, keep it experimental and keep the user in 3DoF.
+
+The app already includes LiteRT for other features, so model execution infrastructure exists. That is not the missing part: the missing pieces are headset-specific training data, a sensor-fusion implementation, trustworthy confidence handling, and low-end-device validation.
+
+## References
+
+- RNIN-VIO project and its published code scope: [zju3dv/rnin-vio](https://github.com/zju3dv/rnin-vio).
+- RNIN-VIO paper (mobile demo and model details): [ISMAR 2021 paper](https://zju3dv.github.io/rnin-vio/files/ismar21b-sub2280-cam-i5.pdf).
+- RoNIN project, data and paper: [Sachini/ronin](https://github.com/Sachini/ronin) and [project page](https://ronin.cs.sfu.ca/).
+- TLIO paper: [Tight Learned Inertial Odometry](https://arxiv.org/abs/2007.01867); project code: [CathIAS/TLIO](https://github.com/CathIAS/TLIO).
+- TinyOdom code and deployment description: [nesl/tinyodom](https://github.com/nesl/tinyodom); paper: [TinyOdom (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10957141/).
+- Android motion sensor overview: [Android Developers — Motion sensors](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion).
+- Camera calibration metadata: [CameraCharacteristics](https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics) and [CaptureResult](https://developer.android.com/reference/android/hardware/camera2/CaptureResult).
+- ARCore camera pose and intrinsics: [ARCore Camera API](https://developers.google.com/ar/reference/java/com/google/ar/core/Camera).
