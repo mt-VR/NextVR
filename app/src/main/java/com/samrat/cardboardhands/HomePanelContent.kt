@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Interests
 import androidx.compose.material.icons.rounded.KeyboardHide
@@ -276,6 +277,8 @@ class HomePanelContent(private val panel: HomePanel) :
             Rail(state, look)
             if (state.showSliders) Sliders(state, look)
             else if (!state.searching) SortButton(state, look)
+            // The dock is out of the way while the card is open, so the card closes itself.
+            if (!state.searching) CloseButton(state, look)
             if (state.entries.isEmpty() && !state.searching) {
                 val empty = when {
                     state.mode == HomePanel.Mode.STORE -> tr("Loading the store…")
@@ -438,6 +441,19 @@ class HomePanelContent(private val panel: HomePanel) :
                     Text(tr(state.sort.title), look.ink, 30f, weight = FontWeight.Medium)
                 }
             }
+        }
+    }
+
+    /** The way back from the Library (and from the store and the menu): a round ✕, as on Quest. */
+    @Composable
+    private fun CloseButton(state: HomePanel.Snapshot, look: Look) {
+        val hover = state.hovered == HomePanel.Target.Close
+        In(HomePanel.closeButton()) {
+            Box(
+                Modifier.fillMaxSize().clip(CircleShape).glass(look, CircleShape, px(12f))
+                    .background(if (hover) look.hover else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) { Glyph(Icons.Rounded.Close, look.ink, 46f) }
         }
     }
 
@@ -617,9 +633,16 @@ class HomePanelContent(private val panel: HomePanel) :
 
     // ------------------------------------------------------------------ the dock
 
+    /**
+     * The dock: a square panel with well-rounded corners, low down in the middle of the view. A row
+     * of controls runs along its top — the profile, the clock with Wi‑Fi and the battery, then
+     * search, notifications, passthrough and the Library — and the apps sit under it in a grid. It
+     * is the home at rest, and it steps aside while the Library or a card covers the panel.
+     */
     @Composable
     private fun Dock(state: HomePanel.Snapshot, look: Look) {
-        // The reference's dock rises into place once, when the home arrives.
+        if (!state.dock) return
+        // The dock rises into place once, when the home arrives.
         val appear = remember { Animatable(0f) }
         LaunchedEffect(Unit) {
             appear.animateTo(1f, tween(NextDesign.Motion.dockMs, easing = CubicBezierEasing(.2f, .75f, .2f, 1f)))
@@ -630,29 +653,26 @@ class HomePanelContent(private val panel: HomePanel) :
                 translationY = (1f - appear.value) * 60f
             }
         ) {
-            val s = HomePanel.DOCK_SCALE
-            val cy = HomePanel.DOCK_CY
-            // The reference's dock: a slate-blue capsule with a lit top edge, not a plain glass bar.
-            val bar = RoundedCornerShape(px(HomePanel.DOCK_H * .38f))
-            At(HomePanel.WIDTH / 2f, cy, HomePanel.DOCK_W, HomePanel.DOCK_H) {
+            // The square: the reference's slate glass, with the hairline of light along its top.
+            val shape = RoundedCornerShape(px(HomePanel.DOCK_R))
+            At(HomePanel.DOCK_CX, (HomePanel.DOCK_TOP + HomePanel.DOCK_BOTTOM) / 2, HomePanel.DOCK_S, HomePanel.DOCK_S) {
                 Box(
                     Modifier.fillMaxSize()
-                        .shadow(px(26f), bar, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
-                        .clip(bar)
+                        .shadow(px(26f), shape, ambientColor = Color(NextDesign.shadow), spotColor = Color(NextDesign.shadow))
+                        .clip(shape)
                         .background(if (state.dark) NextDesign.dockBrush else Brush.verticalGradient(listOf(look.top, look.bottom)))
-                        .border(Dp.Hairline, Color(NextDesign.dockStroke), bar)
+                        .border(Dp.Hairline, Color(NextDesign.dockStroke), shape)
                 )
             }
-            // The hairline of light that runs along the top of the reference's dock.
-            At(HomePanel.WIDTH / 2f, HomePanel.DOCK_TOP + 2f, HomePanel.DOCK_W - 48f * s, 3f) {
+            At(HomePanel.DOCK_CX, HomePanel.DOCK_TOP + 3f, HomePanel.DOCK_S - 120f, 3f) {
                 Box(Modifier.fillMaxSize().background(NextDesign.dockHighlightBrush))
             }
-            fun x(design: Float) = HomePanel.dockX(design)
 
+            /** A round button of the strip: a circle that lights under the pointer. */
             @Composable
-            fun Round(at: Float, target: HomePanel.Target, selected: Boolean = false, content: @Composable () -> Unit) {
+            fun Round(rect: RectF, target: HomePanel.Target, selected: Boolean = false, content: @Composable () -> Unit) {
                 val hover = state.hovered == target
-                At(x(at), cy, 46f * s, 46f * s) {
+                In(rect) {
                     Box(
                         Modifier.fillMaxSize().clip(CircleShape)
                             .background(if (selected) look.chosenSoft else if (hover) look.hover else Color.Transparent)
@@ -663,61 +683,60 @@ class HomePanelContent(private val panel: HomePanel) :
             }
 
             // Profile, with the green "online" dot.
-            Round(HomePanel.AVATAR_AT, HomePanel.Target.Control(HomePanel.Control.PROFILE)) {
-                Avatar(44f * s, look)
-            }
-            At(x(HomePanel.AVATAR_AT + 15f), cy + 15f * s, 13f * s, 13f * s) {
+            val avatar = HomePanel.dockAvatar()
+            Round(avatar, HomePanel.Target.Control(HomePanel.Control.PROFILE)) { Avatar(HomePanel.DOCK_AVATAR - 12f, look) }
+            At(avatar.right - 8f, avatar.bottom - 8f, 16f, 16f) {
                 // The reference rings the online dot in the colour of the dock behind it.
-                Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(NextDesign.dockBottom)).padding(px(2f * s)).clip(CircleShape).background(look.online))
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(NextDesign.dockBottom)).padding(px(2.5f)).clip(CircleShape).background(look.online))
             }
 
-            // Status: time, Wi‑Fi, battery (opens quick settings).
-            val statusHover = state.hovered == HomePanel.Target.Control(HomePanel.Control.STATUS)
-            if (statusHover || state.mode == HomePanel.Mode.QUICK) At((x(HomePanel.STATUS_FROM) + x(HomePanel.STATUS_TO)) / 2, cy, x(HomePanel.STATUS_TO) - x(HomePanel.STATUS_FROM), 46f * s) {
+            // Status: the time, Wi‑Fi and the battery (it opens the quick settings).
+            if (state.hovered == HomePanel.Target.Control(HomePanel.Control.STATUS)) In(HomePanel.dockStatus()) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(look.hover))
             }
             Status(look)
 
-            Round(HomePanel.BELL_AT, HomePanel.Target.Control(HomePanel.Control.NOTIFICATIONS)) {
-                Glyph(Icons.Rounded.Notifications, look.soft, 24f * s)
+            // Search, notifications (with its badge), passthrough, and the Library.
+            Round(HomePanel.dockButton(0), HomePanel.Target.Control(HomePanel.Control.SEARCH), selected = state.searching) {
+                Glyph(Icons.Rounded.Search, if (state.searching) look.chosen else look.soft, 34f)
             }
-            if (state.alerts > 0) At(x(HomePanel.BELL_AT + 9f), cy - 9f * s, 16f * s, 16f * s) {
+            val bell = HomePanel.dockButton(1)
+            Round(bell, HomePanel.Target.Control(HomePanel.Control.NOTIFICATIONS)) {
+                Glyph(Icons.Rounded.Notifications, look.soft, 32f)
+            }
+            if (state.alerts > 0) At(bell.right - 5f, bell.top + 5f, 30f, 30f) {
                 Box(Modifier.fillMaxSize().clip(CircleShape).background(look.danger), contentAlignment = Alignment.Center) {
-                    Text(state.alerts.coerceAtMost(9).toString(), Color.White, 11f * s, weight = FontWeight.Bold)
+                    Text(state.alerts.coerceAtMost(9).toString(), Color.White, 20f, weight = FontWeight.Bold)
                 }
             }
-            Round(HomePanel.SEARCH_AT, HomePanel.Target.Control(HomePanel.Control.SEARCH), selected = state.searching) {
-                Glyph(Icons.Rounded.Search, if (state.searching) look.chosen else look.soft, 25f * s)
+            // Passthrough: the room through the camera, or the chosen world.
+            Round(HomePanel.dockButton(2), HomePanel.Target.Control(HomePanel.Control.PASSTHROUGH), selected = !state.passthrough) {
+                Glyph(Icons.Rounded.Vrpano, if (!state.passthrough) look.chosen else look.soft, 34f)
             }
-            // Passthrough: the room through the camera or the chosen world.
-            Round(HomePanel.PASSTHROUGH_AT, HomePanel.Target.Control(HomePanel.Control.PASSTHROUGH), selected = !state.passthrough) {
-                Glyph(Icons.Rounded.Vrpano, if (!state.passthrough) look.chosen else look.soft, 25f * s)
+            Round(HomePanel.dockButton(3), HomePanel.Target.Library) {
+                Glyph(Icons.Rounded.Interests, look.soft, 36f)
             }
 
-            // The reference separates the dock's groups with a hairline that fades at both ends.
-            val dividerBrush = Brush.verticalGradient(
+            // The hairline between the controls and the apps, fading out at both ends.
+            val dividerBrush = Brush.horizontalGradient(
                 listOf(NextDesign.dividerColor.copy(alpha = 0f), NextDesign.dividerColor, NextDesign.dividerColor.copy(alpha = 0f))
             )
-            for (divider in HomePanel.DIVIDERS) At(x(divider), cy, 2f * s / 1.5f, 38f * s) {
+            At(HomePanel.DOCK_CX, (HomePanel.DOCK_STRIP_CY + HomePanel.DOCK_STRIP_H / 2 + HomePanel.DOCK_GRID_TOP) / 2,
+                HomePanel.DOCK_S - 2 * HomePanel.DOCK_PAD - 40f, 2f) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(dividerBrush))
             }
 
-            @Composable
-            fun App(at: Float, entry: HomePanel.Entry) {
+            // The apps: the pinned ones first, then what was opened lately (the same order the
+            // panel lays its targets out in, so a pinch opens the tile it is over).
+            HomePanel.dockOrder(state.pinned, state.recent).forEachIndexed { index, entry ->
+                val tile = HomePanel.dockTile(index % HomePanel.DOCK_COLS, index / HomePanel.DOCK_COLS)
                 val hover = state.hovered == HomePanel.Target.App(entry)
-                val size = 44f * s * (if (hover) (if (state.pressed) .95f else 1.1f) else 1f)
-                At(x(at), cy, size, size) {
-                    // The reference lifts a dock tile towards the user under the pointer; in VR that
-                    // reads as a slightly larger icon, which is what the size above already does.
-                    Box(Modifier.shadow(px(8f), RoundedCornerShape(px(size * .28f)))) { Tile(entry, size, state.dark) }
+                // The reference lifts a tile towards the user under the pointer; in VR that reads as
+                // a slightly larger icon, which is what the size below already does.
+                val size = HomePanel.DOCK_TILE * (if (hover) (if (state.pressed) .95f else 1.07f) else 1f)
+                At(tile.centerX(), tile.centerY(), size, size) {
+                    Box(Modifier.shadow(px(10f), RoundedCornerShape(px(size * .28f)))) { Tile(entry, size, state.dark) }
                 }
-            }
-            state.pinned.forEachIndexed { i, entry -> App(HomePanel.PINNED_AT + i * HomePanel.SLOT, entry) }
-            state.recent.forEachIndexed { i, entry -> App(HomePanel.RECENT_AT + i * HomePanel.SLOT, entry) }
-
-            val libraryOpen = state.library && !state.searching && state.mode != HomePanel.Mode.STORE && state.mode != HomePanel.Mode.MENU
-            Round(HomePanel.LIBRARY_AT, HomePanel.Target.Library, selected = libraryOpen) {
-                Glyph(Icons.Rounded.Interests, if (libraryOpen) look.chosen else look.soft, 28f * s)
             }
         }
     }
@@ -747,17 +766,16 @@ class HomePanelContent(private val panel: HomePanel) :
                 now = clock(); battery = battery(context); wifi = wifi(context)
             }
         }
-        val s = HomePanel.DOCK_SCALE
-        val cy = HomePanel.DOCK_CY
+        val box = HomePanel.dockStatus()
         with(LocalDensity.current) {
-            Text(now, look.ink, 19f * s,
-                Modifier.offset(HomePanel.dockX(HomePanel.CLOCK_AT).toDp(), (cy - 12.5f * s).toDp()), FontWeight.SemiBold)
+            Text(now, look.ink, 40f, Modifier.offset(box.left.toDp(), (box.top + 4f).toDp()), FontWeight.SemiBold)
+            Text("${battery.first}%", look.soft, 24f, Modifier.offset((box.left + 96f).toDp(), (box.bottom - 42f).toDp()), FontWeight.Medium)
         }
-        At(HomePanel.dockX(HomePanel.WIFI_AT), cy, 24f * s, 24f * s) {
-            Glyph(if (wifi) Icons.Rounded.Wifi else Icons.Rounded.WifiOff, look.soft, 22f * s)
+        At(box.left + 16f, box.bottom - 26f, 26f, 26f) {
+            Glyph(if (wifi) Icons.Rounded.Wifi else Icons.Rounded.WifiOff, look.soft, 24f)
         }
         // The battery as the reference's status strip draws it: an outline with the charge filled in.
-        At(HomePanel.dockX(HomePanel.BATTERY_AT), cy, 24f * s, 14f * s) {
+        At(box.left + 52f, box.bottom - 26f, 34f, 20f) {
             val ink = look.batteryInk
             val low = battery.first in 0..15 && !battery.second
             Canvas(Modifier.fillMaxSize()) {
@@ -773,6 +791,7 @@ class HomePanelContent(private val panel: HomePanel) :
             }
         }
     }
+
 
     private fun clock() = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
 

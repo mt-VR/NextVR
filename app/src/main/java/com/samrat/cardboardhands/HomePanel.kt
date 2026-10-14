@@ -23,6 +23,8 @@ class HomePanel {
         val searching: Boolean, val query: String, val symbols: Boolean, val language: L10n.Lang,
         val suggestions: List<Entry>, val alerts: Int, val passthrough: Boolean,
         val sliders: FloatArray, val showSliders: Boolean, val dnd: Boolean, val car: Boolean,
+        /** The dock is showing: it steps aside while the Library or a card covers the panel. */
+        val dock: Boolean,
     )
 
     var snapshot by androidx.compose.runtime.mutableStateOf<Snapshot?>(null)
@@ -131,6 +133,13 @@ class HomePanel {
 
     fun library() = (mode != Mode.HOME || !compact) && mode != Mode.QUICK
 
+    /**
+     * The dock is the home at rest: a compact square of its own. It gives way as soon as the panel
+     * is showing the Library, the store, a menu or the quick settings — those cover the panel where
+     * the dock sits, and each of them closes itself.
+     */
+    fun dockVisible() = mode == Mode.HOME && compact && !searching
+
     /** The worlds show the room sliders under them. */
     private fun showSliders() = library() && !searching && tab == Tab.ENVIRONMENTS &&
         (mode == Mode.HOME || mode == Mode.LIBRARY)
@@ -231,7 +240,7 @@ class HomePanel {
         snapshot = Snapshot(
             mode, tab, library(), page, pages, shown, pinned(), recent(), hovered, pressed, dark, sort,
             searching, query, symbols, keyboardLanguage, list.take(3), alerts, passthrough,
-            sliders.copyOf(), showSliders(), dnd, car,
+            sliders.copyOf(), showSliders(), dnd, car, dock = dockVisible(),
         )
     }
 
@@ -264,6 +273,7 @@ class HomePanel {
                 areas += RectF(rect.left - 20f, rect.top - 40f, rect.right + 20f, rect.bottom + 30f) to Target.Slider(item)
             }
             else areas += sortButton() to Target.Sort
+            areas += closeButton() to Target.Close
             if (pages > 1) for (i in 0 until pages) {
                 val x = pageDotX(i, pages)
                 areas += RectF(x - 24f, PAGE_DOTS_Y - 30f, x + 24f, PAGE_DOTS_Y + 30f) to Target.Page(i)
@@ -275,16 +285,18 @@ class HomePanel {
         }
     }
 
+    /** The apps of the dock's grid: the pinned ones first, then what was opened lately. */
+    private fun dockApps() = dockOrder(pinned(), recent())
+
     private fun dockLayout() {
-        fun slot(center: Float, halfWidth: Float = 26f) = RectF(dockX(center - halfWidth), DOCK_TOP, dockX(center + halfWidth), DOCK_TOP + DOCK_H)
-        areas += slot(AVATAR_AT) to Target.Control(Control.PROFILE)
-        areas += RectF(dockX(STATUS_FROM), DOCK_TOP, dockX(STATUS_TO), DOCK_TOP + DOCK_H) to Target.Control(Control.STATUS)
-        areas += slot(BELL_AT) to Target.Control(Control.NOTIFICATIONS)
-        areas += slot(SEARCH_AT) to Target.Control(Control.SEARCH)
-        areas += slot(PASSTHROUGH_AT) to Target.Control(Control.PASSTHROUGH)
-        pinned().forEachIndexed { i, entry -> areas += slot(PINNED_AT + i * SLOT, 28f) to Target.App(entry) }
-        recent().forEachIndexed { i, entry -> areas += slot(RECENT_AT + i * SLOT, 28f) to Target.App(entry) }
-        areas += slot(LIBRARY_AT, 30f) to Target.Library
+        if (!dockVisible()) return
+        areas += dockAvatar() to Target.Control(Control.PROFILE)
+        areas += dockStatus() to Target.Control(Control.STATUS)
+        areas += dockButton(0) to Target.Control(Control.SEARCH)
+        areas += dockButton(1) to Target.Control(Control.NOTIFICATIONS)
+        areas += dockButton(2) to Target.Control(Control.PASSTHROUGH)
+        areas += dockButton(3) to Target.Library
+        dockApps().forEachIndexed { i, entry -> areas += dockTile(i % DOCK_COLS, i / DOCK_COLS) to Target.App(entry) }
     }
 
     /** One key of the search keyboard, in panel pixels. */
@@ -359,7 +371,12 @@ class HomePanel {
         const val GRID_CENTER_X = GRID_LEFT_X + (COLUMNS - 1) * CELL_W / 2
         fun cell(index: Int) = Pair(GRID_LEFT_X + index % COLUMNS * CELL_W, GRID_TOP_Y + index / COLUMNS * ROW_PITCH)
 
-        fun sortButton() = RectF(1450f, 270f, 1710f, 336f)
+        fun sortButton() = RectF(1290f, 268f, 1540f, 338f)
+        /**
+         * The way back from the Library. The dock is what opens it, and the dock steps aside while
+         * the card covers the panel, so the card carries its own way out.
+         */
+        fun closeButton() = RectF(1560f, 258f, 1690f, 352f)
 
         /** The room sliders: tall pills in a row under the worlds. */
         fun sliderRect(index: Int): RectF {
@@ -379,32 +396,77 @@ class HomePanel {
         }
 
         // ---------------------------------------------------------------- the dock
-        /** The dock bar is the reference's dock (970×70 design units) scaled by [DOCK_SCALE]. */
-        const val DOCK_SCALE = 1.8f
-        const val DOCK_W = 970f * DOCK_SCALE
-        const val DOCK_H = 70f * DOCK_SCALE
-        const val DOCK_LEFT = (WIDTH - DOCK_W) / 2
-        const val DOCK_TOP = HEIGHT - DOCK_H - 12f
-        const val DOCK_CY = DOCK_TOP + DOCK_H / 2
-        /** Design x (0..970) → panel x. */
-        fun dockX(design: Float) = DOCK_LEFT + design * DOCK_SCALE
+        /**
+         * The dock: a square panel with well-rounded corners — a row of controls along its top, the
+         * apps in a grid below. It takes the place of the reference's dock bar, which ran nearly the
+         * whole width of the panel; this one is a tile sitting in the middle of the view, low down,
+         * small enough to leave the room around it alone.
+         *
+         * Everything below follows from [DOCK_S], the side of the square, and [DOCK_PAD].
+         */
+        const val DOCK_S = 760f
+        const val DOCK_LEFT = (WIDTH - DOCK_S) / 2
+        const val DOCK_TOP = HEIGHT - DOCK_S - 30f
+        const val DOCK_BOTTOM = DOCK_TOP + DOCK_S
+        const val DOCK_CX = WIDTH / 2f
+        /** The corners: a little under a quarter of the side, so the square reads as a tile. */
+        const val DOCK_R = DOCK_S * .22f
+        const val DOCK_PAD = 34f
+        /** The strip of controls along the top: the profile, the clock, then four round buttons. */
+        const val DOCK_STRIP_H = 108f
+        const val DOCK_STRIP_CY = DOCK_TOP + DOCK_PAD + DOCK_STRIP_H / 2
+        const val DOCK_AVATAR = 88f
+        const val DOCK_STATUS_W = 230f
+        /** The four round buttons: search, notifications, passthrough, and the Library. */
+        const val DOCK_BUTTONS = 4
+        const val DOCK_BTN = 76f
+        const val DOCK_BTN_GAP = 10f
+        /** The apps: a grid of [DOCK_COLS] × [DOCK_ROWS] square tiles, [DOCK_GAP] apart. */
+        const val DOCK_COLS = 3
+        const val DOCK_ROWS = 3
+        const val DOCK_GAP = 22f
+        const val DOCK_TILE = 166f
+        const val DOCK_PITCH = DOCK_TILE + DOCK_GAP
 
-        const val AVATAR_AT = 36f
-        const val STATUS_FROM = 76f
-        const val STATUS_TO = 192f
-        const val CLOCK_AT = 82f
-        const val WIFI_AT = 140f
-        const val BATTERY_AT = 172f
-        const val BELL_AT = 229f
-        const val SEARCH_AT = 285f
-        const val PASSTHROUGH_AT = 342f
-        val DIVIDERS = floatArrayOf(379f, 671f, 903f)
-        const val PINNED_AT = 414f
-        const val RECENT_AT = 702f
-        const val SLOT = 56f
-        const val LIBRARY_AT = 934f
+        val DOCK_GRID_W = DOCK_COLS * DOCK_PITCH - DOCK_GAP
+        val DOCK_GRID_H = DOCK_ROWS * DOCK_PITCH - DOCK_GAP
+        val DOCK_GRID_LEFT = DOCK_CX - DOCK_GRID_W / 2
+        /** Centred in what is left of the square under the strip. */
+        val DOCK_GRID_TOP = (DOCK_STRIP_CY + DOCK_STRIP_H / 2 + DOCK_BOTTOM - DOCK_PAD - DOCK_GRID_H) / 2
+
         const val PINNED = 5
         const val RECENT = 4
+
+        /** The profile, at the left of the strip. */
+        fun dockAvatar() = RectF(
+            DOCK_LEFT + DOCK_PAD, DOCK_STRIP_CY - DOCK_AVATAR / 2,
+            DOCK_LEFT + DOCK_PAD + DOCK_AVATAR, DOCK_STRIP_CY + DOCK_AVATAR / 2,
+        )
+
+        /** The clock, Wi‑Fi and the battery: it opens the quick settings. */
+        fun dockStatus() = RectF(
+            DOCK_LEFT + DOCK_PAD + DOCK_AVATAR + 16f, DOCK_STRIP_CY - DOCK_STRIP_H / 2,
+            DOCK_LEFT + DOCK_PAD + DOCK_AVATAR + 16f + DOCK_STATUS_W, DOCK_STRIP_CY + DOCK_STRIP_H / 2,
+        )
+
+        /** Round button [index] of the strip, counted from the left. */
+        fun dockButton(index: Int): RectF {
+            val span = DOCK_BTN * DOCK_BUTTONS + DOCK_BTN_GAP * (DOCK_BUTTONS - 1)
+            val left = DOCK_LEFT + DOCK_S - DOCK_PAD - span + index * (DOCK_BTN + DOCK_BTN_GAP)
+            return RectF(left, DOCK_STRIP_CY - DOCK_BTN / 2, left + DOCK_BTN, DOCK_STRIP_CY + DOCK_BTN / 2)
+        }
+
+        /**
+         * The apps of the grid in the order they are laid out, so that [dockTile] and the drawing
+         * agree on which tile is which: the pinned ones first, then what was opened lately.
+         */
+        fun dockOrder(pinned: List<Entry>, recent: List<Entry>) = (pinned + recent).take(DOCK_COLS * DOCK_ROWS)
+
+        /** The tile of column [col], row [row] of the app grid. */
+        fun dockTile(col: Int, row: Int) = RectF(
+            DOCK_GRID_LEFT + col * DOCK_PITCH, DOCK_GRID_TOP + row * DOCK_PITCH,
+            DOCK_GRID_LEFT + col * DOCK_PITCH + DOCK_TILE, DOCK_GRID_TOP + row * DOCK_PITCH + DOCK_TILE,
+        )
 
         // ---------------------------------------------------------------- quick settings
         /** The control centre is separate glass tiles, as on Quest; this is where they all are. */

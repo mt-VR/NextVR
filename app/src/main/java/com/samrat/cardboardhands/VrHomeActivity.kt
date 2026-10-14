@@ -69,8 +69,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
-import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentHashMap
@@ -88,8 +86,9 @@ import kotlin.math.hypot
 /**
  * PhoneXR Home, visionOS style, in mixed reality: the camera image fills the view, round app icons
  * float in front, apps open as windows (browser, Minecraft, Spatial Photos) with a move bar,
- * minimize to the dock and close. The hand aims a cursor and a pinch clicks, a fist at a window's left
- * or right edge carries it, and a palm held toward the face opens the menu.
+ * minimize to the dock and close. Of the hands, one gesture is left: the point between the thumb
+ * and the index finger is the cursor, and closing those two fingers on a tile of the home opens it
+ * (see [PinchHands]). Windows themselves are worked with the phone, a Joy-Con or a mouse.
  */
 class VrHomeActivity : Activity(), LifecycleOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -153,7 +152,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private val trackingExecutor = Executors.newSingleThreadExecutor()
     private val busy = AtomicBoolean(false)
-    private var handTracker: HandTracker? = null
+    /** The home's hand tracking: a pinch, and where the fingers closed (see [PinchHands]). */
+    private var pinchHands: PinchHands? = null
     private var cameraProvider: ProcessCameraProvider? = null
 
     @Volatile private var frame: Bitmap? = null
@@ -195,15 +195,13 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     private var onboardingTexture = 0
     /** When the home appeared after setup, for its entrance animation. */
     @Volatile private var appearStart = 0L
-    /** Bone lengths from the setup's hand scan (null before it). */
-    private val handProfile by lazy { HandProfile.bones(this) }
-    /** Pinch click, with the thresholds from the setup's calibration. */
-    private val pinch by lazy { HandProfile.latch(this) }
-    // Quick to follow a moving finger, still calm when it rests on a button.
-    private val filterX = HandGestures.OneEuro(minCutoff = .9f, beta = 3f, deadZone = .0015f)
-    private val filterY = HandGestures.OneEuro(minCutoff = .9f, beta = 3f, deadZone = .0015f)
+    // Quick to follow a moving pinch, still calm when it rests on a tile.
+    private val pinchX = HandGestures.OneEuro(minCutoff = .9f, beta = 3f, deadZone = .0015f)
+    private val pinchY = HandGestures.OneEuro(minCutoff = .9f, beta = 3f, deadZone = .0015f)
+    /** A pinch is being held: the cursor is small and the tile under it reads as pressed. */
+    @Volatile private var pinching = false
     private val steamVrLink = SteamVrLink()
-    /** Which hand drives the cursor: the one that pinches keeps it until it lets go. */
+    /** Which hand drives the cursor: the one that pinched keeps it until it opens again. */
     private var activeLeft: Boolean? = null
     private var lastMoveSent = 0L
 
@@ -304,8 +302,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         neckModel = six == null && !Settings.travelMode(this)
         remote.start()
         if (!BuildConfig.BE) trackingExecutor.execute {
-            handTracker = runCatching { HandTracker(this, useGpu = true, onResult = ::onHands) }
-                .getOrElse { HandTracker(this, useGpu = false, onResult = ::onHands) }
+            pinchHands = runCatching { PinchHands(this, useGpu = true) }
+                .getOrElse { PinchHands(this, useGpu = false) }
         }
     }
 
@@ -371,7 +369,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         panelContent?.release()
         six?.close()
         cameraExecutor.shutdownNow()
-        trackingExecutor.execute { handTracker?.close() }
+        trackingExecutor.execute { pinchHands?.close() }
         trackingExecutor.shutdown()
         super.onDestroy()
     }
@@ -890,63 +888,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    /** A palm turned to the face: its button, head space (tangent units). Right: PhoneXR, left: the menu. */
-    private class PalmButton(val left: Boolean, val x: Float, val y: Float, val radius: Float)
-    @Volatile private var palmButtons: List<PalmButton> = emptyList()
-    private val palmPinched = HashMap<Boolean, Boolean>()
-
-    /**
-     * As on Quest: look at your right palm and pinch — the quick menu; the left palm's pinch shows or
-     * hides the main menu. Returns the hands busy with their palm button.
-     */
-    private fun palmButtons(seen: List<SeenHand>): Set<Boolean> {
-        val buttons = ArrayList<PalmButton>()
-        val busy = HashSet<Boolean>()
-        for (hand in seen) {
-            val shape = hand.shape
-            if (!palmFacesEyes(hand) || shape.fist || hand.left == grabLeft) {
-                palmPinched[hand.left] = false
-                continue
-            }
-            val size = shape.palmWidth * 2f * viewScaleX
-            val x = (shape.pinchX - .5f) * 2f * viewScaleX
-            val y = (.5f - shape.pinchY) * 2f * viewScaleY + size * .18f
-            buttons += PalmButton(hand.left, x, y, size * .2f)
-            busy += hand.left
-            val pinched = shape.pinchGap < HandGestures.PINCH_CLOSE_GAP
-            val before = palmPinched[hand.left] == true
-            palmPinched[hand.left] = pinched
-            if (pinched && !before) runOnUiThread {
-                if (hand.left) toggleLibrary() else if (handMenu == null) openHandMenu(false) else closeHandMenu()
-            }
-        }
-        seen.map { it.left }.toSet().let { present -> palmPinched.keys.retainAll(present) }
-        palmButtons = buttons
-        return busy
-    }
-
-    /**
-     * The palm really turned to the eyes, fingers up (as when looking at the palm on Quest) — from
-     * the hand's 3D points, so a hand pointing forward never counts and keeps clicking.
-     */
-    private fun palmFacesEyes(hand: SeenHand): Boolean {
-        val p = hand.head ?: return false
-        fun v(i: Int) = floatArrayOf(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])
-        val wrist = v(0); val index = v(5); val pinky = v(17); val middle = v(9)
-        val a = floatArrayOf(index[0] - wrist[0], index[1] - wrist[1], index[2] - wrist[2])
-        val b = floatArrayOf(pinky[0] - wrist[0], pinky[1] - wrist[1], pinky[2] - wrist[2])
-        val sign = if (hand.left) -1f else 1f
-        val n = floatArrayOf(sign * (a[1] * b[2] - a[2] * b[1]), sign * (a[2] * b[0] - a[0] * b[2]), sign * (a[0] * b[1] - a[1] * b[0]))
-        val nl = kotlin.math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).coerceAtLeast(1e-6f)
-        // Towards the eyes: from the palm to the head's origin.
-        val c = floatArrayOf((wrist[0] + middle[0]) / 2, (wrist[1] + middle[1]) / 2, (wrist[2] + middle[2]) / 2)
-        val cl = kotlin.math.sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).coerceAtLeast(1e-6f)
-        val facing = -(n[0] * c[0] + n[1] * c[1] + n[2] * c[2]) / (nl * cl)
-        val up = floatArrayOf(middle[0] - wrist[0], middle[1] - wrist[1], middle[2] - wrist[2])
-        val ul = kotlin.math.sqrt(up[0] * up[0] + up[1] * up[1] + up[2] * up[2]).coerceAtLeast(1e-6f)
-        return facing > .6f && up[1] / ul > .55f
-    }
-
     /** BE, without a camera: the middle of the view aims — a small dot on what it meets. */
     private fun gaze() {
         val head = FloatArray(16).also { tracker.copyHead(it) }
@@ -957,7 +898,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         updateHit(target)
         val far = when (target) { null -> 1.2f; is Hit.Panel, is Hit.Setup -> panelRadius; else -> windowRadius }
         beam = floatArrayOf(0f, 0f, 0f, 0f, 0f, -far, 1f)
-        otherBeam = null
         if (pressing) dragOrMove(direction)
     }
 
@@ -978,29 +918,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         val recorder = runCatching { VideoRecorder(this, 1280, 1152) }.getOrElse { return toast(tr("Couldn't start recording")) }
         view.pendingRecorder = recorder
         toast(tr("Recording"))
-    }
-
-    /** Compact palm menu: only the two actions that must remain available everywhere. */
-    @Volatile private var handMenu: HandMenu? = null
-
-    /** Palm held toward the face: the compact menu above that hand. */
-    private fun openHandMenu(holderLeft: Boolean) {
-        // The menu's icons: the design language's ink ([NextDesign] through the palette helper).
-        val ink = MaterialYouIcons.palette(this, true).glyph
-        handMenu = HandMenu(holderLeft, listOf(
-            HandMenu.Item(MENU_MUTE, if (Calls.muted) tr("Mic off") else tr("Mute"), vectorIcon(if (Calls.muted) Icons.Rounded.MicOff else Icons.Rounded.Mic, ink)),
-            HandMenu.Item(MENU_RECENTER, tr("Recenter"), vectorIcon(Icons.Rounded.CenterFocusStrong, ink)),
-            HandMenu.Item(MENU_RECORD, if (renderer?.recording == true) tr("Stop recording") else tr("Record video"),
-                vectorIcon(if (renderer?.recording == true) Icons.Rounded.Stop else Icons.Rounded.Videocam, ink)),
-            HandMenu.Item(MENU_PASSTHROUGH, tr("See your room"), vectorIcon(Icons.Rounded.Visibility, ink)),
-            HandMenu.Item(MENU_TOGGLE_APPS, tr("Menu"), vectorIcon(Icons.Rounded.Apps, ink)),
-        ))
-        pinch.reset()
-        filterX.reset(); filterY.reset()
-    }
-
-    private fun closeHandMenu() {
-        handMenu = null
     }
 
     private fun openMenu() {
@@ -1069,7 +986,9 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     if (busy.compareAndSet(false, true)) {
                         val small = Bitmap.createScaledBitmap(upright, 640, 640 * upright.height / upright.width, true)
                         trackingExecutor.execute {
-                            try { handTracker?.detect(small, timestamp) } finally { small.recycle(); busy.set(false) }
+                            try {
+                                pinchHands?.detect(small, timestamp, map = arFrameMap, scaleX = viewScaleX, scaleY = viewScaleY)?.let { onPinch(it) }
+                            } finally { small.recycle(); busy.set(false) }
                         }
                     }
                 } catch (error: Throwable) {
@@ -1081,298 +1000,64 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun onHands(result: HandLandmarkerResult) {
-        val now = SystemClock.elapsedRealtimeNanos()
-        // The camera frame this result belongs to: the head is looked up for that moment.
-        val frameNs = result.timestampMs() * 1_000_000L
-        // ARCore frames: landmarks are on the upright camera image; place them on the eye's view.
-        val map = arFrameMap
-        val raw = result.landmarks().map { points ->
-            if (map == null) points
-            else points.map { NormalizedLandmark.create(map[0] + it.x() * map[2], map[1] + it.y() * map[3], it.z()) }
-        }
-        // Every point of each hand through a One Euro filter: steady while the hand holds still,
-        // no lag when it moves — the silhouette, the ray and the pinch all stop trembling.
-        val landmarks = raw.mapIndexed { index, points ->
-            if (points.size < 21) return@mapIndexed points
-            val label = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName() ?: "hand$index"
-            handSmoothers.getOrPut(label) { LandmarkSmoother() }.smooth(points, frameNs)
-        }
-        // A hand that is gone starts afresh next time instead of sliding in from where it was.
-        val present = raw.indices.mapNotNull { result.handednesses().getOrNull(it)?.firstOrNull()?.categoryName() }.toSet()
-        handSmoothers.keys.retainAll(present)
-        handPoints = landmarks.filter { it.size >= 21 }.map { points ->
-            FloatArray(63) { i -> when (i % 3) { 0 -> points[i / 3].x(); 1 -> points[i / 3].y(); else -> points[i / 3].z() } }
-        }
-        val world = result.worldLandmarks()
-        val seen = landmarks.mapIndexedNotNull { index, points ->
-            if (points.size < 21) return@mapIndexedNotNull null
-            val physicalLeft = result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true)
-            val depth = world.getOrNull(index)?.let { HandGestures.tipDepth(points, it, viewScaleX, viewScaleY) } ?: 0f
-            val head = world.getOrNull(index)?.let { HandGestures.headPoints(points, it, viewScaleX, viewScaleY) }
-            SeenHand(physicalLeft, HandGestures.shape(points, physicalLeft), depth, head)
-        }
-        val hands = seen.map { it.left to it.shape }
-        val steamHead = FloatArray(16).also { tracker.copyHead(it) }
-        val steamPosition = synchronized(headPosition) { headPosition.copyOf() }
-        steamVrLink.send(steamHead, steamPosition, hands.map { SteamVrLink.Hand(it.first, it.second) })
-        onboarding?.onHands(hands, handPoints)
-
-
-        // An immersive WebXR page fills the view: a push of the finger is its "select", and the
-        // palm held toward the face leaves it.
-        windows.firstOrNull { it.content.immersive }?.let { xrWindow ->
-            immersiveInput(xrWindow, seen, now)
-            return
-        }
-
-        // The hand menu rides on the hand that called it; the other hand touches it.
-        val menu = handMenu
-        if (menu != null) {
-            val holder = landmarks.indices.firstOrNull { index ->
-                landmarks[index].size >= 21 &&
-                    result.handednesses().getOrNull(index)?.firstOrNull()?.categoryName().equals("Right", true) == menu.holderLeft
-            }?.let { landmarks[it] }
-            if (holder != null) {
-                fun tx(i: Int) = (holder[i].x() - .5f) * 2f * viewScaleX
-                fun ty(i: Int) = (.5f - holder[i].y()) * 2f * viewScaleY
-                val palm = intArrayOf(0, 5, 9, 17)
-                // Placed once where the hand opened it (as on Quest).
-                if (menu.x.isNaN()) menu.follow(palm.map { tx(it) }.average().toFloat(), palm.map { ty(it) }.average().toFloat(),
-                    kotlin.math.hypot(tx(9) - tx(0), ty(9) - ty(0)))
-            }
-            // Then it stays in the room: fixed as a world direction, redrawn where it now is in view.
-            if (!menu.x.isNaN()) {
-                val headNow = FloatArray(16).also { tracker.copyHeadAt(frameNs, it) }
-                val world = menu.world ?: FloatArray(4).also {
-                    Matrix.multiplyMV(it, 0, headNow, 0, floatArrayOf(menu.x, menu.y, -1f, 0f), 0)
-                    menu.world = it
-                }
-                val toHead = FloatArray(16).also { Matrix.transposeM(it, 0, headNow, 0) }
-                val local = FloatArray(4).also { Matrix.multiplyMV(it, 0, toHead, 0, world, 0) }
-                if (local[2] < -.05f) { menu.x = local[0] / -local[2]; menu.y = local[1] / -local[2] }
-            }
-            // It stays open where it is until an item is picked or the palm button is pinched again.
-        }
-
-        // A fist at the left or right edge of a window takes it; opening the hand lets go.
-        grabWindows(seen, frameNs)
-
-        // NEAR: a fingertip close to a window touches it directly, and the pointer is off.
-        // FAR (below): the pointer, exactly as before.
-        if (menu == null && !mouseActive() && directTouch(seen, frameNs)) return
-
-        // The pointing hand: the one already pinching keeps the ray, else a pinching one, else the nearest.
-        val pointing = seen.filter { it.left != grabLeft }
-        val chosen = pointing.firstOrNull { it.left == activeLeft && pinch.pinching }
-            ?: pointing.firstOrNull { it.shape.pinchGap < HandGestures.PINCH_CLOSE_GAP }
-            ?: pointing.maxByOrNull { it.shape.palmWidth }
-        if (chosen != null && chosen.left != activeLeft) {
-            if (activeLeft != null) { filterX.reset(); filterY.reset() }
-            if (pinch.pinching) { pinch.reset(); release() }
-            activeLeft = chosen.left
-        }
-        val hand = chosen?.shape
-        // A mouse in use owns the pointer; the hands are still drawn.
-        if (mouseActive()) { beam = null; otherBeam = null; return }
-        if (hand == null) {
+    /**
+     * The hands of one camera frame ([PinchHands]). The point between the thumb tip and the index
+     * tip is the cursor — it sits on the fingers themselves, not at the end of a ray — and closing
+     * those two fingers on a tile of the home opens it. Nothing else in the home answers to a hand:
+     * no beam to aim with, no fist that takes hold of a window, no menu on the palm.
+     */
+    private fun onPinch(frame: PinchHands.Frame) {
+        handPoints = frame.points
+        // The first-start setup still wants the hands, to scan them.
+        onboarding?.onHands(frame.shapes, frame.points)
+        val seen = frame.hands
+        // The hand the cursor follows: one that is pinching takes it (that is the hand about to
+        // open something), else the one it followed before, else the nearest — the biggest hand
+        // in the picture.
+        val chosen = seen.firstOrNull { it.pinching }
+            ?: activeLeft?.let { left -> seen.firstOrNull { it.left == left } }
+            ?: seen.maxByOrNull { it.shape.palmWidth }
+        if (chosen == null) {
             activeLeft = null
-            filterX.reset(); filterY.reset(); pinch.reset()
+            pinchX.reset(); pinchY.reset()
+            pinching = false
             ray = null
             pinchPoint = null
-            beam = null; otherBeam = null
-            // A Joy-Con button held down keeps its press even when the hand leaves the camera.
-            if (menu == null && !mouseDown) release()
+            beam = null
             updateHit(null)
             return
         }
-        // The ray, as on Quest: it leaves the hand (between the thumb and index knuckles, which
-        // stay put while the fingers pinch) and goes on away from the shoulder, so the ring sits a
-        // little ahead of the hand. Worked out on the view itself: the hand's depth from the camera
-        // is too noisy to steer by.
-        val baseX = (hand.aimX - .5f) * 2f * viewScaleX
-        val baseY = (.5f - hand.aimY) * 2f * viewScaleY
-        val rightSide = chosen.head?.let { it[0] > 0f } ?: (baseX > 0f)
-        val shoulderX = if (rightSide) SHOULDER_X else -SHOULDER_X
-        val rawX = baseX + (baseX - shoulderX) * RAY_LEAD
-        val rawY = baseY + (baseY - SHOULDER_Y) * RAY_LEAD
-        val tx = filterX.filter(rawX, now)
-        val ty = filterY.filter(rawY, now)
-        val direction = tangentRay(tx, ty, frameNs)
+        if (chosen.left != activeLeft) { activeLeft = chosen.left; pinchX.reset(); pinchY.reset() }
+        val now = SystemClock.elapsedRealtimeNanos()
+        // The pinch point as a point of the view, filtered so it rests still while the hand does.
+        val tx = pinchX.filter((chosen.x - .5f) * 2f * viewScaleX, now)
+        val ty = pinchY.filter((.5f - chosen.y) * 2f * viewScaleY, now)
+        val direction = tangentRay(tx, ty, frame.timeNs)
         ray = direction
-        pinchPoint = null
-        val wasPinching = pinch.pinching
-        val pinching = pinch.update(hand)
-        if (menu != null) {
-            menu.hover(menu.itemAt(tx, ty))
-            updateHit(null)
-            beam = null; otherBeam = null
-            if (pinching && !wasPinching) {
-                val item = menu.item(menu.itemAt(tx, ty))
-                closeHandMenu()
-                if (item != null) runOnUiThread { openEntry(HomePanel.Entry(item.id, item.label, item.icon)) }
-            }
-            return
-        }
+        // No beam: the cursor is drawn on the fingers themselves.
+        beam = null
+        pinchPoint = floatArrayOf(tx / (2f * viewScaleX) + .5f, .5f - ty / (2f * viewScaleY))
         val target = hitTest(direction)
         updateHit(target)
-        // The beam ends where it meets what it points at (about the distance of the home or a window).
-        beam = beamFor(baseX, baseY, tx, ty, target)
-        // Two hands, as on Quest: the other hand has its own cursor too; a pinch makes it the one that clicks.
-        otherBeam = pointing.firstOrNull { it.left != chosen.left }?.let { other ->
-            if (other.left != otherLeft) { otherFilterX.reset(); otherFilterY.reset(); otherLeft = other.left }
-            val ox = (other.shape.aimX - .5f) * 2f * viewScaleX
-            val oy = (.5f - other.shape.aimY) * 2f * viewScaleY
-            val oShoulder = if (other.head?.let { it[0] > 0f } ?: (ox > 0f)) SHOULDER_X else -SHOULDER_X
-            val otx = otherFilterX.filter(ox + (ox - oShoulder) * RAY_LEAD, now)
-            val oty = otherFilterY.filter(oy + (oy - SHOULDER_Y) * RAY_LEAD, now)
-            beamFor(ox, oy, otx, oty, hitTest(tangentRay(otx, oty, frameNs)))
-        }
-        when {
-            pinching && !wasPinching -> press(target, direction)
-            pinching -> dragOrMove(direction)
-            wasPinching -> release()
-        }
-    }
-
-    // ------------------------------------------------------------------ direct touch (NEAR)
-
-    /** The window the index fingertip is near, and whose hand it is (null: FAR, the pointer). */
-    private var nearWindow: VrWindow? = null
-    private var nearLeft = false
-    /** The finger is on the window's surface: a touch is down. */
-    private var touching = false
-    /** Smoothed distance of the fingertip in front of the window's plane (metres), and where on it. */
-    private var nearD = 0f
-    private var nearU = 0f
-    private var nearV = 0f
-
-    /**
-     * Direct touch, like a tablet: the index fingertip (in 3D, from the hand's metric landmarks)
-     * against the plane of each flat window. Within [NEAR_DISTANCE] of a window, inside its edges,
-     * the pointer goes away; the finger reaching the surface is ACTION_DOWN, moving on it
-     * ACTION_MOVE, pulling back ACTION_UP — one contact, one press. The distance is smoothed, and
-     * the way in and the way out have different thresholds, so tracking jitter does not click.
-     * True while NEAR (the pointer must stay off).
-     */
-    private fun directTouch(seen: List<SeenHand>, frameNs: Long): Boolean {
-        val head = FloatArray(16).also { tracker.copyHeadAt(frameNs, it) }
-        val position = synchronized(headPosition) { headPosition.copyOf() }
-        class Near(val left: Boolean, val window: VrWindow, val d: Float, val u: Float, val v: Float, val tip: FloatArray)
-        var best: Near? = null
-        val rotate = FloatArray(16)
-        val local = FloatArray(4)
-        for (hand in seen) {
-            if (hand.left == grabLeft) continue
-            val p = hand.head ?: continue
-            // Only a finger within real arm's reach touches: a far hand's distance is a guess that
-            // tops out near the windows' own distance and would take the pointer away.
-            if (kotlin.math.sqrt(p[24] * p[24] + p[25] * p[25] + p[26] * p[26]) > ARM_REACH) continue
-            // Landmark 8: the tip of the index finger, head space → world.
-            val w = FloatArray(4)
-            Matrix.multiplyMV(w, 0, head, 0, floatArrayOf(p[24], p[25], p[26], 0f), 0)
-            val tip = floatArrayOf(w[0] + position[0], w[1] + position[1], w[2] + position[2], 1f)
-            for (window in windows) {
-                if (window.minimized || window.arcDegrees > 0f || window.content.immersive) continue
-                val current = window == nearWindow && hand.left == nearLeft
-                Matrix.setRotateM(rotate, 0, -window.yaw, 0f, 1f, 0f)
-                Matrix.multiplyMV(local, 0, rotate, 0, tip, 0)
-                // The window's plane is z = -radius in its own frame, facing the room's middle.
-                val d = local[2] + windowRadius
-                val x = local[0]
-                val y = local[1] - window.height
-                val margin = if (current) NEAR_MARGIN_OUT else NEAR_MARGIN_IN
-                if (d > (if (current) NEAR_EXIT else NEAR_DISTANCE) || d < -NEAR_BEHIND) continue
-                if (abs(x) > window.width / 2 + margin || abs(y) > window.heightM / 2 + margin) continue
-                val u = (x + window.width / 2) / window.width
-                val v = (window.heightM / 2 - y) / window.heightM
-                val candidate = Near(hand.left, window, d, u, v, tip)
-                val held = best?.let { it.window == nearWindow && it.left == nearLeft } == true
-                if (best == null || current || !held && abs(d) < abs(best.d)) best = candidate
+        pinching = chosen.pinching
+        // The fingers have just closed: whatever of the home is under them opens. An app of the
+        // dock, one of the dock's controls, or a key of the setup's own panel — and nothing else.
+        if (!chosen.began) return
+        when (target) {
+            is Hit.Panel -> {
+                val item = synchronized(panel) { panel.hit(target.u, target.v) }
+                if (item != null) runOnUiThread { panelAction(item); redraw.set(true) }
             }
+            is Hit.Setup -> runOnUiThread { onboarding?.press(target.u, target.v); redraw.set(true) }
+            else -> Unit
         }
-        val near = best
-        if (near == null) {
-            endTouch()
-            return false
-        }
-        if (near.window != nearWindow || near.left != nearLeft) {
-            // Entering NEAR: the pointer's press (if any) ends, then the finger takes over.
-            endTouch()
-            if (pinch.pinching) pinch.reset()
-            release()
-            nearWindow = near.window
-            nearLeft = near.left
-            nearD = near.d; nearU = near.u; nearV = near.v
-        } else {
-            nearD += (near.d - nearD) * TOUCH_SMOOTHING
-            nearU += (near.u - nearU) * TOUCH_SMOOTHING
-            nearV += (near.v - nearV) * TOUCH_SMOOTHING
-        }
-        val window = near.window
-        val inside = nearU in 0f..1f && nearV in 0f..1f
-        val u = nearU.coerceIn(0f, 1f); val v = nearV.coerceIn(0f, 1f)
-        if (!touching && inside && nearD <= TOUCH_IN && previousNearD > TOUCH_IN) {
-            touching = true
-            focused = window
-            window.content.touch(MotionEvent.ACTION_DOWN, u, v)
-        } else if (touching && (nearD >= TOUCH_OUT || !inside)) {
-            window.content.touch(MotionEvent.ACTION_UP, u, v)
-            touching = false
-        } else if (touching) {
-            window.content.touch(MotionEvent.ACTION_MOVE, u, v)
-        }
-        previousNearD = nearD
-        // No pointer: only a ring on the window where the finger is over it, smaller while touching.
-        ray = null
-        pinchPoint = null
-        updateHit(null)
-        Matrix.setRotateM(rotate, 0, window.yaw, 0f, 1f, 0f)
-        val normal = FloatArray(4)
-        Matrix.multiplyMV(normal, 0, rotate, 0, floatArrayOf(0f, 0f, 1f, 0f), 0)
-        val onPlane = floatArrayOf(
-            near.tip[0] - normal[0] * near.d - position[0],
-            near.tip[1] - normal[1] * near.d - position[1],
-            near.tip[2] - normal[2] * near.d - position[2], 0f,
-        )
-        val toHead = FloatArray(16)
-        Matrix.transposeM(toHead, 0, head, 0)
-        val h = FloatArray(4)
-        Matrix.multiplyMV(h, 0, toHead, 0, onPlane, 0)
-        // Start at 0: drawBeam draws no drop and no ray then, only the ring.
-        beam = if (h[2] < -.05f) floatArrayOf(0f, 0f, 0f, h[0], h[1], h[2], 1f) else null
-        otherBeam = null
-        return true
-    }
-
-    private var previousNearD = 1f
-
-    /** Leaves NEAR: a touch still down is lifted (ACTION_UP), and the pointer may come back. */
-    private fun endTouch() {
-        val window = nearWindow
-        if (touching && window != null) window.content.touch(MotionEvent.ACTION_UP, nearU.coerceIn(0f, 1f), nearV.coerceIn(0f, 1f))
-        touching = false
-        nearWindow = null
-        previousNearD = 1f
     }
 
     /**
-     * The hand's ray for drawing, in head space: where it leaves the hand (x, y, z), where it ends
-     * (x, y, z), and 1 when it ends on something. Null without a pointing hand.
+     * The dot in the middle of the view for BE, which has no camera and so no hands: a beam of no
+     * length, drawn as a ring where it meets what the head is looking at. Null everywhere else.
      */
     @Volatile private var beam: FloatArray? = null
-    /** The other hand's cursor (it points, but only the clicking hand presses). */
-    @Volatile private var otherBeam: FloatArray? = null
-    private var otherLeft: Boolean? = null
-    private val otherFilterX = HandGestures.OneEuro(minCutoff = .9f, beta = 3f, deadZone = .0015f)
-    private val otherFilterY = HandGestures.OneEuro(minCutoff = .9f, beta = 3f, deadZone = .0015f)
-
-    /** A beam from the hand at ([hx], [hy]) along the tangent ([tx], [ty]) to what it meets. */
-    private fun beamFor(hx: Float, hy: Float, tx: Float, ty: Float, target: Hit?): FloatArray {
-        val far = when (target) { null -> 1.2f; is Hit.Panel, is Hit.Setup -> panelRadius; else -> windowRadius }
-        val length = kotlin.math.sqrt(tx * tx + ty * ty + 1f)
-        return floatArrayOf(hx, hy, -1f, tx / length * far, ty / length * far, -1f / length * far, if (target != null) 1f else 0f)
-    }
 
     /**
      * How far the home, the windows and the keyboard stand. In 6DoF the eye's view is the camera's,
@@ -1392,129 +1077,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         tracker.copyHeadAt(frameNs, head)
         val world = FloatArray(4)
         Matrix.multiplyMV(world, 0, head, 0, floatArrayOf(x, y, -1f, 0f), 0)
-        return world
-    }
-
-    private val handSmoothers = HashMap<String, LandmarkSmoother>()
-
-    /** One Euro filters for the 21 points of one hand (x and y on the view, z relative depth). */
-    private class LandmarkSmoother {
-        private val filters = Array(21 * 3) { i ->
-            if (i % 3 == 2) HandGestures.OneEuro(minCutoff = .8f, beta = 1.2f)
-            else HandGestures.OneEuro(minCutoff = 1.4f, beta = 12f, deadZone = .0008f)
-        }
-
-        fun smooth(points: List<NormalizedLandmark>, timeNs: Long): List<NormalizedLandmark> = points.mapIndexed { i, p ->
-            if (i >= 21) p
-            else NormalizedLandmark.create(
-                filters[i * 3].filter(p.x(), timeNs),
-                filters[i * 3 + 1].filter(p.y(), timeNs),
-                filters[i * 3 + 2].filter(p.z(), timeNs),
-            )
-        }
-    }
-
-    private class SeenHand(val left: Boolean, val shape: HandGestures.Shape, val depth: Float, val head: FloatArray? = null)
-
-    private fun immersiveInput(window: VrWindow, seen: List<SeenHand>, now: Long) {
-        updateHit(null)
-        ray = null
-        // The hands themselves, in 3D, for pages that play with them.
-        val json = org.json.JSONArray()
-        seen.forEach { hand ->
-            val points = hand.head ?: return@forEach
-            val p = org.json.JSONArray()
-            points.forEach { p.put(Math.round(it * 10000) / 10000.0) }
-            json.put(org.json.JSONObject().put("left", hand.left).put("p", p)
-                .put("pinch", hand.shape.pinchGap < HandGestures.PINCH_CLOSE_GAP).put("grab", hand.shape.fist))
-        }
-        window.content.hands(org.json.JSONObject().put("hands", json).toString())
-        // A pinch is WebXR "select".
-        val hand = seen.firstOrNull { it.shape.pinchGap < HandGestures.PINCH_CLOSE_GAP }?.shape ?: seen.maxByOrNull { it.shape.palmWidth }?.shape
-        val was = pinch.pinching
-        val pinching = hand != null && pinch.update(hand)
-        if (hand == null) pinch.reset()
-        // Palm toward the face and a pinch leaves the immersive page.
-        if (pinching && !was && hand?.palmToFace == true) { window.content.exitImmersive(); return }
-        if (pinching && !was) window.content.touch(MotionEvent.ACTION_DOWN, .5f, .5f)
-        if (!pinching && was) window.content.touch(MotionEvent.ACTION_UP, .5f, .5f)
-    }
-
-    /** Window held by a fist, and which hand holds it. */
-    private var grab: Drag? = null
-    private var grabLeft: Boolean? = null
-    private val grabX = HandGestures.OneEuro(minCutoff = .6f, beta = 1f)
-    private val grabY = HandGestures.OneEuro(minCutoff = .6f, beta = 1f)
-
-    private fun grabWindows(seen: List<SeenHand>, frameNs: Long) {
-        val now = SystemClock.elapsedRealtimeNanos()
-        val holding = grab
-        if (holding != null) {
-            val hand = seen.firstOrNull { it.left == grabLeft }
-            if (hand == null || !hand.shape.fist) {
-                grab = null; grabLeft = null
-                redraw.set(true)
-                return
-            }
-            val direction = pointerRay(grabX.filter(hand.shape.palmX, now), grabY.filter(hand.shape.palmY, now), frameNs)
-            holding.window.yaw = holding.startYaw + (yawOf(direction) - holding.pointerYaw)
-            holding.window.height = holding.startHeight + (heightAt(direction, windowRadius) - holding.pointerHeight)
-            return
-        }
-        // An open hand near a window's edge lights its frame: a fist there takes it.
-        grabHover = seen.firstOrNull { !it.shape.fist }?.let { hand ->
-            val direction = pointerRay(hand.shape.palmX, hand.shape.palmY, frameNs)
-            sideHit(direction)?.takeIf { window ->
-                val local = toLocal(direction, window.yaw, windowRadius) ?: return@takeIf false
-                val x = abs(local[0]); val y = local[1] - window.height
-                x > window.width / 2 - SIDE_INSIDE || y > window.heightM / 2 - SIDE_INSIDE || y < -window.heightM / 2 + SIDE_INSIDE
-            }
-        }
-        // A fist that just closed on a window takes that window.
-        for (hand in seen) {
-            val closed = hand.shape.fist
-            val before = fistBefore[hand.left] == true
-            fistBefore[hand.left] = closed
-            if (!closed || before) continue
-            grabX.reset(); grabY.reset()
-            val direction = pointerRay(grabX.filter(hand.shape.palmX, now), grabY.filter(hand.shape.palmY, now), frameNs)
-            val side = sideHit(direction)
-            if (side == null) continue
-            if (pinch.pinching && activeLeft == hand.left) { pinch.reset(); release() }
-            focused = side
-            grab = Drag(side, side.yaw, side.height, yawOf(direction), heightAt(direction, windowRadius))
-            grabLeft = hand.left
-            redraw.set(true)
-            return
-        }
-    }
-
-    private val fistBefore = HashMap<Boolean, Boolean>()
-
-    /** The window under an open hand's palm near its edge: its white frame shows it can be taken. */
-    @Volatile private var grabHover: VrWindow? = null
-
-    /** The window under the palm (with a margin around it), for a fist to take. */
-    private fun sideHit(direction: FloatArray): VrWindow? {
-        val ordered = windows.filter { !it.minimized && !it.content.immersive }.sortedByDescending { it == focused }
-        for (window in ordered) {
-            val local = toLocal(direction, window.yaw, windowRadius) ?: continue
-            val x = abs(local[0])
-            val y = local[1] - window.height
-            val w = window.width / 2
-            // The whole window and a margin around it: a fist anywhere on it takes it.
-            if (x < w + SIDE_OUTSIDE && y < window.heightM / 2 + barHeight(window) + .08f && y > frameBottom(window) - .06f) return window
-        }
-        return null
-    }
-
-    /** A point of the camera picture (the fingertip) seen from the eyes, as a world direction. */
-    private fun pointerRay(x: Float, y: Float, frameNs: Long): FloatArray {
-        val head = FloatArray(16)
-        tracker.copyHeadAt(frameNs, head)
-        val local = floatArrayOf((x - .5f) * 2f * viewScaleX, (.5f - y) * 2f * viewScaleY, -1f, 0f)
-        val world = FloatArray(4)
-        Matrix.multiplyMV(world, 0, head, 0, local, 0)
         return world
     }
 
@@ -2250,23 +1812,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
     private fun letterIcon(name: String): Drawable =
         MaterialYouIcons.palette(name, MaterialYouIcons.dark(this)).let { symbolIcon(name.take(1).uppercase(), it.tile, it.glyph) }
 
-    /** A Material icon in [ink] on a clear square: the vector's own paths, drawn at 256 px. */
-    private fun vectorIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, ink: Int): Drawable = iconCanvas { canvas, size ->
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink }
-        val scale = size / icon.viewportWidth
-        canvas.save()
-        canvas.scale(scale, scale)
-        fun draw(group: androidx.compose.ui.graphics.vector.VectorGroup) {
-            for (child in group) when (child) {
-                is androidx.compose.ui.graphics.vector.VectorPath ->
-                    canvas.drawPath(androidx.compose.ui.graphics.vector.PathParser().addPathNodes(child.pathData).toPath().asAndroidPath(), paint)
-                is androidx.compose.ui.graphics.vector.VectorGroup -> draw(child)
-            }
-        }
-        draw(icon.root)
-        canvas.restore()
-    }
-
     private fun iconCanvas(paint: (Canvas, Float) -> Unit): Drawable {
         val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
         paint(Canvas(bitmap), 256f)
@@ -2613,7 +2158,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                         val frame = job()
                         if (frame != null) {
                             arFrameMap = floatArrayOf(frame.viewLeft, frame.viewTop, frame.viewWidth, frame.viewHeight)
-                            handTracker?.detect(frame.bitmap, frame.timestampNs / 1_000_000L)
+                            pinchHands?.detect(frame.bitmap, frame.timestampNs / 1_000_000L, map = arFrameMap, scaleX = viewScaleX, scaleY = viewScaleY)?.let { onPinch(it) }
                             // Swapped under the lock that photo and call snapshots read it with.
                             synchronized(frameLock) {
                                 val old = arPhoto
@@ -2642,7 +2187,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             if (neckModel && !carMode) neck()
             if (redraw.getAndSet(false)) {
                 // The layout (where each target is) and the compose-hig panel's state, which redraws itself.
-                synchronized(panel) { panel.draw(hoveredPanel, pressing) }
+                synchronized(panel) { panel.draw(hoveredPanel, pressing || pinching) }
             }
             if (panelFrame.getAndSet(false)) panelSurface?.updateTexImage()
             val setup = onboarding
@@ -2832,7 +2377,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     // (close, minimize, title, keyboard); and a handle under it to move the window.
                     val hovered = hit
                     val dragging = drag
-                    val held = grab?.window == window || hovered is Hit.Bar && hovered.window == window || dragging?.window == window && !dragging.resize
+                    val held = hovered is Hit.Bar && hovered.window == window || dragging?.window == window && !dragging.resize
                     val title = window.content.toolbarTitle()
                     if (window.content is BrowserContent && title != null) browserBar(window, title, mvp, w, h, z)
                     val lit = when {
@@ -2847,8 +2392,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
                     val name = if (window.content is BrowserContent) window.title else title ?: window.title
                     pill(window, name, mvp, h, z, typing == window, lit, held)
                     // Held by the hand (or with the hand at its edge): a glowing white frame, as on Quest.
-                    val grabbed = grab?.window == window
-                    if (grabbed || grabHover == window) grabFrame(window, mvp, w, h, z, if (grabbed) 1f else .45f)
                     val handleY = frameBottom(window) - WindowChrome.HANDLE_GAP
                     if (window.id == "desktop") desktopControls(mvp, handleY - .12f, z)
                 }
@@ -3021,46 +2564,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             return id
         }
 
-        /**
-         * The white frame around a window being carried: a rounded outline a little outside it
-         * (around its bar and pill too) with a soft glow.
-         */
-        private fun grabFrame(window: VrWindow, mvp: FloatArray, w: Float, h: Float, z: Float, alpha: Float) {
-            val top = h + barHeight(window) + .04f
-            val bottom = frameBottom(window) - .03f
-            val right = w + .04f
-            GLES20.glEnable(GLES20.GL_BLEND)
-            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-            GLES20.glUseProgram(colorProgram)
-            GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(colorProgram, "uMvp"), 1, false, mvp, 0)
-            val position = GLES20.glGetAttribLocation(colorProgram, "aPosition")
-            val color = GLES20.glGetUniformLocation(colorProgram, "uColor")
-            // Glow first (wide and faint), then the line.
-            for ((thickness, strength) in listOf(.035f to .22f, .012f to .95f)) {
-                val radius = .09f
-                val outline = ArrayList<FloatArray>()
-                // Corners counter-clockwise from the top right, each an arc.
-                val corners = listOf(
-                    floatArrayOf(right - radius, top - radius, 0f), floatArrayOf(-right + radius, top - radius, 90f),
-                    floatArrayOf(-right + radius, bottom + radius, 180f), floatArrayOf(right - radius, bottom + radius, 270f),
-                )
-                for (corner in corners) for (k in 0..8) {
-                    val a = Math.toRadians((corner[2] + k * 90f / 8).toDouble())
-                    outline += floatArrayOf(corner[0], corner[1], kotlin.math.cos(a).toFloat(), kotlin.math.sin(a).toFloat())
-                }
-                val data = ArrayList<Float>(outline.size * 18)
-                for (i in outline.indices) {
-                    val a = outline[i]; val b = outline[(i + 1) % outline.size]
-                    fun o(p: FloatArray, r: Float) = floatArrayOf(p[0] + p[2] * r, p[1] + p[3] * r)
-                    val ao = o(a, radius + thickness / 2); val ai = o(a, radius - thickness / 2)
-                    val bo = o(b, radius + thickness / 2); val bi = o(b, radius - thickness / 2)
-                    data.addAll(listOf(ai[0], ai[1], z, ao[0], ao[1], z, bo[0], bo[1], z, ai[0], ai[1], z, bo[0], bo[1], z, bi[0], bi[1], z))
-                }
-                GLES20.glUniform4f(color, 1f, 1f, 1f, strength * alpha)
-                drawArray(data.toFloatArray(), GLES20.GL_TRIANGLES, position)
-            }
-        }
-
         /** The pill under a window, as on Quest: its title, and keyboard, expand, minimize, close. */
         private fun pill(window: VrWindow, title: String, mvp: FloatArray, h: Float, z: Float, keyboardOn: Boolean, lit: String?, held: Boolean) {
             val pill = WindowChrome.pillWidth(window.width) * (if (held) 1.04f else 1f)
@@ -3110,7 +2613,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             GLES20.glDrawArrays(mode, 0, data.size / 3)
         }
 
-        private var handMenuTexture = 0
 
         /**
          * The hand menu, the user's real hands cut out of the camera picture on top of everything
@@ -3118,7 +2620,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
          */
         private fun hand() {
             Matrix.multiplyMM(mvp, 0, projection, 0, eye, 0)
-            handMenu?.let { menu -> if (!menu.x.isNaN()) drawHandMenu(menu) }
             GLES20.glDisable(GLES20.GL_DEPTH_TEST)
             GLES20.glDepthMask(true)
             Matrix.multiplyMM(mvp, 0, projection, 0, eye, 0)
@@ -3126,13 +2627,13 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(colorProgram, "uMvp"), 1, false, mvp, 0)
             val position = GLES20.glGetAttribLocation(colorProgram, "aPosition")
             drawHandSkeletons(position)
-            // The cursor: the hand's aim point.
+            // The cursor: a ring on the pinch point itself, where the two fingers are.
             mouseCursor(position)
             drawBeam(position)
             val point = pinchPoint ?: return
             val x = (point[0] - .5f) * 2f * viewScaleX
             val y = (.5f - point[1]) * 2f * viewScaleY
-            val r = if (pressing) .010f else .016f
+            val r = if (pressing || pinching) .010f else .016f
             // A ring cursor: dark edge, white centre, readable over any background.
             GLES20.glUniform4f(GLES20.glGetUniformLocation(colorProgram, "uColor"), 0f, 0f, 0f, .45f)
             disc(x, y, r * 1.45f, position)
@@ -3148,7 +2649,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
          */
         private fun drawBeam(position: Int) {
             if (mouseActive()) return
-            otherBeam?.let { drawBeam(it, false, position) }
             beam?.let { drawBeam(it, pressing, position) }
         }
 
@@ -3220,7 +2720,7 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             // The ring: small, white inverted over what is behind it, empty inside.
             val depth = -b[5]
             // A small point for precise aiming, a little smaller still while pressing.
-            val outer = (if (down || touching) .009f else .012f) * depth
+            val outer = (if (down || pressing || pinching) .009f else .012f) * depth
             val inner = outer - .005f * depth
             GLES20.glBlendFunc(GLES20.GL_ONE_MINUS_DST_COLOR, GLES20.GL_ZERO)
             GLES20.glUniform4f(color, 1f, 1f, 1f, 1f)
@@ -3279,7 +2779,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             val hands = handPoints
             if (hands.isEmpty()) return
             val color = GLES20.glGetUniformLocation(colorProgram, "uColor")
-            val pinching = pinch.pinching
             if (hasStencil) {
                 // A pixel passes only while its stencil is 0, and is then marked 1: drawn once.
                 GLES20.glEnable(GLES20.GL_STENCIL_TEST)
@@ -3445,29 +2944,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             return floatArrayOf(bottomU + (topU - bottomU) * t, bottomV + (topV - bottomV) * t)
         }
 
-        private fun drawHandMenu(menu: HandMenu) {
-            if (handMenuTexture == 0) {
-                handMenuTexture = IntArray(1).also { GLES20.glGenTextures(1, it, 0) }[0]
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, handMenuTexture)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-                menu.dirty = true
-            }
-            if (menu.dirty || menuShown !== menu) {
-                menu.draw()
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, handMenuTexture)
-                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, menu.bitmap, 0)
-                menuShown = menu
-            }
-            val w = HandMenu.HALF_W; val h = HandMenu.HALF_H
-            quad(textureProgram, handMenuTexture, mvp, floatArrayOf(
-                menu.x - w, menu.y - h, -1f, 0f, 1f, menu.x + w, menu.y - h, -1f, 1f, 1f,
-                menu.x - w, menu.y + h, -1f, 0f, 0f, menu.x + w, menu.y + h, -1f, 1f, 0f
-            ))
-        }
-
-        private var menuShown: HandMenu? = null
-
         private fun triangles(program: Int, texture: Int, matrix: FloatArray, data: FloatArray, external: Boolean = false) {
             if (data.isEmpty()) return
             GLES20.glUseProgram(program)
@@ -3485,36 +2961,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
             GLES20.glVertexAttribPointer(uv, 2, GLES20.GL_FLOAT, false, 20, buffer)
             GLES20.glEnableVertexAttribArray(uv)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, data.size / 5)
-        }
-
-        /** The buttons on palms turned to the face: a white disc, ∞ on the right hand, ☰ on the left. */
-        private fun drawPalmButtons(position: Int) {
-            val color = GLES20.glGetUniformLocation(colorProgram, "uColor")
-            for (button in palmButtons) {
-                val r = button.radius
-                GLES20.glUniform4f(color, 0f, 0f, 0f, .35f)
-                disc(button.x, button.y - r * .08f, r * 1.12f, position)
-                GLES20.glUniform4f(color, 1f, 1f, 1f, .96f)
-                disc(button.x, button.y, r, position)
-                GLES20.glUniform4f(color, .12f, .12f, .14f, 1f)
-                if (button.left) {
-                    for (k in -1..1) {
-                        val y = button.y + k * r * .32f
-                        drawArray(floatArrayOf(
-                            button.x - r * .45f, y - r * .07f, -1f, button.x + r * .45f, y - r * .07f, -1f, button.x + r * .45f, y + r * .07f, -1f,
-                            button.x - r * .45f, y - r * .07f, -1f, button.x + r * .45f, y + r * .07f, -1f, button.x - r * .45f, y + r * .07f, -1f,
-                        ), GLES20.GL_TRIANGLES, position)
-                    }
-                } else {
-                    // ∞: two rings side by side.
-                    for (side in floatArrayOf(-1f, 1f)) {
-                        GLES20.glUniform4f(color, .12f, .12f, .14f, 1f)
-                        disc(button.x + side * r * .3f, button.y, r * .32f, position)
-                        GLES20.glUniform4f(color, 1f, 1f, 1f, 1f)
-                        disc(button.x + side * r * .3f, button.y, r * .17f, position)
-                    }
-                }
-            }
         }
 
         private fun disc(x: Float, y: Float, r: Float, position: Int) {
@@ -3674,16 +3120,8 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         private const val MENU_TOGGLE_APPS = "menu:toggle-apps"
         private const val ID_DESKTOP = "desktop"
         /** MediaPipe hand bones as pairs of landmark indices. */
-        /** Grab zone of a window: this far inside its left/right edge and this far outside. */
-        private const val SIDE_INSIDE = .06f
-        private const val SIDE_OUTSIDE = .16f
         private const val ID_SETTINGS = "own:settings"
         private const val ID_ANDROID = "own:android"
-        /** Where the hand rays come from, as seen on the view (tangents): the shoulders, low down. */
-        private const val SHOULDER_X = .45f
-        private const val SHOULDER_Y = -1f
-        /** How far past the hand the ray leads, as a share of the shoulder–hand line. */
-        private const val RAY_LEAD = .25f
         /** How much of the way to its target the drawn ray goes before it has faded out. */
         private const val RAY_SHOWN = .55f
         private const val NECK_UP = .075f
@@ -3692,21 +3130,6 @@ class VrHomeActivity : Activity(), LifecycleOwner {
         private const val OFF_BELOW = .05f
         /** Radius of the cursor by the hand, on the hands' plane (about a little finger's width). */
         private const val CURSOR_R = .016f
-        /** Direct touch: NEAR within this of a window's plane (metres), FAR again past [NEAR_EXIT]. */
-        private const val NEAR_DISTANCE = .15f
-        /** Farther than this from the eyes a fingertip never touches a window directly, metres. */
-        private const val ARM_REACH = .7f
-        private const val NEAR_EXIT = .20f
-        /** How far a finger may go through a window and still be touching it. */
-        private const val NEAR_BEHIND = .12f
-        /** How far outside a window's edges NEAR starts, and how far it lasts. */
-        private const val NEAR_MARGIN_IN = .03f
-        private const val NEAR_MARGIN_OUT = .07f
-        /** The finger is down within this of the surface, and up again only past [TOUCH_OUT]. */
-        private const val TOUCH_IN = .012f
-        private const val TOUCH_OUT = .035f
-        /** How much of each new fingertip reading is taken (the rest is the smoothed value). */
-        private const val TOUCH_SMOOTHING = .45f
         /** Radians of pointer turn per mouse count. */
         private const val MOUSE_SPEED = .0022f
         /** After this long without the mouse, the hands point again. */
